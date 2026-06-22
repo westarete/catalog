@@ -21,6 +21,12 @@ builds:
     ldflags:
       # Strip debug info and symbol table to reduce binary size.
       - -s -w
+    hooks:
+      post:
+        # Sign macOS binaries with the Developer ID Application certificate.
+        # --options runtime is required for notarization compatibility.
+        # Skipped on Linux and when the certificate name is not set.
+        - cmd: sh -c 'if [ "{{ .Os }}" = "darwin" ] && [ -n "$MACOS_CERTIFICATE_NAME" ]; then codesign --force --options runtime -s "$MACOS_CERTIFICATE_NAME" "{{ .Path }}"; fi'
 
 archives:
   - formats:
