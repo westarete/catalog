@@ -1,0 +1,36 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  # Go tests and static analysis. No API key needed — tests don't call the model.
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Test
+        run: go test ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  # Markdown formatting and structure. ubuntu-latest ships with Node/npm.
+  markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Markdown tools
+        run: npm install -g prettier markdownlint-cli2
+      - name: Check
+        run: |
+          prettier --check "**/*.md"
+          markdownlint-cli2 "**/*.md"

@@ -1,0 +1,14 @@
+# markdownlint-cli2 reads this from the repo root.
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+# Focus: valid, consistent Markdown structure (not prose style or line length).
+
+default: true
+
+# Long lines and URL breaks — Prettier owns wrapping, not the linter.
+MD013: false
+
+# Allow inline HTML if we need it rarely.
+MD033: false
+
+# Some files may start with a lead-in paragraph before the first heading.
+MD041: false

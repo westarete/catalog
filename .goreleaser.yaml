@@ -1,0 +1,58 @@
+version: 2
+
+project_name: catalog
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: catalog
+    env:
+      # Pure Go — no cgo needed.
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      # Strip debug info and symbol table to reduce binary size.
+      - -s -w
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE*
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+homebrew_casks:
+  - name: catalog
+    binaries:
+      - catalog
+    homepage: https://github.com/westarete/catalog
+    description: Generates and maintains CATALOG.md — a behavior file that tells an AI agent when to pull each document into context.
+    repository:
+      owner: westarete
+      name: homebrew-tap
+      # Fine-grained PAT with write access to both this repo and the tap repo.
+      # Store as HOMEBREW_TAP_TOKEN in this repo's secrets.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+    commit_msg_template: "Update catalog to {{ .Tag }}"

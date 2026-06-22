@@ -1,0 +1,11 @@
+# markdownlint-cli2 tool-specific options.
+# Rule configuration lives in .markdownlint.yaml.
+# https://github.com/DavidAnson/markdownlint-cli2#configuration
+
+# Files preserved verbatim from outside sources (e.g. raw pastes from
+# external docs) are exempted from structural rules. We keep them as
+# faithful records of the original; we do not restructure them in
+# place. If we want a linted version, we create a new file rather than
+# rewriting the source.
+ignores:
+  - "reference/**"

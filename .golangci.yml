@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  # Start with the standard defaults (errcheck, govet, ineffassign, staticcheck, unused)
+  # and add linters that catch real bugs without generating noise.
+  default: standard
+  enable:
+    # Suggest simplifications using modern Go language and library features.
+    - modernize
+    # Catch errors involving incorrect error wrapping (errors.Is/As, %w).
+    - errorlint
+    # Detect context.Context stored in structs or passed through loops incorrectly.
+    - fatcontext
+    # Enforce exhaustive switch statements over enum-like types.
+    - exhaustive

@@ -1,0 +1,11 @@
+# Prettier reads this from the repo root.
+# https://prettier.io/docs/en/options.html
+# We use Prettier only for Markdown.
+
+# Reflow prose to printWidth (rather than preserving hand-wrapping).
+proseWrap: always
+
+# Target line length. 72 matches book/article reading widths and Git
+# commit body conventions, and fits comfortably in a narrow editor
+# pane next to an agent window. Other defensible values: 80, 100.
+printWidth: 72

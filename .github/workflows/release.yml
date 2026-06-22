@@ -1,0 +1,33 @@
+name: Release
+
+# Trigger on version tags. Publish a release with: git tag v1.x.x && git push --tags
+on:
+  push:
+    tags:
+      - "v*"
+
+# contents: write lets GoReleaser create the GitHub Release and upload artifacts.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # GoReleaser needs full history to generate the changelog.
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          # GITHUB_TOKEN covers this repo (release creation, artifact upload).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # HOMEBREW_TAP_TOKEN is a fine-grained PAT with write access to
+          # westarete/homebrew-tap. Set it in this repo's secrets.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
