@@ -158,6 +158,11 @@ library function, or CLI flag. Check that the dependency version in use
 matches what the docs describe. A confident-sounding answer based on
 stale knowledge is worse than admitting uncertainty.
 
+This applies to GitHub Actions versions too. Never suggest upgrading or
+pinning an action to a version without first looking up the current
+release on GitHub. Don't guess and don't pass the buck — check the
+releases page, report what you found, then make the change.
+
 ### Clean code
 
 Follow Robert Martin's definitions of clean code. Functions do one

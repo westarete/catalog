@@ -50,6 +50,7 @@ homebrew_casks:
     repository:
       owner: westarete
       name: homebrew-tap
+      branch: main
       # Fine-grained PAT with write access to both this repo and the tap repo.
       # Store as HOMEBREW_TAP_TOKEN in this repo's secrets.
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
