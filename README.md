@@ -81,7 +81,14 @@ GitHub Releases carries the raw binaries as a secondary surface for CI
 and non-Homebrew environments.
 
 ```sh
-brew install westarete/tap/catalog
+brew tap westarete/tap
+brew trust westarete/tap
+brew install catalog
+```
+
+To upgrade later:
+
+```sh
 brew upgrade catalog
 ```
 
