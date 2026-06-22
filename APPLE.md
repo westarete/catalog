@@ -175,7 +175,70 @@ The approach:
 
 We are implementing signing only in the first pass. Adding full
 notarization (submitting to Apple's service and stapling the ticket)
-requires post-archive hooks, which are more complex. The tradeoff:
-signing eliminates the Gatekeeper dialog for the vast majority of users;
-notarization additionally covers offline Gatekeeper checks and
-enterprise MDM policies.
+requires post-archive hooks, which are more complex.
+
+## Step 8 — Add notarization (follow-up)
+
+**What notarization adds over signing alone:**
+
+- **Offline Gatekeeper** — a signed-but-not-notarized binary requires an
+  internet connection on first run so Gatekeeper can phone home to
+  Apple. Notarization staples a ticket to the binary so Gatekeeper can
+  verify it locally without a network call.
+- **Enterprise MDMs** — some organizations configure Macs to require
+  notarization, not just signing. A signed-only binary gets blocked.
+- **Official homebrew/cask** — required if you ever want to submit to
+  the main Homebrew tap so users can install without adding a
+  third-party tap.
+
+For the current user base (developers, internet-connected, no MDM),
+signing alone is sufficient. Notarization is the last 5%.
+
+**How it works in CI:**
+
+Notarization is not per-binary — it operates on the archive (`.tar.gz`).
+The workflow calls `xcrun notarytool submit --wait`, which blocks until
+Apple responds. Apple typically responds in 2–5 minutes. The release is
+not published until notarization succeeds and the ticket is stapled with
+`xcrun stapler`.
+
+**The implementation challenge:**
+
+GoReleaser builds archives and publishes the GitHub Release in one pass.
+Notarization needs to happen after archiving but before publishing. The
+options are:
+
+- Run GoReleaser with `--skip=publish`, notarize and staple the
+  archives, then re-run GoReleaser with `--skip=build` to publish
+- Use a global GoReleaser `after` hook with a shell script that finds
+  and notarizes each darwin archive
+
+Estimated implementation time: 2–3 hours including debugging.
+
+### Known issue: HTTP 500 from Apple's notarization service
+
+`xcrun notarytool store-credentials` validates credentials against
+Apple's servers before storing them. Apple's notarization service
+periodically returns HTTP 500 errors during this step even when
+credentials are correct. This is a server-side issue on Apple's end, not
+a configuration problem.
+
+```text
+Error: HTTP status code: 500. Internal Server Error
+Request ID: ...
+Please try again at a later time.
+```
+
+If this happens: wait and retry. The service typically recovers on its
+own. Do not switch to the deprecated `altool` as a workaround — it was
+deprecated for a reason and only works intermittently.
+
+Apple's own recommendation for a persistent 500 is to switch to API
+key-based authentication instead of Apple ID + app-specific password.
+That requires an App Store Connect API key — see the discussion in Step
+5 about the ToS tradeoffs before going that route.
+
+References:
+
+- [notarytool returns HTTP 500 — even on store-credentials — Apple Developer Forums](https://developer.apple.com/forums/thread/816270)
+- [Notary server down - 500 internal — Apple Developer Forums](https://developer.apple.com/forums/thread/706539)
