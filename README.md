@@ -94,6 +94,11 @@ brew upgrade catalog
 
 ### Making a release
 
+Only tag a release when something changes for the user — new features,
+bug fixes, behavior changes, or documentation that affects how they use
+the tool. Workflow changes, CI fixes, and internal docs do not warrant a
+release.
+
 This project uses [semantic versioning](https://semver.org). Patch
 releases fix bugs without changing behavior. Minor releases add
 functionality. Major releases make breaking changes.
