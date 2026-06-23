@@ -37,6 +37,9 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_CI_KEYCHAIN_PWD" build.keychain
           rm certificate.p12
 
+      - name: Verify signing identity
+        run: security find-identity -v -p codesigning
+
       - name: Store notarytool credentials
         env:
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
