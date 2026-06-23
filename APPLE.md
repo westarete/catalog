@@ -115,47 +115,56 @@ Store the `.p12` file and its password in the West Arete 1Password vault
 so other team members can access them. You will also need them when
 storing secrets in GitHub.
 
-## Step 5 — Create an app-specific password for notarytool
+## Step 5 — Get an App Store Connect API key for notarytool
 
-Apple's notarization service also requires authentication. The
-recommended approach in Apple's own docs is an App Store Connect API
-key, but the ToS for that access restricts use to internal team
-workflows and does not clearly cover publishing open source software
-publicly.
+Apple's notarization service requires authentication. There are two
+options: App Store Connect API key, or Apple ID + app-specific password.
 
-Instead, we use Apple ID + app-specific password with `notarytool`
-directly. Apple explicitly designed this authentication path for CI use.
-See
-[Using notarytool with app-specific passwords](https://developer.apple.com/forums/thread/742476)
-on Apple's developer forums.
+We initially chose app-specific password to avoid the App Store Connect
+API ToS, which restricts use to internal team workflows and does not
+clearly cover publishing open source software publicly. However, after
+persistent HTTP 500 errors across multiple days, we switched to API key
+authentication. Quinn "The Eskimo!", a well-known Apple DTS engineer,
+[explicitly recommends API key auth over app-specific passwords for notarytool](https://developer.apple.com/forums/thread/816270)
+when the latter produces 500 errors. The ToS restriction is aimed at
+reselling the API to third parties — notarizing your own software in
+your own CI pipeline is not that use case.
 
-1. Go to [appleid.apple.com](https://appleid.apple.com) → **Sign-In and
-   Security → App-Specific Passwords**
-2. Click **+** and give it a name (e.g. `catalog CI`)
-3. Copy the generated password immediately — it is shown only once
+**Getting the API key:**
 
-Store the app-specific password in the West Arete 1Password vault.
+The App Store Connect API requires an opt-in step. Go to
+[App Store Connect → Users and Access → Integrations](https://appstoreconnect.apple.com/access/integrations/api)
+and click **Request Access**. The Account Holder must do this. Once
+approved:
 
-You will also need:
+1. Click **+** to generate a new key
+2. Give it a name (e.g. `westarete/catalog notarization`) and assign the
+   **Developer** role — sufficient for notarization
+3. Download the `.p8` file immediately — it is shown only once
+4. Note the **Key ID** (10-character alphanumeric string)
+5. Note the **Issuer ID** shown at the top of the page (UUID format)
 
-- **Apple ID**: your Apple Developer account email
-- **Team ID**: `HH6PJ9ECM` (visible on the
-  [membership page](https://developer.apple.com/account/))
+Store the `.p8` file, Key ID, and Issuer ID in the West Arete 1Password
+vault.
 
 ## Step 6 — Store secrets in GitHub
 
 Go to the `westarete/catalog` repository → **Settings → Secrets and
 variables → Actions** and add these as **repository secrets**:
 
-| Secret                        | Value                                                              |
-| ----------------------------- | ------------------------------------------------------------------ |
-| `MACOS_CERTIFICATE`           | base64-encoded `.p12` file: `base64 -i cert.p12 \| pbcopy`         |
-| `MACOS_CERTIFICATE_NAME`      | `Developer ID Application: West Arete Computing, Inc. (HH6PJ9ECM)` |
-| `MACOS_CERTIFICATE_PWD`       | the `.p12` export password                                         |
-| `MACOS_NOTARIZATION_APPLE_ID` | your Apple Developer account email                                 |
-| `MACOS_NOTARIZATION_PWD`      | the app-specific password from Step 5                              |
-| `MACOS_NOTARIZATION_TEAM_ID`  | `HH6PJ9ECM`                                                        |
-| `MACOS_CI_KEYCHAIN_PWD`       | any strong random password (used only by CI)                       |
+| Secret                   | Value                                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MACOS_CERTIFICATE`      | base64-encoded `.p12` file: `base64 -i cert.p12 \| pbcopy`                                                                                                    |
+| `MACOS_CERTIFICATE_NAME` | `Developer ID Application: West Arete Computing, Inc. (HH6PJ9ECM)`                                                                                            |
+| `MACOS_CERTIFICATE_PWD`  | the `.p12` export password                                                                                                                                    |
+| `MACOS_NOTARY_KEY`       | base64-encoded `.p8` file: `base64 -i key.p8 \| pbcopy`                                                                                                       |
+| `MACOS_NOTARY_KEY_ID`    | the 10-character Key ID from App Store Connect                                                                                                                |
+| `MACOS_NOTARY_ISSUER_ID` | the Issuer ID UUID from App Store Connect                                                                                                                     |
+| `MACOS_CI_KEYCHAIN_PWD`  | any strong random password (used only by CI)                                                                                                                  |
+| `HOMEBREW_TAP_TOKEN`     | fine-grained PAT with Contents read/write on `westarete/homebrew-tap` and `westarete/catalog`; used by GoReleaser to push the updated cask after each release |
+
+Note: the three `MACOS_NOTARIZATION_*` secrets set up for app-specific
+password auth can be removed — they are no longer used.
 
 ## Step 7 — Update the release workflow and GoReleaser config
 
@@ -233,10 +242,11 @@ If this happens: wait and retry. The service typically recovers on its
 own. Do not switch to the deprecated `altool` as a workaround — it was
 deprecated for a reason and only works intermittently.
 
-Apple's own recommendation for a persistent 500 is to switch to API
-key-based authentication instead of Apple ID + app-specific password.
-That requires an App Store Connect API key — see the discussion in Step
-5 about the ToS tradeoffs before going that route.
+This is why we switched from app-specific password to API key
+authentication in Step 5. Quinn "The Eskimo!" from Apple DTS explicitly
+recommends API keys over app-specific passwords when the latter produces
+persistent 500s. We hit this after a day of retries with correct
+credentials.
 
 References:
 

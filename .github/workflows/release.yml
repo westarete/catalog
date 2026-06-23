@@ -39,14 +39,16 @@ jobs:
 
       - name: Store notarytool credentials
         env:
-          MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
-          MACOS_NOTARIZATION_PWD: ${{ secrets.MACOS_NOTARIZATION_PWD }}
-          MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
         run: |
+          echo "$MACOS_NOTARY_KEY" | base64 --decode > notary-key.p8
           xcrun notarytool store-credentials "notarytool-profile" \
-            --apple-id "$MACOS_NOTARIZATION_APPLE_ID" \
-            --team-id "$MACOS_NOTARIZATION_TEAM_ID" \
-            --password "$MACOS_NOTARIZATION_PWD"
+            --key notary-key.p8 \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID"
+          rm notary-key.p8
 
       - uses: goreleaser/goreleaser-action@v7
         with:
