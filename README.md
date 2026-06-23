@@ -139,24 +139,33 @@ for every user who wants to use the tool. Go sidesteps all of that: a
 single static binary with no runtime dependencies, distributed via
 Homebrew with no version management required on the user's end.
 
-## Testing a local build
+## Development workflow
 
-Day-to-day, use the Homebrew installation. When developing the binary
-itself, build into `~/.local/bin` to shadow the Homebrew version
-temporarily:
+The typical cycle when working on the binary:
 
-```sh
-go build -o ~/.local/bin/catalog
-```
+1. **Build locally** into `~/.local/bin` to shadow the Homebrew version:
 
-Verify you're running the local build:
+   ```sh
+   go build -o ~/.local/bin/catalog
+   ```
 
-```sh
-which catalog   # should show ~/.local/bin/catalog
-```
+2. **Verify** you're running the local build:
 
-When you're done testing, remove it to fall back to Homebrew:
+   ```sh
+   which catalog   # should show ~/.local/bin/catalog
+   ```
 
-```sh
-rm ~/.local/bin/catalog
-```
+3. **Test in real repos** — run `catalog update`, `catalog check`, etc.
+   against actual content repositories to confirm the change works as
+   expected in practice, not just in unit tests.
+
+4. **Release** — when satisfied, commit, tag, and push. GoReleaser
+   publishes the signed binary to Homebrew.
+
+5. **Remove the local build** to fall back to the released Homebrew
+   version:
+
+   ```sh
+   rm ~/.local/bin/catalog
+   brew upgrade catalog
+   ```
