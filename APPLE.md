@@ -150,7 +150,13 @@ vault.
 ## Step 6 — Store secrets in GitHub
 
 Go to the `westarete/catalog` repository → **Settings → Secrets and
-variables → Actions** and add these as **repository secrets**:
+variables → Actions** and add these as **repository secrets**.
+
+Be careful with trailing newlines — GitHub's secret input field can
+silently include one, causing values like `MACOS_CERTIFICATE_NAME` to
+not match the identity string exactly. If `codesign` reports "no
+identity found" despite a successful certificate import, the secret
+value is the first thing to check.
 
 | Secret                   | Value                                                                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

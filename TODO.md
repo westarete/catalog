@@ -21,7 +21,7 @@ implementing signing first.
       binary using `{{ .Path }}`
 - [x] Add workflow steps to import the certificate into a temporary CI
       keychain and store `notarytool` credentials before GoReleaser runs
-- [ ] Tag a test release and verify the binary passes Gatekeeper without
+- [x] Tag a test release and verify the binary passes Gatekeeper without
       a warning
 
 ### Notarization (follow-up)

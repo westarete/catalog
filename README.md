@@ -120,20 +120,10 @@ update the cask.
 
 ## macOS Gatekeeper and code signing
 
-The released binaries are not yet code-signed or notarized. macOS
-Gatekeeper will block them with a dialog saying "catalog" cannot be
-opened because Apple cannot verify it. The binary also exits with code
-137 when run from the terminal, which looks like a crash but is
-Gatekeeper killing the process.
-
-If you are a West Arete developer, do not bypass Gatekeeper with
-`xattr -d com.apple.quarantine`. That masks the problem locally and
-gives a false signal that the release works, when it will still fail for
-every other user. Use a local build (see
-[Testing a local build](#testing-a-local-build)) until signing is in
-place.
-
-Signing and notarization are tracked in [TODO.md](TODO.md).
+Released binaries are code-signed with a Developer ID Application
+certificate, so Gatekeeper will not block them on installation. Full
+notarization (for offline Gatekeeper checks and enterprise MDM policies)
+is tracked in [TODO.md](TODO.md).
 
 ## Why Go
 
