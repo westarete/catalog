@@ -92,6 +92,32 @@ To upgrade later:
 brew upgrade catalog
 ```
 
+### Making a release
+
+This project uses [semantic versioning](https://semver.org). Patch
+releases fix bugs without changing behavior. Minor releases add
+functionality. Major releases make breaking changes.
+
+Before picking a version number, fetch tags from upstream so you have
+the full picture:
+
+```sh
+git fetch --tags
+git tag --sort=-v:refname
+```
+
+Increment the appropriate part of the latest tag, create an annotated
+tag, and push it:
+
+```sh
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+Pushing the tag triggers the GoReleaser workflow, which builds binaries,
+creates the GitHub release, and opens a PR against the tap repo to
+update the cask.
+
 ## macOS Gatekeeper and code signing
 
 The released binaries are not yet code-signed or notarized. macOS
