@@ -181,6 +181,10 @@ The approach:
 - See
   [GoReleaser build hooks](https://goreleaser.com/customization/builds/hooks/)
   for reference
+- See
+  [How to automatically sign macOS apps using GitHub Actions — Localazy](https://localazy.com/blog/how-to-automatically-sign-macos-apps-using-github-actions)
+  for the keychain setup sequence and the critical `codesign:` partition
+  in `set-key-partition-list`
 
 We are implementing signing only in the first pass. Adding full
 notarization (submitting to Apple's service and stapling the ticket)
