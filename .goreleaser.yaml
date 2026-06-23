@@ -52,7 +52,8 @@ homebrew_casks:
     binaries:
       - catalog
     homepage: https://github.com/westarete/catalog
-    description: Generates and maintains CATALOG.md — a behavior file that tells an AI agent when to pull each document into context.
+    # brew style requires: under 80 chars, no trailing period.
+    description: Generates and maintains CATALOG.md for AI agent context loading
     repository:
       owner: westarete
       name: homebrew-tap
