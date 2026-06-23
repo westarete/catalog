@@ -11,17 +11,20 @@ These are two separate things that are easy to conflate.
 
 **Code signing** attaches a cryptographic signature to the binary using
 your Developer ID Application certificate. macOS uses it to verify the
-binary came from a known developer and hasn't been tampered with. A
-signed binary clears the "Apple cannot verify this app" Gatekeeper
-dialog for most users.
+binary came from a known developer and hasn't been tampered with.
 
 **Notarization** is an additional step where Apple scans your binary for
 malware and issues a ticket. Stapling that ticket to the binary means
 Gatekeeper can verify it even without an internet connection, and
 satisfies stricter enterprise security policies.
 
-For most users installing via Homebrew, signing alone is sufficient.
-Full notarization is needed for:
+On macOS 15+, **signing alone is not sufficient** to clear the
+Gatekeeper dialog. The dialog that reads "Apple could not verify catalog
+is free of malware" is the notarization check — it fires even on a
+properly signed binary. Notarization is required to run without any
+Gatekeeper prompt.
+
+Full notarization is also needed for:
 
 - Enterprise Macs with strict MDM policies
 - Offline environments where Gatekeeper can't phone home

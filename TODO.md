@@ -21,19 +21,20 @@ implementing signing first.
       binary using `{{ .Path }}`
 - [x] Add workflow steps to import the certificate into a temporary CI
       keychain and store `notarytool` credentials before GoReleaser runs
-- [x] Tag a test release and verify the binary passes Gatekeeper without
-      a warning
+- [x] Tag a test release and verify the binary is signed
 
 ### Notarization (follow-up)
 
-Signing alone clears the Gatekeeper dialog for most users. Full
-notarization additionally covers offline Gatekeeper checks and
-enterprise MDM policies, and is required for submission to the official
-homebrew/cask tap.
+On macOS 15+, signing alone is not sufficient — Gatekeeper shows a
+"Apple could not verify catalog is free of malware" dialog even on a
+properly signed binary. Notarization is required to clear it, and also
+covers offline Gatekeeper checks, enterprise MDM policies, and official
+homebrew/cask submission.
 
 - [ ] Add a post-release workflow step to submit each macOS archive to
       Apple's notarization service via `notarytool submit --wait`
 - [ ] Staple the notarization ticket to each binary with `xcrun stapler`
 - [ ] Repackage the archives with the stapled binaries and update the
       GitHub Release
-- [ ] Tag a test release and verify notarization passes
+- [ ] Tag a test release and verify the binary passes Gatekeeper without
+      a warning
