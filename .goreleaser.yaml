@@ -20,7 +20,8 @@ builds:
       - arm64
     ldflags:
       # Strip debug info and symbol table to reduce binary size.
-      - -s -w
+      # Inject the release tag as the version string.
+      - -s -w -X main.version={{.Version}}
     hooks:
       post:
         # Sign macOS binaries with the Developer ID Application certificate.

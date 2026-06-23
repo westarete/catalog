@@ -25,6 +25,10 @@ import (
 	"os"
 )
 
+// version is set at build time by GoReleaser via -X main.version=<tag>.
+// It falls back to "dev" when built locally with `go build`.
+var version = "dev"
+
 func main() {
 	args := os.Args[1:]
 
@@ -59,6 +63,9 @@ func main() {
 	case "-h", "--help", "help":
 		usage()
 		return
+	case "-v", "--version", "version":
+		fmt.Println("catalog", version)
+		return
 	default:
 		fmt.Fprintf(os.Stderr, "catalog: unknown command %q\n\n", cmd)
 		usage()
@@ -78,6 +85,8 @@ usage:
   catalog update               re-infer profiles for docs Git reports changed (needs ANTHROPIC_API_KEY)
   catalog force [file ...]     re-infer named docs even if current; no names = all (needs ANTHROPIC_API_KEY)
   catalog check                staleness gate, pure Git query (no API key)
+  catalog version              print version and exit
+  catalog help                 show this message
 
 update is the routine job. force redoes specific entries you're unhappy with,
 or rebuilds all of them in one pass after a prompt change. bootstrap is the
