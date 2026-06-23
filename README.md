@@ -107,10 +107,10 @@ git tag --sort=-v:refname
 ```
 
 Increment the appropriate part of the latest tag, create an annotated
-tag, and push it:
+tag with a one-line summary of what changed, and push it:
 
 ```sh
-git tag -a vX.Y.Z -m "vX.Y.Z"
+git tag -a vX.Y.Z -m "Short summary of what changed"
 git push origin vX.Y.Z
 ```
 

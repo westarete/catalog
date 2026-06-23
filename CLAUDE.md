@@ -126,6 +126,8 @@ the exact message you proposed in chat.** "Commit when you're done" is
 not pre-approval of a message. Commit messages follow Tim Pope's
 [A note about Git commit messages](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
 
+Follow the release process in [README.md](README.md).
+
 For the git-commit skill, the project's CHECK command is `make markdown`
 and there is no separate FORMAT command — `make markdown` both formats
 and checks. Run it in Phase 2 before proposing a commit message, every
