@@ -158,16 +158,14 @@ feature or fixing a bug, tests come with it, not after.
 
 ### API references and dependencies
 
-Never write code against an API or library from memory. Look up the
-current documentation before using any external package, standard
-library function, or CLI flag. Check that the dependency version in use
-matches what the docs describe. A confident-sounding answer based on
-stale knowledge is worse than admitting uncertainty.
+Never write code or configuration against an external dependency from
+memory. For any package, library, CLI tool, configuration file format,
+or service — look up the current documentation before use. Check that
+the version in use matches what the docs describe. A confident-sounding
+answer based on stale knowledge is worse than admitting uncertainty.
 
-This applies to GitHub Actions versions too. Never suggest upgrading or
-pinning an action to a version without first looking up the current
-release on GitHub. Don't guess and don't pass the buck — check the
-releases page, report what you found, then make the change.
+Don't guess and don't pass the buck — check, report what you found, then
+make the change.
 
 ### Clean code
 
