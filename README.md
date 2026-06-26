@@ -38,16 +38,16 @@ Run from the repo root. Three commands write profiles and need
 `ANTHROPIC_API_KEY`. `check` reads only Git and needs no key — it's the
 one you run in CI.
 
-- `catalog update` — re-infer profiles for the documents Git reports
-  changed, rewrite those entries in place, leave the rest of
-  `CATALOG.md` alone. Also drops entries for deleted files. Run this
-  after editing or removing a document, the same way you'd run a
-  formatter.
 - `catalog bootstrap` — generate `CATALOG.md` from scratch: infer
   profiles for every enumerated document in two passes (the second pass
   sharpens each profile using the full catalog as context), then write
   the file. Use this when setting up a new repo or after major
   reorganization.
+- `catalog update` — re-infer profiles for the documents Git reports
+  changed, rewrite those entries in place, leave the rest of
+  `CATALOG.md` alone. Also drops entries for deleted files. Run this
+  after editing or removing a document, the same way you'd run a
+  formatter.
 - `catalog force [file ...]` — re-infer the named documents (or all
   documents) even when Git thinks they're current. Use it to redo a few
   entries you're unhappy with, or to rebuild everything after a prompt
@@ -56,6 +56,20 @@ one you run in CI.
   enumerated document has an entry, every entry points to a file that
   still exists, and no entry is stale relative to Git. Exits non-zero if
   anything is wrong. No model call needed.
+
+### Why bootstrap needs two passes
+
+A profile's job is to distinguish a document from the things it might be
+confused with — usually its neighbors. On the first pass, those
+neighbors have no profiles yet, so every entry is written without that
+context. `bootstrap` runs a second pass once all entries exist,
+re-inferring each profile with the full catalog in view. That second
+pass is what "bootstrap" refers to: the catalog uses its own first-pass
+output to improve itself.
+
+`update` and `force` skip the second pass because the entries they leave
+untouched already hold real profiles, which serve as neighbor context
+for the entries being rewritten.
 
 ## Repository layout
 
