@@ -130,6 +130,7 @@ tag with a one-line summary of what changed, and push it:
 
 ```sh
 git tag -a vX.Y.Z -m "Short summary of what changed"
+git push origin main
 git push origin vX.Y.Z
 ```
 
