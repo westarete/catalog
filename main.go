@@ -1,4 +1,4 @@
-// Command catalog generates and checks CATALOG.md — a behavior file for
+// Command catalog generates and checks .catalog.md — a behavior file for
 // agents. Each entry is a profile: the conditions under which an agent should
 // pull a document into context, the same way a skill's description tells the
 // harness when to load the skill body.
@@ -6,7 +6,7 @@
 // Four subcommands, split by whether they need an API key:
 //
 //	bootstrap  Rebuild every entry from scratch in two passes. For creating
-//	           CATALOG.md or rebuilding it wholesale. Needs ANTHROPIC_API_KEY.
+//	           .catalog.md or rebuilding it wholesale. Needs ANTHROPIC_API_KEY.
 //	update     Re-infer profiles for the documents Git reports changed and
 //	           rewrite those in place. The routine job. Needs ANTHROPIC_API_KEY.
 //	force      Re-infer named documents even when Git thinks they're current
@@ -78,7 +78,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `catalog — generate and check CATALOG.md (agent profiles)
+	fmt.Fprint(os.Stderr, `catalog — generate and check .catalog.md (agent profiles)
 
 usage:
   catalog bootstrap            rebuild every entry from scratch, two passes (needs ANTHROPIC_API_KEY)

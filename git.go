@@ -9,7 +9,7 @@ import (
 
 // staleness is computed entirely from Git — no stored hashes. Git is already a
 // content-addressed store that knows what changed between any two states; the
-// reference point is the commit that last touched CATALOG.md, and a document
+// reference point is the commit that last touched .catalog.md, and a document
 // is stale if it changed after that commit or has uncommitted working-tree
 // edits. See the "Staleness is a Git query" section of SKILL.md for the full
 // rationale.
@@ -37,7 +37,7 @@ func execGit(args ...string) (string, error) {
 }
 
 // lastTouchedCommit returns the SHA of the most recent commit that modified
-// path, or "" if git has no commit touching it (e.g. CATALOG.md has never been
+// path, or "" if git has no commit touching it (e.g. .catalog.md has never been
 // committed — first generation).
 func lastTouchedCommit(run gitRunner, path string) (string, error) {
 	return run("log", "-1", "--format=%H", "--", path)

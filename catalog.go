@@ -11,7 +11,7 @@ import (
 // "leadership/about.md" is correct in hq and resolves to "hq/leadership/..."
 // from a repo that consumes hq as a subtree), and it is a maintained file whose
 // visibility is the reminder to keep it current.
-const catalogPath = "CATALOG.md"
+const catalogPath = ".catalog.md"
 
 // An entry is one document's profile: the bare path that heads it, and the
 // profile prose an agent reasons over to decide whether to load the document.
@@ -28,7 +28,7 @@ type catalog struct {
 	entries map[string]*entry
 }
 
-// readCatalog parses CATALOG.md. A missing file yields an empty catalog with
+// readCatalog parses .catalog.md. A missing file yields an empty catalog with
 // the default header — the first-generation case.
 func readCatalog() (*catalog, error) {
 	data, err := os.ReadFile(catalogPath)
@@ -88,7 +88,7 @@ func parseCatalog(text string) *catalog {
 	return c
 }
 
-// render produces the full CATALOG.md: the header, then entries grouped under
+// render produces the full .catalog.md: the header, then entries grouped under
 // "## <dir>/" section headers and emitted as "### <path>" stanzas. Profiles are
 // written as single-line paragraphs and left for bin/format (Prettier) to wrap,
 // the same discipline as every other Markdown file in the repo.

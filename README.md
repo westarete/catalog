@@ -20,7 +20,7 @@ developer installation and first-run instructions.
 
 ## How it works
 
-Each entry in `CATALOG.md` is a **profile**: a description of the
+Each entry in `.catalog.md` is a **profile**: a description of the
 conditions under which a document is relevant — the same idea as a
 skill's description field, which tells the harness when to load the
 skill body. A profile says "open this file when the task involves X,"
@@ -38,21 +38,21 @@ Run from the repo root. Three commands write profiles and need
 `ANTHROPIC_API_KEY`. `check` reads only Git and needs no key — it's the
 one you run in CI.
 
-- `catalog bootstrap` — generate `CATALOG.md` from scratch: infer
+- `catalog bootstrap` — generate `.catalog.md` from scratch: infer
   profiles for every enumerated document in two passes (the second pass
   sharpens each profile using the full catalog as context), then write
   the file. Use this when setting up a new repo or after major
   reorganization.
 - `catalog update` — re-infer profiles for the documents Git reports
   changed, rewrite those entries in place, leave the rest of
-  `CATALOG.md` alone. Also drops entries for deleted files. Run this
+  `.catalog.md` alone. Also drops entries for deleted files. Run this
   after editing or removing a document, the same way you'd run a
   formatter.
 - `catalog force [file ...]` — re-infer the named documents (or all
   documents) even when Git thinks they're current. Use it to redo a few
   entries you're unhappy with, or to rebuild everything after a prompt
   change.
-- `catalog check` — verify that `CATALOG.md` is up to date: every
+- `catalog check` — verify that `.catalog.md` is up to date: every
   enumerated document has an entry, every entry points to a file that
   still exists, and no entry is stale relative to Git. Exits non-zero if
   anything is wrong. No model call needed.
@@ -84,7 +84,7 @@ catalog/
 The skill walks through the decision and setup. Install it from the `hq`
 repo alongside the other West Arete skills. The short version: create
 `.catalog/config.toml`, run `catalog bootstrap` to generate the first
-`CATALOG.md`, wire `@CATALOG.md` into `CLAUDE.md`, and register the
+`.catalog.md`, wire `@.catalog.md` into `CLAUDE.md`, and register the
 pre-commit hook.
 
 ## Releases
@@ -153,6 +153,8 @@ single static binary with no runtime dependencies, distributed via
 Homebrew with no version management required on the user's end.
 
 ## Development workflow
+
+Near-term work in progress is tracked in [TODO.md](TODO.md).
 
 The typical cycle when working on the binary:
 

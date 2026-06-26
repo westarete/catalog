@@ -12,7 +12,7 @@ import (
 
 // configPath is the write-once input: globs for what to enumerate and ignore,
 // and the model to infer profiles with. It lives in the hidden plumbing
-// directory because, unlike CATALOG.md, it is set once and forgotten.
+// directory because, unlike .catalog.md, it is set once and forgotten.
 const configPath = ".catalog/config.toml"
 
 // defaultModel infers profiles. Sonnet matched Opus on this repo's documents at

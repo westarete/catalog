@@ -46,7 +46,7 @@ Speak plainly; this file is published and follows the same voice as the rest of 
 // neighbor profiles to read, so it writes provisional entries; pass two re-infers
 // each with every neighbor's real profile in view. This is the only command that
 // needs two passes — and the only reason it does is that pass one started from an
-// empty slate. Use it when creating CATALOG.md or rebuilding it wholesale.
+// empty slate. Use it when creating .catalog.md or rebuilding it wholesale.
 func cmdBootstrap(args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("bootstrap: takes no arguments")
@@ -60,7 +60,7 @@ func cmdBootstrap(args []string) error {
 }
 
 // cmdUpdate re-infers profiles only for the documents Git reports changed (or
-// missing an entry) and rewrites those in place, leaving the rest of CATALOG.md
+// missing an entry) and rewrites those in place, leaving the rest of .catalog.md
 // untouched. One pass: the changed documents read their untouched neighbors'
 // real profiles. This is the routine job, like bin/format — run it after editing
 // a document.

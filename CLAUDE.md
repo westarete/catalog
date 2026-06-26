@@ -26,6 +26,10 @@ the next conversation. Prefer small, verifiable steps; call out
 trade-offs when a choice matters; avoid expanding scope beyond what they
 asked.
 
+Near-term work in progress is tracked in [TODO.md](TODO.md). Do not
+check off items — that's the developer's job after verifying the work.
+Bundle the checkbox update in the same commit that completes the work.
+
 When pointing at web pages or repo files, use **clickable Markdown
 links** (e.g. `[README](README.md)`), not bare URLs in backticks or
 bold, so nothing requires copy-paste.

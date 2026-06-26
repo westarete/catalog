@@ -6,8 +6,8 @@ to argue with, not a spec to implement.
 
 ## The limits of a flat catalog
 
-Today there is one `CATALOG.md` per repo, loaded in full at the start of
-every session. That works well now (about 20 entries, roughly 2,400
+Today there is one `.catalog.md` per repo, loaded in full at the start
+of every session. That works well now (about 20 entries, roughly 2,400
 tokens — a 19:1 saving over loading the documents themselves). It stops
 working at scale for two reasons:
 
@@ -145,6 +145,28 @@ disposable.
 | Edge graph       | weighted doc-to-doc links | generated, human-curated | truth (normalized) |
 | Context catalogs | what agents read          | generated                | projection (cache) |
 
+Those context catalogs are root-level dotfiles (`.catalog.md`), not
+files inside the existing `.catalog/` directory. Three reasons, and they
+all point the same way:
+
+- **It recurs down the tree.** The sub-catalogs of steps 5 and 6 below
+  live in the subtrees they index (`outreach/.catalog.md`,
+  `leadership/.catalog.md`), read in place next to the content. A
+  dotfile that can appear at any directory level fits that; a single
+  file under a root-level `.catalog/` cannot extend downward.
+- **Opposite lifecycles.** `.catalog/config.toml` is human-authored and
+  set once; the catalog is generated and rewritten constantly. Keeping
+  them in separate places preserves that line rather than mixing an
+  authored file with a derived one.
+- **`.catalog/` is the tool's central workspace.** It holds config and,
+  later, the SQLite profile store — tool-internal artifacts inspected
+  with dedicated commands, never read raw by an agent. The catalog is
+  the opposite: the agent-facing output, read in place.
+
+The prefix reads as a set: `.catalog/` is what the tool works from,
+`.catalog.md` is what it emits — parallel to how `.git/` and
+`.gitignore` share a prefix without one living inside the other.
+
 ## Where the edges come from
 
 Edges are generated, the same way profiles already are — and they have
@@ -281,7 +303,7 @@ useful on its own and sets up the next. The first four improve the
 single catalog; the last two build out the multi-catalog architecture.
 
 **1. The profile store.** Migrate the existing catalog entries into the
-SQLite store and regenerate `CATALOG.md` from it. That's nearly free
+SQLite store and regenerate `.catalog.md` from it. That's nearly free
 work — and it's the unlock for everything after it. Sibling context, the
 per-department indexes, and the graph all need per-document records;
 with the store in place, each of those is an addition rather than a
