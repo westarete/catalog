@@ -45,9 +45,9 @@ directly from environment variables.
 - [x] Remove the keychain import and `notarytool store-credentials`
       steps from the release workflow; pass signing and notarization
       secrets as env vars instead
-- [ ] In the GitHub repo secrets (Settings → Secrets and variables →
+- [x] In the GitHub repo secrets (Settings → Secrets and variables →
       Actions): rename `MACOS_CERTIFICATE_PWD` →
       `MACOS_CERTIFICATE_PASSWORD`. Delete `MACOS_CERTIFICATE_NAME` and
       `MACOS_CI_KEYCHAIN_PWD` — they are no longer used.
-- [ ] Tag a test release and verify the binary passes Gatekeeper without
+- [x] Tag a test release and verify the binary passes Gatekeeper without
       a warning

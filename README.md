@@ -125,15 +125,9 @@ update the cask.
 
 ## macOS Gatekeeper and code signing
 
-Released binaries are code-signed but not yet notarized. On macOS 15+,
-Gatekeeper shows a "Apple could not verify catalog is free of malware"
-dialog and blocks the binary — notarization is required to clear it.
-This is tracked in [TODO.md](TODO.md).
-
-If you are a West Arete developer, do not bypass Gatekeeper with
-`xattr -d com.apple.quarantine`. Use a local build (see
-[Development workflow](#development-workflow)) until notarization is in
-place.
+Released binaries are code-signed and notarized. They pass Gatekeeper on
+macOS 15+ without any security prompt. See [APPLE.md](APPLE.md) for how
+the signing and notarization pipeline works.
 
 ## Why Go
 
