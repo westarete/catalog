@@ -1,53 +1,41 @@
 # Short-term development plan for Catalog
 
-## Code signing and notarization
+## 1. Rename `CATALOG.md` to `.catalog.md`
 
-The binary currently triggers a Gatekeeper warning on macOS because it
-is not signed or notarized. See [APPLE.md](APPLE.md) for background on
-the difference between signing and notarization, and why we are
-implementing signing first.
+The dotfile convention signals "tooling artifact" rather than "document
+you open." As the catalog grows into a multi-level structure, the
+convention becomes more valuable. Migration cost is low.
 
-### Signing
+- [ ] Update the hardcoded filename in `catalog.go`
+- [ ] Update all references in the Go source, README.md, and FUTURE.md
+- [ ] Update the catalog skill in `hq` (SKILL.md, SETUP.md,
+      config.example.toml, pre-commit)
 
-- [x] Renew Apple Developer Program membership
-- [x] Generate a Developer ID Application certificate and export as
-      `.p12` (see [APPLE.md](APPLE.md) Steps 1–4)
-- [x] Create an app-specific password for `notarytool` at
-      [appleid.apple.com](https://appleid.apple.com) (see
-      [APPLE.md](APPLE.md) Step 5)
-- [x] Store the 7 required secrets in the `westarete/catalog` GitHub
-      repository (see [APPLE.md](APPLE.md) Step 6)
-- [x] Switch the release workflow runner from `ubuntu-latest` to
-      `macos-latest`
-- [x] Add a GoReleaser build post-hook to call `codesign` on each macOS
-      binary using `{{ .Path }}`
-- [x] Add workflow steps to import the certificate into a temporary CI
-      keychain and store `notarytool` credentials before GoReleaser runs
-- [x] Tag a test release and verify the binary is signed
+## 2. Prompt tweak for sibling weighting
 
-### Notarization
+The catalog is already hierarchically structured by directory, so the
+model can weight same-directory entries without any code changes — just
+a prompt hint.
 
-On macOS 15+, signing alone is not sufficient — Gatekeeper shows a
-"Apple could not verify catalog is free of malware" dialog even on a
-properly signed binary. Notarization is required to clear it, and also
-covers offline Gatekeeper checks, enterprise MDM policies, and official
-homebrew/cask submission.
+- [ ] Update the inference prompt to draw the model's attention to
+      entries in the same directory as the file being profiled
 
-The approach follows [junegunn/fzf](https://github.com/junegunn/fzf):
-use GoReleaser's native `notarize.macos` block (open-source, no Pro
-license needed), which signs and notarizes each binary before archiving
-via [anchore/quill](https://github.com/anchore/quill). The workflow no
-longer needs manual keychain setup steps — Quill reads credentials
-directly from environment variables.
+## 3. Size warning in `catalog check`
 
-- [x] Replace the `codesign` build post-hook with a `notarize.macos`
-      block in `.goreleaser.yaml`
-- [x] Remove the keychain import and `notarytool store-credentials`
-      steps from the release workflow; pass signing and notarization
-      secrets as env vars instead
-- [x] In the GitHub repo secrets (Settings → Secrets and variables →
-      Actions): rename `MACOS_CERTIFICATE_PWD` →
-      `MACOS_CERTIFICATE_PASSWORD`. Delete `MACOS_CERTIFICATE_NAME` and
-      `MACOS_CI_KEYCHAIN_PWD` — they are no longer used.
-- [x] Tag a test release and verify the binary passes Gatekeeper without
-      a warning
+When the catalog grows past a threshold, `check` should warn so "the
+index feels too big" becomes a measured signal rather than a gut
+feeling.
+
+- [ ] Decide on a threshold (roughly 150 entries as a starting point)
+- [ ] Add the warning to `check` output (not a failure, just a warning)
+
+## 4. README context when inferring profiles
+
+When profiling a file, include the `README.md` from the same directory
+if one exists. This helps with opaque files (CSVs, legacy archives) that
+don't describe themselves well.
+
+- [ ] When inferring a profile, check for a `README.md` sibling and
+      include its content in the prompt context
+- [ ] Skip it if the `README.md` is itself an enumerated document
+      (already visible as a catalog neighbor)

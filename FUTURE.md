@@ -239,7 +239,19 @@ are usually its siblings. Today's neighbor context treats the whole
 catalog as equidistant; weighting it toward near neighbors in the tree
 should produce sharper profiles at no extra cost.
 
-**4. Curated cross-departmental indexes.** Generate a separate catalog
+**4. README context when inferring profiles.** When profiling a file,
+include the `README.md` from its directory if one exists. A README
+describes what the directory is for in terms a person chose deliberately
+— that's often the sharpest signal available for files whose content is
+thin or whose names are opaque (data exports, legacy archives, generated
+reports). The profiler already reads sibling catalog entries as neighbor
+context; picking up a `README.md` is the same idea with no new
+mechanism.
+
+If the `README.md` for a directory is itself an enumerated document, it
+already appears as a neighbor in the catalog. Don't include it twice.
+
+**5. Curated cross-departmental indexes.** Generate a separate catalog
 per department, where each one is mostly its own department's documents
 plus a curated handful of cross-references to documents in other
 departments — so in outreach you're reading roughly 80% outreach and the
@@ -252,7 +264,7 @@ department-scoped views with hand-picked links across. This delivers the
 cross-department value early, through judgment, and is exactly the work
 the next step would eventually automate.
 
-**5. A generated graph of edges.** The fancy version — edges,
+**6. A generated graph of edges.** The fancy version — edges,
 context-scoped fan-out, and the embedding or usage-statistics sources
 described above — replaces the hand-picked cross-references of step 4
 with generated ones. This is the largest step and the least settled;
