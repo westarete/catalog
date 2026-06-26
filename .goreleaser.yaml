@@ -22,12 +22,18 @@ builds:
       # Strip debug info and symbol table to reduce binary size.
       # Inject the release tag as the version string.
       - -s -w -X main.version={{.Version}}
-    hooks:
-      post:
-        # Sign macOS binaries with the Developer ID Application certificate.
-        # --options runtime is required for notarization compatibility.
-        # Skipped on Linux and when the certificate name is not set.
-        - cmd: sh -c 'if [ "{{ .Os }}" = "darwin" ] && [ -n "$MACOS_CERTIFICATE_NAME" ]; then codesign --force --options runtime -s "$MACOS_CERTIFICATE_NAME" "{{ .Path }}"; fi'
+
+notarize:
+  macos:
+    - enabled: "{{ not .IsSnapshot }}"
+      sign:
+        certificate: "{{.Env.MACOS_CERTIFICATE}}"
+        password: "{{.Env.MACOS_CERTIFICATE_PASSWORD}}"
+      notarize:
+        issuer_id: "{{.Env.MACOS_NOTARY_ISSUER_ID}}"
+        key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
+        key: "{{.Env.MACOS_NOTARY_KEY}}"
+        wait: true
 
 archives:
   - formats:

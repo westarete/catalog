@@ -30,9 +30,6 @@ Full notarization is also needed for:
 - Offline environments where Gatekeeper can't phone home
 - Official Homebrew (homebrew/cask) submission, which requires it
 
-We are implementing signing first. Notarization is tracked in
-[TODO.md](TODO.md).
-
 Useful background:
 
 - [Signing Mac Software with Developer ID — Apple Developer](https://developer.apple.com/developer-id/)
@@ -155,95 +152,34 @@ vault.
 Go to the `westarete/catalog` repository → **Settings → Secrets and
 variables → Actions** and add these as **repository secrets**.
 
-Be careful with trailing newlines — GitHub's secret input field can
-silently include one, causing values like `MACOS_CERTIFICATE_NAME` to
-not match the identity string exactly. If `codesign` reports "no
-identity found" despite a successful certificate import, the secret
-value is the first thing to check.
-
-| Secret                   | Value                                                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MACOS_CERTIFICATE`      | base64-encoded `.p12` file: `base64 -i cert.p12 \| pbcopy`                                                                                                    |
-| `MACOS_CERTIFICATE_NAME` | `Developer ID Application: West Arete Computing, Inc. (HH6PJ9ECM)`                                                                                            |
-| `MACOS_CERTIFICATE_PWD`  | the `.p12` export password                                                                                                                                    |
-| `MACOS_NOTARY_KEY`       | base64-encoded `.p8` file: `base64 -i key.p8 \| pbcopy`                                                                                                       |
-| `MACOS_NOTARY_KEY_ID`    | the 10-character Key ID from App Store Connect                                                                                                                |
-| `MACOS_NOTARY_ISSUER_ID` | the Issuer ID UUID from App Store Connect                                                                                                                     |
-| `MACOS_CI_KEYCHAIN_PWD`  | any strong random password (used only by CI)                                                                                                                  |
-| `HOMEBREW_TAP_TOKEN`     | fine-grained PAT with Contents read/write on `westarete/homebrew-tap` and `westarete/catalog`; used by GoReleaser to push the updated cask after each release |
-
-Note: the three `MACOS_NOTARIZATION_*` secrets set up for app-specific
-password auth can be removed — they are no longer used.
+| Secret                       | Value                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOMEBREW_TAP_TOKEN`         | fine-grained PAT with Contents read/write on `westarete/homebrew-tap` and `westarete/catalog`; used by GoReleaser to push the updated cask after each release |
+| `MACOS_CERTIFICATE`          | base64-encoded `.p12` file: `base64 -i cert.p12 \| pbcopy`                                                                                                    |
+| `MACOS_CERTIFICATE_PASSWORD` | the `.p12` export password                                                                                                                                    |
+| `MACOS_NOTARY_ISSUER_ID`     | the Issuer ID UUID from App Store Connect                                                                                                                     |
+| `MACOS_NOTARY_KEY`           | base64-encoded `.p8` file: `base64 -i key.p8 \| pbcopy`                                                                                                       |
+| `MACOS_NOTARY_KEY_ID`        | the 10-character Key ID from App Store Connect                                                                                                                |
 
 ## Step 7 — Update the release workflow and GoReleaser config
 
-See [TODO.md](TODO.md) for the remaining implementation steps.
+The release workflow uses
+[GoReleaser's native `notarize.macos` block](https://goreleaser.com/customization/sign/notarize/),
+which handles both signing and notarization via
+[anchore/quill](https://github.com/anchore/quill). This is the same
+approach used by [junegunn/fzf](https://github.com/junegunn/fzf).
 
-The approach:
+Quill reads credentials directly from environment variables — no
+Keychain setup or `notarytool store-credentials` step needed. The
+workflow passes the five signing and notarization secrets as env vars to
+the GoReleaser action, and the `.goreleaser.yaml` `notarize.macos` block
+picks them up.
 
-- Switch the release runner to `macos-latest` (required for `codesign`
-  and `notarytool`)
-- Add workflow steps to import the certificate into a temporary CI
-  keychain and store notarytool credentials
-- Add a GoReleaser build post-hook to call `codesign` on each macOS
-  binary as it is built, using the `{{ .Path }}` template variable
-- See
-  [GoReleaser build hooks](https://goreleaser.com/customization/builds/hooks/)
-  for reference
-- See
-  [How to automatically sign macOS apps using GitHub Actions — Localazy](https://localazy.com/blog/how-to-automatically-sign-macos-apps-using-github-actions)
-  for the keychain setup sequence and the critical `codesign:` partition
-  in `set-key-partition-list`
+## Step 8 — Known issue: HTTP 500 from Apple's notarization service
 
-We are implementing signing only in the first pass. Adding full
-notarization (submitting to Apple's service and stapling the ticket)
-requires post-archive hooks, which are more complex.
-
-## Step 8 — Add notarization (follow-up)
-
-**What notarization adds over signing alone:**
-
-- **Offline Gatekeeper** — a signed-but-not-notarized binary requires an
-  internet connection on first run so Gatekeeper can phone home to
-  Apple. Notarization staples a ticket to the binary so Gatekeeper can
-  verify it locally without a network call.
-- **Enterprise MDMs** — some organizations configure Macs to require
-  notarization, not just signing. A signed-only binary gets blocked.
-- **Official homebrew/cask** — required if you ever want to submit to
-  the main Homebrew tap so users can install without adding a
-  third-party tap.
-
-For the current user base (developers, internet-connected, no MDM),
-signing alone is sufficient. Notarization is the last 5%.
-
-**How it works in CI:**
-
-Notarization is not per-binary — it operates on the archive (`.tar.gz`).
-The workflow calls `xcrun notarytool submit --wait`, which blocks until
-Apple responds. Apple typically responds in 2–5 minutes. The release is
-not published until notarization succeeds and the ticket is stapled with
-`xcrun stapler`.
-
-**The implementation challenge:**
-
-GoReleaser builds archives and publishes the GitHub Release in one pass.
-Notarization needs to happen after archiving but before publishing. The
-options are:
-
-- Run GoReleaser with `--skip=publish`, notarize and staple the
-  archives, then re-run GoReleaser with `--skip=build` to publish
-- Use a global GoReleaser `after` hook with a shell script that finds
-  and notarizes each darwin archive
-
-Estimated implementation time: 2–3 hours including debugging.
-
-### Known issue: HTTP 500 from Apple's notarization service
-
-`xcrun notarytool store-credentials` validates credentials against
-Apple's servers before storing them. Apple's notarization service
-periodically returns HTTP 500 errors during this step even when
-credentials are correct. This is a server-side issue on Apple's end, not
-a configuration problem.
+Apple's notarization service periodically returns HTTP 500 errors during
+notarization submissions even when credentials are correct. This is a
+server-side issue, not a configuration problem.
 
 ```text
 Error: HTTP status code: 500. Internal Server Error
@@ -252,16 +188,15 @@ Please try again at a later time.
 ```
 
 If this happens: wait and retry. The service typically recovers on its
-own. Do not switch to the deprecated `altool` as a workaround — it was
-deprecated for a reason and only works intermittently.
+own.
 
-This is why we switched from app-specific password to API key
-authentication in Step 5. Quinn "The Eskimo!" from Apple DTS explicitly
-recommends API keys over app-specific passwords when the latter produces
-persistent 500s. We hit this after a day of retries with correct
-credentials.
+We use App Store Connect API key authentication (Step 5) rather than
+app-specific password for this reason. Quinn "The Eskimo!" from Apple
+DTS
+[explicitly recommends API keys over app-specific passwords](https://developer.apple.com/forums/thread/816270)
+when the latter produces persistent 500s.
 
 References:
 
-- [notarytool returns HTTP 500 — even on store-credentials — Apple Developer Forums](https://developer.apple.com/forums/thread/816270)
+- [notarytool returns HTTP 500 — Apple Developer Forums](https://developer.apple.com/forums/thread/816270)
 - [Notary server down - 500 internal — Apple Developer Forums](https://developer.apple.com/forums/thread/706539)
