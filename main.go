@@ -17,7 +17,7 @@
 // The three key-using commands differ only in which entries they rewrite and how
 // many passes they run; check is the deterministic gate that never calls a model.
 //
-// Run from the repo root via the bin/catalog shim.
+// Run from the repo root.
 package main
 
 import (

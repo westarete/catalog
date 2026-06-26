@@ -145,7 +145,7 @@ func loadForGenerate() (docs []string, cat *catalog, cfg *config, err error) {
 // at it instead of silently doing the worse thing.
 func requirePopulated(cat *catalog) error {
 	if len(cat.entries) == 0 {
-		return fmt.Errorf("%s has no entries — run `bin/catalog bootstrap` to build it", catalogPath)
+		return fmt.Errorf("%s has no entries — run `catalog bootstrap` to build it", catalogPath)
 	}
 	return nil
 }

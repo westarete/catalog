@@ -49,7 +49,7 @@ func cmdCheck(args []string) error {
 	for _, p := range r.orphans {
 		fmt.Printf("orphan: %s (entry exists but the document is gone or now ignored)\n", p)
 	}
-	return fmt.Errorf("run `bin/catalog update` to refresh")
+	return fmt.Errorf("run `catalog update` to refresh")
 }
 
 // checkResult is the gate's verdict, separated from the I/O and printing so it
