@@ -71,3 +71,9 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
     commit_msg_template: "Update catalog to {{ .Tag }}"
+    # Clean up the credentials catalog writes to ~/.config/catalog on an
+    # explicit `brew uninstall --zap`. Default XDG path only; a custom
+    # XDG_CONFIG_HOME can't be expressed in a static cask string.
+    zap:
+      trash:
+        - ~/.config/catalog
