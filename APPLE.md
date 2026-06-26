@@ -175,7 +175,7 @@ workflow passes the five signing and notarization secrets as env vars to
 the GoReleaser action, and the `.goreleaser.yaml` `notarize.macos` block
 picks them up.
 
-## Step 8 — Known issue: HTTP 500 from Apple's notarization service
+## Known issue: HTTP 500 from Apple's notarization service
 
 Apple's notarization service periodically returns HTTP 500 errors during
 notarization submissions even when credentials are correct. This is a

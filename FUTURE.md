@@ -26,6 +26,45 @@ So a plain department split is the wrong cut: it would either drop the
 cross-department documents you need or make you load whole neighbouring
 departments to get the 10% that matters.
 
+## How this differs from Google Workspace Intelligence
+
+Google launched Workspace Intelligence in April 2026 — a context layer
+that gives Gemini continuous awareness of a user's activity across
+Gmail, Drive, Calendar, Chat, Docs, Sheets, and Slides. It is worth
+understanding what that does and what it does not do, because the two
+approaches solve different problems.
+
+Workspace Intelligence is **reactive and activity-driven**: it reads
+what a user has been working on and assembles context dynamically from
+that signal. It does not know which documents are authoritative for a
+given topic; it knows which documents were recently touched or are
+broadly accessible. A team's most important strategy doc and a draft
+someone created yesterday and never finished look the same to it.
+
+The context catalog is **deliberate and curation-driven**: a person (or
+a generator under human review) decides which documents matter, what
+each one is for, and how to describe it precisely enough to distinguish
+it from the things it might be confused with. The result is a committed
+artifact — not a live index assembled at session start, but a file that
+reflects explicit human judgment about the knowledge that is worth
+loading. Workspace Intelligence cannot produce that, and it does not try
+to.
+
+The two approaches are complementary. Workspace Intelligence makes an
+agent aware of recent activity and broadly available content. A catalog
+tells it which content deserves weight when the task at hand requires
+reaching for the team's considered knowledge. Neither replaces the
+other: a team running both gets ambient awareness from Workspace
+Intelligence and deliberate context routing from the catalog.
+
+One practical note: real-world Workspace Intelligence quality is mixed.
+User testing reports roughly 74% accuracy on factual questions, and
+custom instructions are frequently ignored. The catalog technique
+sidesteps both failure modes — it does not depend on the model deciding
+what to load, and it does not rely on instructions surviving to the
+moment of retrieval. The catalog is already loaded before any
+instruction could override it.
+
 ## The idea in one picture
 
 ```text
@@ -173,6 +212,37 @@ So the similarity route no longer forces a second vendor: a local model
 runtime and zero new keys. Confirm model availability against current
 docs before committing — this is exactly the kind of fact that ages.
 
+## Dependency tracking and cache invalidation
+
+Today the staleness model is simple: a profile is stale if its document
+changed after the last commit that touched `.catalog.md`. That's correct
+as far as it goes, but a profile is actually a function of several
+inputs:
+
+- The document's own content
+- Its neighbor profiles (which depend on their own documents)
+- Any README used as directory context
+- The system prompt
+- The model version
+
+If any of these change, the profile could be different — but `check`
+only catches the first one. The others are invisible to it. In practice
+this is tolerable at small scale, where `catalog force` is cheap enough
+to run whenever something feels off. It becomes a real gap as the repo
+grows and re-running everything gets expensive.
+
+Git already tracks content changes for every file in the repo, so some
+of this is answerable with `git log` queries rather than separate
+storage. README staleness, for example, is the same kind of question
+`check` already asks about documents — did this file change since the
+last catalog commit? That may need no new machinery at all.
+
+Neighbor profiles and prompt/model version are harder. Neighbor profiles
+aren't tracked files; they're entries in the generated catalog. The
+prompt is embedded in the binary. For these, the pragmatic answer may
+simply be "run `catalog force` after a prompt change" — automated
+detection adds real complexity for inputs that rarely change.
+
 ## What changes in the commands
 
 The existing command shape survives; each one gains an edge-and-fan-out
@@ -205,29 +275,19 @@ step:
 
 ## Near future
 
-The full graph-driven build above isn't worth it at today's scale (about
-20 documents) — a single flat catalog is the right tool, and a two-layer
-build would add a generation step and a maintenance surface for no real
-return. The practical ceiling for a flat catalog is roughly 150–250
-entries, set by routing precision and budget share rather than any token
-limit. But the path there isn't a single yes/no decision at the ceiling;
-it's a ladder of small steps, each useful on its own and each setting up
-the next:
+The full graph-driven build is the right destination, but not the right
+starting point. The ladder below gets there incrementally — each step is
+useful on its own and sets up the next. The first four improve the
+single catalog; the last two build out the multi-catalog architecture.
 
-**1. A size warning in `check`.** Have `catalog check` warn when the
-catalog crosses a threshold, so "the index feels too big" becomes a
-measured signal — the same way staleness is already a Git query rather
-than a judgement call. It's independent of everything below and tells us
-when the rest starts to matter.
-
-**2. The profile store.** Migrate the existing catalog entries into the
+**1. The profile store.** Migrate the existing catalog entries into the
 SQLite store and regenerate `CATALOG.md` from it. That's nearly free
 work — and it's the unlock for everything after it. Sibling context, the
 per-department indexes, and the graph all need per-document records;
 with the store in place, each of those is an addition rather than a
 rebuild.
 
-**3. Sibling context when inferring profiles.** Because these are
+**2. Sibling context when inferring profiles.** Because these are
 Markdown files in a tree, the tree itself is a free proximity hint:
 sibling files in a directory are close, parent and child are one hop
 out, and the number of directory hops is a decent proxy for distance
@@ -239,7 +299,7 @@ are usually its siblings. Today's neighbor context treats the whole
 catalog as equidistant; weighting it toward near neighbors in the tree
 should produce sharper profiles at no extra cost.
 
-**4. README context when inferring profiles.** When profiling a file,
+**3. README context when inferring profiles.** When profiling a file,
 include the `README.md` from its directory if one exists. A README
 describes what the directory is for in terms a person chose deliberately
 — that's often the sharpest signal available for files whose content is
@@ -250,6 +310,13 @@ mechanism.
 
 If the `README.md` for a directory is itself an enumerated document, it
 already appears as a neighbor in the catalog. Don't include it twice.
+
+**4. Dependency tracking.** Once sibling weighting and README context
+are in place, extend the staleness model to cover the new inputs. README
+staleness is probably another `git log` query — the same mechanism
+`check` already uses. Neighbor profile staleness and prompt/model
+version are harder; start with what Git already answers before reaching
+for anything else.
 
 **5. Curated cross-departmental indexes.** Generate a separate catalog
 per department, where each one is mostly its own department's documents
@@ -266,47 +333,8 @@ the next step would eventually automate.
 
 **6. A generated graph of edges.** The fancy version — edges,
 context-scoped fan-out, and the embedding or usage-statistics sources
-described above — replaces the hand-picked cross-references of step 4
+described above — replaces the hand-picked cross-references of step 5
 with generated ones. This is the largest step and the least settled;
 parts of it probably aren't fully worked out yet. Reach for it only once
 the curated indexes are straining under their own upkeep. By then it's
 an addition on top of the store, not a rebuild.
-
-## How this differs from Google Workspace Intelligence
-
-Google launched Workspace Intelligence in April 2026 — a context layer
-that gives Gemini continuous awareness of a user's activity across
-Gmail, Drive, Calendar, Chat, Docs, Sheets, and Slides. It is worth
-understanding what that does and what it does not do, because the two
-approaches solve different problems.
-
-Workspace Intelligence is **reactive and activity-driven**: it reads
-what a user has been working on and assembles context dynamically from
-that signal. It does not know which documents are authoritative for a
-given topic; it knows which documents were recently touched or are
-broadly accessible. A team's most important strategy doc and a draft
-someone created yesterday and never finished look the same to it.
-
-The context catalog is **deliberate and curation-driven**: a person (or
-a generator under human review) decides which documents matter, what
-each one is for, and how to describe it precisely enough to distinguish
-it from the things it might be confused with. The result is a committed
-artifact — not a live index assembled at session start, but a file that
-reflects explicit human judgment about the knowledge that is worth
-loading. Workspace Intelligence cannot produce that, and it does not try
-to.
-
-The two approaches are complementary. Workspace Intelligence makes an
-agent aware of recent activity and broadly available content. A catalog
-tells it which content deserves weight when the task at hand requires
-reaching for the team's considered knowledge. Neither replaces the
-other: a team running both gets ambient awareness from Workspace
-Intelligence and deliberate context routing from the catalog.
-
-One practical note: real-world Workspace Intelligence quality is mixed.
-User testing reports roughly 74% accuracy on factual questions, and
-custom instructions are frequently ignored. The catalog technique
-sidesteps both failure modes — it does not depend on the model deciding
-what to load, and it does not rely on instructions surviving to the
-moment of retrieval. The catalog is already loaded before any
-instruction could override it.

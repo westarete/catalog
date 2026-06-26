@@ -11,31 +11,16 @@ convention becomes more valuable. Migration cost is low.
 - [ ] Update the catalog skill in `hq` (SKILL.md, SETUP.md,
       config.example.toml, pre-commit)
 
-## 2. Prompt tweak for sibling weighting
+## 2. SQLite profile store
 
-The catalog is already hierarchically structured by directory, so the
-model can weight same-directory entries without any code changes — just
-a prompt hint.
+Migrate profiles out of the flat `.catalog.md` into a committed SQLite
+database. The Markdown file becomes a generated projection of the store.
 
-- [ ] Update the inference prompt to draw the model's attention to
-      entries in the same directory as the file being profiled
+- [ ] Design the schema
+- [ ] Implement `readCatalog` and `writeCatalog` against SQLite
+- [ ] Regenerate `.catalog.md` from the store on every write
+- [ ] Update `catalog check` to verify store and Markdown are consistent
 
-## 3. Size warning in `catalog check`
+## Minor
 
-When the catalog grows past a threshold, `check` should warn so "the
-index feels too big" becomes a measured signal rather than a gut
-feeling.
-
-- [ ] Decide on a threshold (roughly 150 entries as a starting point)
-- [ ] Add the warning to `check` output (not a failure, just a warning)
-
-## 4. README context when inferring profiles
-
-When profiling a file, include the `README.md` from the same directory
-if one exists. This helps with opaque files (CSVs, legacy archives) that
-don't describe themselves well.
-
-- [ ] When inferring a profile, check for a `README.md` sibling and
-      include its content in the prompt context
-- [ ] Skip it if the `README.md` is itself an enumerated document
-      (already visible as a catalog neighbor)
+- [ ] Size warning in `catalog check` when entry count crosses ~150
