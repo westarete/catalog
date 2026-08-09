@@ -34,28 +34,32 @@ rather than describing them in isolation.
 
 ## Commands
 
-Run from the repo root. Three commands write profiles and need
-`ANTHROPIC_API_KEY`. `check` reads only Git and needs no key — it's the
-one you run in CI.
+Run from the repo root. Profiles live in a committed SQLite database at
+`.catalog/catalog.db` — the sole source of truth; `.catalog.md` is
+always a generated artifact rendered from it. Three commands write
+profiles and need `ANTHROPIC_API_KEY`. `status` and `diff` read only the
+database and the filesystem, need no key, and have no dependency on Git.
 
-- `catalog bootstrap` — generate `.catalog.md` from scratch: infer
+- `catalog bootstrap` — rebuild the database from scratch: infer
   profiles for every enumerated document in two passes (the second pass
   sharpens each profile using the full catalog as context), then write
-  the file. Use this when setting up a new repo or after major
+  `.catalog.md`. Ignores any existing database or `.catalog.md`
+  entirely. Use this when setting up a new repo or after major
   reorganization.
-- `catalog update` — re-infer profiles for the documents Git reports
-  changed, rewrite those entries in place, leave the rest of
-  `.catalog.md` alone. Also drops entries for deleted files. Run this
-  after editing or removing a document, the same way you'd run a
-  formatter.
+- `catalog update` — re-infer profiles for documents that are new or
+  have changed content, drop rows for documents that are deleted or no
+  longer enumerated, and always rewrite `.catalog.md`. Run this after
+  editing or removing a document, the same way you'd run a formatter.
 - `catalog force [file ...]` — re-infer the named documents (or all
-  documents) even when Git thinks they're current. Use it to redo a few
-  entries you're unhappy with, or to rebuild everything after a prompt
-  change.
-- `catalog check` — verify that `.catalog.md` is up to date: every
-  enumerated document has an entry, every entry points to a file that
-  still exists, and no entry is stale relative to Git. Exits non-zero if
-  anything is wrong. No model call needed.
+  documents) unconditionally. Use it to redo a few entries you're
+  unhappy with, or to rebuild everything after a prompt change.
+- `catalog status` — report which documents are new, modified, or
+  deleted relative to the database, and whether `.catalog.md` on disk
+  matches a fresh render of it. Exits non-zero if anything is out of
+  sync. No model call needed.
+- `catalog diff` — show a unified diff between `.catalog.md` on disk and
+  a fresh render of the database: exactly what `update` would change. No
+  model call needed.
 
 ### Why bootstrap needs two passes
 
@@ -171,7 +175,7 @@ The typical cycle when working on the binary:
    which catalog   # should show ~/.local/bin/catalog
    ```
 
-3. **Test in real repos** — run `catalog update`, `catalog check`, etc.
+3. **Test in real repos** — run `catalog update`, `catalog status`, etc.
    against actual content repositories to confirm the change works as
    expected in practice, not just in unit tests.
 
