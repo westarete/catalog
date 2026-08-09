@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/anthropics/anthropic-sdk-go v1.51.0
+	github.com/aymanbagabas/go-udiff v0.4.1
 	modernc.org/sqlite v1.56.0
 )
 

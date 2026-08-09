@@ -9,7 +9,7 @@
 // comparison against that database — catalog has no dependency on Git and
 // does not require running inside a repository.
 //
-// Four subcommands, split by whether they need an API key:
+// Five subcommands, split by whether they need an API key:
 //
 //	bootstrap  Rebuild every entry from scratch in two passes. For creating
 //	           the database or rebuilding it wholesale. Needs ANTHROPIC_API_KEY.
@@ -19,9 +19,12 @@
 //	           given no names). Needs ANTHROPIC_API_KEY.
 //	status     Report new/modified/deleted documents and whether .catalog.md
 //	           matches the database. No API key, no model call. CI's gate.
+//	diff       Show a unified diff between .catalog.md on disk and a fresh
+//	           render of the database. No API key, no model call.
 //
 // The three key-using commands differ only in which entries they rewrite and how
-// many passes they run; status is the deterministic gate that never calls a model.
+// many passes they run; status and diff are the deterministic, read-only commands
+// that never call a model.
 //
 // Run from the repo root.
 package main
@@ -66,6 +69,8 @@ func main() {
 		err = cmdForce(args)
 	case "status":
 		err = cmdStatus(args)
+	case "diff":
+		err = cmdDiff(args)
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -91,6 +96,7 @@ usage:
   catalog update               re-infer profiles for new or modified docs (needs ANTHROPIC_API_KEY)
   catalog force [file ...]     re-infer named docs unconditionally; no names = all (needs ANTHROPIC_API_KEY)
   catalog status               report new/modified/deleted docs and catalog.md drift (no API key)
+  catalog diff                 show a unified diff of what update would change to catalog.md (no API key)
   catalog version              print version and exit
   catalog help                 show this message
 
