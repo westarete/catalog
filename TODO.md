@@ -40,13 +40,15 @@ order, not just a reading order, so don't reorder or squash across
 steps.
 
 - [ ] Add the `modernc.org/sqlite` dependency (pure Go, no cgo — matches
-      `.goreleaser.yaml`'s `CGO_ENABLED=0`)
-- [ ] Define the schema (`path`, `content_hash`, `profile`) and a
-      function to open/initialize `.catalog/catalog.db`. Test: opening a
-      fresh path creates the table; opening an existing populated one
-      leaves its rows alone; opening a corrupt or non-SQLite file at
-      that path returns a clear error rather than silently treating it
-      as missing and rebuilding over it.
+      `.goreleaser.yaml`'s `CGO_ENABLED=0`) together with the schema
+      (`path`, `content_hash`, `profile`) and a function to
+      open/initialize `.catalog/catalog.db` — `go mod tidy` drops an
+      imported-but-unused dependency, so the `go get` and its first real
+      caller have to land in the same commit. Test: opening a fresh path
+      creates the table; opening an existing populated one leaves its
+      rows alone; opening a corrupt or non-SQLite file at that path
+      returns a clear error rather than silently treating it as missing
+      and rebuilding over it.
 - [ ] Add a content-hash function (SHA-256) for document text. Test:
       identical content hashes identically, different content hashes
       differently.
