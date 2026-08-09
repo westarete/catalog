@@ -310,7 +310,7 @@ func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *c
 		if err != nil {
 			return total, err
 		}
-		fmt.Fprintf(os.Stderr, "  profile: %s\n", path)
+		fmt.Fprintf(os.Stderr, "  %s\n", path)
 		profile, used, err := inferProfile(ctx, client, cfg, path, string(text), neighborText)
 		if err != nil {
 			return total, fmt.Errorf("%s: %w", path, err)
