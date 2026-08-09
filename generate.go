@@ -244,7 +244,15 @@ func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
 	if err != nil {
 		return err
 	}
-	client := anthropic.NewClient(option.WithAPIKey(key))
+	// WithoutEnvironmentDefaults: catalog already resolved the key itself via
+	// loadAPIKey (env var, then the profile named in .catalog/config.toml,
+	// then CATALOG_PROFILE, then [default] in the credentials file). Without
+	// this, NewClient also auto-loads the SDK's own separate profile config
+	// file if one exists on the machine, which triggers a harmless but
+	// confusing "ANTHROPIC_API_KEY is set and takes precedence" warning even
+	// when no such env var is set — the SDK found its own config file, not
+	// anything catalog did.
+	client := anthropic.NewClient(option.WithoutEnvironmentDefaults(), option.WithAPIKey(key))
 	ctx := context.Background()
 	start := time.Now()
 	var total tokens
