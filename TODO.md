@@ -65,15 +65,20 @@ steps.
 - [ ] Adapt `render` to build `.catalog.md` from store rows instead of
       the parsed `*catalog` struct. Carry over the existing render
       tests, adjusted for the new input shape.
-- [ ] Wire `bootstrap` to always fully rebuild the store from scratch,
-      ignoring any existing `.catalog.md` entirely. Integration test
-      with a temp repo.
-- [ ] Wire `update` to re-infer only the new/modified docs the
-      classification function reports, drop rows for deleted docs, and
-      always rewrite `.catalog.md`. Integration test covering all three
-      categories plus the unchanged case.
-- [ ] Wire `force` to re-infer named docs (or all, with no args)
-      unconditionally. Integration test.
+- [ ] Wire `bootstrap`, `update`, and `force` against the store. Landed
+      as one commit rather than three — they share `runGenerate`,
+      `inferPass`, `neighbors`, `hashDocs`, and `requirePopulated`,
+      which all had to change shape together; splitting them wouldn't
+      have produced independently buildable commits. `bootstrap` always
+      fully rebuilds, ignoring any existing `.catalog.md` entirely.
+      `update` re-infers only new/modified docs, drops rows for deleted
+      docs, and always rewrites `.catalog.md`. `force` re-infers named
+      docs (or all, with no args) unconditionally. Integration tests
+      exercise the store/classify/render pipeline directly (real
+      temp-file database, no API key) rather than the commands end to
+      end, since `runGenerate` needs a real key before it reaches the
+      network — see CLAUDE.md and FUTURE.md on keeping the model-calling
+      path out of automated tests.
 - [ ] Add `catalog status`: run the classification function and report
       new/modified/deleted in `git status`-style language (oriented
       around the user's files, not the catalog's bookkeeping), plus a

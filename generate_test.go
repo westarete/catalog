@@ -1,14 +1,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 )
-
-
 
 func TestTokensAdd(t *testing.T) {
 	got := tokens{input: 1, cached: 2, output: 3}.add(tokens{input: 10, cached: 20, output: 30})
@@ -26,43 +25,15 @@ func TestFormatRunSummary(t *testing.T) {
 	}
 }
 
-func entrySet(paths ...string) map[string]*entry {
-	m := map[string]*entry{}
-	for _, p := range paths {
-		m[p] = &entry{path: p, profile: "p"}
-	}
-	return m
-}
-
-func TestSelectStale(t *testing.T) {
-	docs := []string{"a.md", "b.md", "c.md"}
-	entries := entrySet("a.md", "b.md") // c.md has no entry yet
-	stale := map[string]bool{"a.md": true}
-	got := selectStale(docs, entries, stale)
-	// a.md is stale; c.md is missing an entry; b.md is current → skipped.
-	want := []string{"a.md", "c.md"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("stale targets = %v, want %v", got, want)
-	}
-}
-
-func TestSelectStaleNothingToDo(t *testing.T) {
-	docs := []string{"a.md", "b.md"}
-	got := selectStale(docs, entrySet("a.md", "b.md"), map[string]bool{})
-	if len(got) != 0 {
-		t.Errorf("expected no targets, got %v", got)
-	}
-}
-
 func TestRequirePopulated(t *testing.T) {
-	// Empty or missing catalog: refuse and point at bootstrap.
-	err := requirePopulated(&catalog{entries: map[string]*entry{}})
+	// Empty store: refuse and point at bootstrap.
+	err := requirePopulated(nil)
 	if err == nil || !strings.Contains(err.Error(), "bootstrap") {
 		t.Fatalf("want error pointing at bootstrap, got %v", err)
 	}
-	// A populated catalog passes.
-	if err := requirePopulated(&catalog{entries: entrySet("a.md")}); err != nil {
-		t.Fatalf("populated catalog should pass, got %v", err)
+	// A populated store passes.
+	if err := requirePopulated([]profileRow{{path: "a.md", contentHash: "h", profile: "p"}}); err != nil {
+		t.Fatalf("populated store should pass, got %v", err)
 	}
 }
 
@@ -105,27 +76,43 @@ func TestBuildProfilePrompt(t *testing.T) {
 }
 
 func TestNeighborsExcludesSelfAndSorts(t *testing.T) {
-	c := &catalog{entries: map[string]*entry{
-		"c.md": {path: "c.md", profile: "pc"},
-		"a.md": {path: "a.md", profile: "pa"},
-		"b.md": {path: "b.md", profile: "pb"},
-	}}
-	got := neighbors(c, "b.md")
+	db, err := openStore(filepath.Join(t.TempDir(), "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, r := range []profileRow{
+		{path: "c.md", contentHash: "h", profile: "pc"},
+		{path: "a.md", contentHash: "h", profile: "pa"},
+		{path: "b.md", contentHash: "h", profile: "pb"},
+	} {
+		if err := writeProfile(db, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := neighbors(db, "b.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := "- a.md: pa\n- c.md: pc\n"
 	if got != want {
 		t.Errorf("neighbors = %q, want %q", got, want)
 	}
 }
 
-func TestPruneOrphans(t *testing.T) {
-	entries := entrySet("a.md", "gone.md", "b.md")
-	pruneOrphans(entries, []string{"a.md", "b.md"})
-	var got []string
-	for p := range entries {
-		got = append(got, p)
+func TestHashDocs(t *testing.T) {
+	dir := t.TempDir()
+	pathA := filepath.Join(dir, "a.md")
+	if err := os.WriteFile(pathA, []byte("content A"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	sort.Strings(got)
-	if !reflect.DeepEqual(got, []string{"a.md", "b.md"}) {
-		t.Errorf("after prune = %v, want [a.md b.md]", got)
+
+	got, err := hashDocs([]string{pathA})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := contentHash([]byte("content A"))
+	if got[pathA] != want {
+		t.Errorf("hashDocs[%s] = %s, want %s", pathA, got[pathA], want)
 	}
 }

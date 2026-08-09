@@ -2,22 +2,17 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
-	"reflect"
 	"testing"
 )
 
-// These tests drive the real code paths end to end against a throwaway Git
-// repo on disk — no API key needed. They cover the two behaviors previously
-// only checked by hand: that editing a document makes the staleness gate fail
-// and reverting clears it, and that the in-place entry rewrite the writers use
-// rewrites one entry while leaving its neighbors untouched.
+// These tests drive the store-backed pipeline end to end against a temp
+// directory — no API key needed. They cover what update/force do around the
+// model call (which is untested by design; see CLAUDE.md and FUTURE.md):
+// classify docs against the store, write/delete rows, and regenerate
+// .catalog.md from whatever the store now holds.
 
-// newRepo creates a temp Git repo, chdirs into it (restored on cleanup), and
-// returns a runGit helper. The program itself chdirs to the repo root via
-// --root, so operating from the repo root here matches production.
-func newRepo(t *testing.T) func(args ...string) string {
+func newTempRepo(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	orig, err := os.Getwd()
@@ -32,20 +27,9 @@ func newRepo(t *testing.T) func(args ...string) string {
 			t.Errorf("cleanup: restore working directory: %v", err)
 		}
 	})
-
-	run := func(args ...string) string {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-		return string(out)
+	if err := os.MkdirAll(".catalog", 0o755); err != nil {
+		t.Fatal(err)
 	}
-	run("init", "-q")
-	run("config", "user.email", "test@example.com")
-	run("config", "user.name", "Test")
-	return run
 }
 
 func writeFile(t *testing.T, path, body string) {
@@ -60,118 +44,132 @@ func writeFile(t *testing.T, path, body string) {
 	}
 }
 
-// TestStalenessGate: a document committed after the catalog is clean; editing
-// it (working-tree change) makes it stale; committing the catalog again clears
-// it. This is the gate behavior CI relies on.
-func TestStalenessGate(t *testing.T) {
-	run := newRepo(t)
-	docs := []string{"a.md"}
-
-	writeFile(t, "a.md", "alpha\n")
-	run("add", "a.md")
-	run("commit", "-qm", "add doc")
-
-	writeFile(t, catalogPath, "# Catalog\n\n## ./\n\n### a.md\n\nprofile\n")
-	run("add", catalogPath)
-	run("commit", "-qm", "add catalog")
-
-	// Clean: catalog is the last commit, doc unchanged since.
-	ref, err := lastTouchedCommit(execGit, catalogPath)
+// TestClassifyAgainstRealStore: a doc with a matching hash is current: a
+// changed doc is modified; a doc with no row is new; a row with no doc is
+// deleted. Exercises classify against a real temp-file database rather than
+// hand-built rows, confirming the store round-trips hashes correctly.
+func TestClassifyAgainstRealStore(t *testing.T) {
+	newTempRepo(t)
+	db, err := openStore(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ref == "" {
-		t.Fatal("expected a catalog commit")
+	defer db.Close()
+
+	writeFile(t, "current.md", "unchanged content")
+	writeFile(t, "changed.md", "new content")
+	writeFile(t, "new.md", "brand new")
+
+	for _, r := range []profileRow{
+		{path: "current.md", contentHash: contentHash([]byte("unchanged content")), profile: "p1"},
+		{path: "changed.md", contentHash: contentHash([]byte("old content")), profile: "p2"},
+		{path: "gone.md", contentHash: "h3", profile: "p3"},
+	} {
+		if err := writeProfile(db, r); err != nil {
+			t.Fatal(err)
+		}
 	}
-	stale, err := staleDocs(execGit, ref, docs)
+
+	docs := []string{"current.md", "changed.md", "new.md"}
+	hashes, err := hashDocs(docs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stale) != 0 {
-		t.Errorf("expected clean, got stale %v", keys(stale))
-	}
-
-	// Edit the doc in the working tree → stale.
-	writeFile(t, "a.md", "alpha edited\n")
-	stale, err = staleDocs(execGit, ref, docs)
+	rows, err := readProfiles(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !stale["a.md"] {
-		t.Errorf("expected a.md stale after edit, got %v", keys(stale))
-	}
+	status := classify(hashes, rows)
 
-	// Commit the edit, then re-commit the catalog: reference advances past the
-	// doc change → clean again.
-	run("add", "a.md")
-	run("commit", "-qm", "edit doc")
-	writeFile(t, catalogPath, "# Catalog\n\n## ./\n\n### a.md\n\nprofile v2\n")
-	run("add", catalogPath)
-	run("commit", "-qm", "refresh catalog")
-
-	ref, _ = lastTouchedCommit(execGit, catalogPath)
-	stale, err = staleDocs(execGit, ref, docs)
-	if err != nil {
-		t.Fatal(err)
+	if got := status.new; len(got) != 1 || got[0] != "new.md" {
+		t.Errorf("new = %v, want [new.md]", got)
 	}
-	if len(stale) != 0 {
-		t.Errorf("expected clean after refresh, got %v", keys(stale))
+	if got := status.modified; len(got) != 1 || got[0] != "changed.md" {
+		t.Errorf("modified = %v, want [changed.md]", got)
+	}
+	if got := status.deleted; len(got) != 1 || got[0] != "gone.md" {
+		t.Errorf("deleted = %v, want [gone.md]", got)
 	}
 }
 
-// TestStalenessFirstBuild: with no committed catalog, every document is stale.
-func TestStalenessFirstBuild(t *testing.T) {
-	run := newRepo(t)
-	writeFile(t, "a.md", "alpha\n")
-	writeFile(t, "b.md", "beta\n")
-	run("add", ".")
-	run("commit", "-qm", "docs only")
+// TestRegenerateCatalogMDReflectsStore: write rows into the store, regenerate
+// .catalog.md, and confirm the file on disk matches a fresh render of those
+// rows — the file is purely a projection, never hand-maintained state.
+func TestRegenerateCatalogMDReflectsStore(t *testing.T) {
+	newTempRepo(t)
+	db, err := openStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
 
-	ref, err := lastTouchedCommit(execGit, catalogPath)
+	for _, r := range []profileRow{
+		{path: "x/one.md", contentHash: "h1", profile: "profile one"},
+		{path: "x/two.md", contentHash: "h2", profile: "profile two"},
+	} {
+		if err := writeProfile(db, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := regenerateCatalogMD(db); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(catalogPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ref != "" {
-		t.Fatalf("expected no catalog commit, got %q", ref)
-	}
-	stale, err := staleDocs(execGit, ref, []string{"a.md", "b.md"})
+	rows, err := readProfiles(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(keys(stale), []string{"a.md", "b.md"}) {
-		t.Errorf("first build should mark all stale, got %v", keys(stale))
+	want := render(rows)
+	if string(got) != want {
+		t.Errorf(".catalog.md on disk doesn't match render(store):\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 
-// TestInPlaceRewriteOnDisk: read a catalog from disk, rewrite one entry, prune
-// an orphan, write it back, and re-read — confirming the surviving neighbor's
-// profile is untouched. This is what the writers do around the model call.
-func TestInPlaceRewriteOnDisk(t *testing.T) {
-	newRepo(t) // gives us an isolated cwd
-	writeFile(t, catalogPath,
-		"# Catalog\n\nHeader.\n\n## x/\n\n### x/one.md\n\nold one\n\n### x/two.md\n\nkeep two\n\n### x/gone.md\n\norphan\n")
-
-	cat, err := readCatalog()
+// TestUpdateDeletesOrphanRowsWithoutModelCall: a store row for a document
+// that's no longer enumerated gets dropped by the same classify+delete path
+// cmdUpdate uses, without needing the model-calling half of the command.
+func TestUpdateDeletesOrphanRowsWithoutModelCall(t *testing.T) {
+	newTempRepo(t)
+	db, err := openStore(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cat.entries["x/one.md"].profile = "new one"
-	pruneOrphans(cat.entries, []string{"x/one.md", "x/two.md"})
-	if err := writeCatalog(cat); err != nil {
+	defer db.Close()
+
+	writeFile(t, "kept.md", "content")
+	if err := writeProfile(db, profileRow{path: "kept.md", contentHash: contentHash([]byte("content")), profile: "p"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeProfile(db, profileRow{path: "removed.md", contentHash: "h", profile: "p"}); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := readCatalog()
+	docs := []string{"kept.md"} // removed.md no longer enumerated
+	hashes, err := hashDocs(docs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.entries["x/one.md"].profile != "new one" {
-		t.Errorf("one.md not rewritten: %q", got.entries["x/one.md"].profile)
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got.entries["x/two.md"].profile != "keep two" {
-		t.Errorf("neighbor two.md changed: %q", got.entries["x/two.md"].profile)
+	status := classify(hashes, rows)
+	for _, path := range status.deleted {
+		if err := deleteProfile(db, path); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if got.entries["x/gone.md"] != nil {
-		t.Errorf("orphan gone.md not pruned")
+
+	rows, err = readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].path != "kept.md" {
+		t.Errorf("rows after delete = %v, want only kept.md", rows)
 	}
 }

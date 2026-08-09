@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"sort"
@@ -42,110 +43,166 @@ Bad: "When the task involves understanding the full structure, pricing, and scop
 
 Speak plainly; this file is published and follows the same voice as the rest of the repo. Don't call a document "canonical," "authoritative," or "definitive" unless it says so itself. Describe only what the document's own text supports. Return only the profile — no heading, no path, no preamble.`
 
-// cmdBootstrap rebuilds every entry from scratch in two passes. Pass one has no
-// neighbor profiles to read, so it writes provisional entries; pass two re-infers
-// each with every neighbor's real profile in view. This is the only command that
-// needs two passes — and the only reason it does is that pass one started from an
-// empty slate. Use it when creating .catalog.md or rebuilding it wholesale.
+// cmdBootstrap rebuilds every entry from scratch in two passes, ignoring any
+// existing store or .catalog.md entirely — the database is the sole source
+// of truth, so a repo with no database always gets a full rebuild rather
+// than a partial-trust import of whatever .catalog.md happens to say (see
+// FUTURE.md). Pass one has no neighbor profiles to read, so it writes
+// provisional entries; pass two re-infers each with every neighbor's real
+// profile in view. This is the only command that needs two passes — and the
+// only reason it does is that pass one started from an empty slate.
 func cmdBootstrap(args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("bootstrap: takes no arguments")
 	}
-	docs, cat, cfg, err := loadForGenerate()
+	docs, cfg, err := loadDocsAndConfig()
 	if err != nil {
 		return err
 	}
-	pruneOrphans(cat.entries, docs)
-	return runGenerate(cfg, cat, docs, 2)
+	db, err := openStore(storePath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	// Bootstrap starts from nothing: drop every existing row so pass one
+	// truly has no neighbor context, matching a fresh database.
+	if _, err := db.Exec(`DELETE FROM profiles`); err != nil {
+		return fmt.Errorf("clearing store: %w", err)
+	}
+	return runGenerate(db, cfg, docs, 2)
 }
 
-// cmdUpdate re-infers profiles only for the documents Git reports changed (or
-// missing an entry) and rewrites those in place, leaving the rest of .catalog.md
-// untouched. One pass: the changed documents read their untouched neighbors'
-// real profiles. This is the routine job, like bin/format — run it after editing
-// a document.
+// cmdUpdate re-infers profiles only for the documents that are new or
+// modified relative to the store, drops rows for documents that are deleted
+// or no longer enumerated, and always rewrites .catalog.md — even when no
+// profile changes, so the file stays a faithful render of the store. This is
+// the routine job, like bin/format — run it after editing a document.
 func cmdUpdate(args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("update: takes no arguments")
 	}
-	docs, cat, cfg, err := loadForGenerate()
+	docs, cfg, err := loadDocsAndConfig()
 	if err != nil {
 		return err
 	}
-	if err := requirePopulated(cat); err != nil {
-		return err
-	}
-	ref, err := lastTouchedCommit(execGit, catalogPath)
+	db, err := openStore(storePath)
 	if err != nil {
 		return err
 	}
-	var stale map[string]bool
-	if stale, err = staleDocs(execGit, ref, docs); err != nil {
+	defer db.Close()
+
+	rows, err := readProfiles(db)
+	if err != nil {
 		return err
 	}
-	targets := selectStale(docs, cat.entries, stale)
-	pruneOrphans(cat.entries, docs)
+	if err := requirePopulated(rows); err != nil {
+		return err
+	}
+
+	docHashes, err := hashDocs(docs)
+	if err != nil {
+		return err
+	}
+	status := classify(docHashes, rows)
+	for _, path := range status.deleted {
+		if err := deleteProfile(db, path); err != nil {
+			return err
+		}
+	}
+	targets := append(append([]string{}, status.new...), status.modified...)
+	sort.Strings(targets)
 
 	if len(targets) == 0 {
 		fmt.Printf("catalog: up to date (%d docs).\n", len(docs))
-		return writeCatalog(cat) // normalize layout even when no profiles change
+		return regenerateCatalogMD(db) // normalize layout even when no profiles change
 	}
-	return runGenerate(cfg, cat, targets, 1)
+	return runGenerate(db, cfg, targets, 1)
 }
 
-// cmdForce re-infers the named documents even when Git thinks they're current,
-// in one pass — each reads its neighbors' existing profiles. With no arguments it
-// forces every document. Use it to redo a few entries you're unhappy with, or to
-// rebuild all entries in one pass after a prompt change (cheaper than bootstrap,
-// which a populated catalog doesn't need).
+// cmdForce re-infers the named documents (or all, with no names)
+// unconditionally, in one pass — each reads its neighbors' existing
+// profiles. Use it to redo a few entries you're unhappy with, or to rebuild
+// all entries in one pass after a prompt change (cheaper than bootstrap,
+// which a populated store doesn't need).
 func cmdForce(args []string) error {
-	docs, cat, cfg, err := loadForGenerate()
+	docs, cfg, err := loadDocsAndConfig()
 	if err != nil {
 		return err
 	}
-	if err := requirePopulated(cat); err != nil {
+	db, err := openStore(storePath)
+	if err != nil {
 		return err
 	}
+	defer db.Close()
+
+	rows, err := readProfiles(db)
+	if err != nil {
+		return err
+	}
+	if err := requirePopulated(rows); err != nil {
+		return err
+	}
+
 	targets := docs
 	if len(args) > 0 {
 		if targets, err = resolveForceTargets(args, docs); err != nil {
 			return err
 		}
 	}
-	pruneOrphans(cat.entries, docs)
-	return runGenerate(cfg, cat, targets, 1)
+
+	docHashes, err := hashDocs(docs)
+	if err != nil {
+		return err
+	}
+	for _, path := range classify(docHashes, rows).deleted {
+		if err := deleteProfile(db, path); err != nil {
+			return err
+		}
+	}
+	return runGenerate(db, cfg, targets, 1)
 }
 
-// loadForGenerate reads the three inputs every key-using command needs: the
-// enumerated documents, the current catalog, and the config.
-func loadForGenerate() (docs []string, cat *catalog, cfg *config, err error) {
+// loadDocsAndConfig reads the two inputs every command needs before it can
+// touch the store: the enumerated documents and the config.
+func loadDocsAndConfig() (docs []string, cfg *config, err error) {
 	cfg, err = loadConfig()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	docs, err = includedDocs(cfg)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if len(docs) == 0 {
-		return nil, nil, nil, fmt.Errorf("no documents enumerated — check %s", configPath)
+		return nil, nil, fmt.Errorf("no documents enumerated — check %s", configPath)
 	}
-	cat, err = readCatalog()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return docs, cat, cfg, nil
+	return docs, cfg, nil
 }
 
-// requirePopulated refuses to run update or force against an empty or missing
-// catalog. Both write a single pass, which assumes the entries they leave alone
-// already hold real profiles for documents to read as neighbors. With nothing
-// there, a one-pass build produces a catalog where every entry was written
-// blind — exactly the case bootstrap's second pass exists to fix. Point the user
-// at it instead of silently doing the worse thing.
-func requirePopulated(cat *catalog) error {
-	if len(cat.entries) == 0 {
-		return fmt.Errorf("%s has no entries — run `catalog bootstrap` to build it", catalogPath)
+// hashDocs reads every document in docs and returns its current content
+// hash, keyed by path.
+func hashDocs(docs []string) (map[string]string, error) {
+	hashes := make(map[string]string, len(docs))
+	for _, path := range docs {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", path, err)
+		}
+		hashes[path] = contentHash(content)
+	}
+	return hashes, nil
+}
+
+// requirePopulated refuses to run update or force against an empty store.
+// Both write a single pass, which assumes the rows they leave alone already
+// hold real profiles for documents to read as neighbors. With nothing there,
+// a one-pass build produces entries written blind — exactly the case
+// bootstrap's second pass exists to fix. Point the user at it instead of
+// silently doing the worse thing.
+func requirePopulated(rows []profileRow) error {
+	if len(rows) == 0 {
+		return fmt.Errorf("%s has no entries — run `catalog bootstrap` to build it", storePath)
 	}
 	return nil
 }
@@ -175,11 +232,14 @@ func resolveForceTargets(args, docs []string) ([]string, error) {
 	return targets, nil
 }
 
-// runGenerate is the shared body behind bootstrap, update, and force: resolve the
-// key, infer profiles for the targets in the given number of passes, write the
-// catalog, and print the run summary. The caller has already chosen the targets
-// and the pass count — the two knobs that distinguish the three commands.
-func runGenerate(cfg *config, cat *catalog, targets []string, passes int) error {
+// runGenerate is the shared body behind bootstrap, update, and force: resolve
+// the key, infer profiles for the targets in the given number of passes,
+// writing each one into the store as it's produced so later targets in the
+// same pass (and every target in a later pass) read it as a real neighbor,
+// then regenerate .catalog.md and print the run summary. The caller has
+// already chosen the targets and the pass count — the two knobs that
+// distinguish the three commands.
+func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
 	key, err := loadAPIKey(cfg)
 	if err != nil {
 		return err
@@ -193,18 +253,30 @@ func runGenerate(cfg *config, cat *catalog, targets []string, passes int) error 
 		if passes > 1 {
 			fmt.Fprintf(os.Stderr, "  pass %d of %d...\n", p, passes)
 		}
-		used, err := inferPass(ctx, &client, cfg, cat, targets)
+		used, err := inferPass(ctx, db, &client, cfg, targets)
 		total = total.add(used)
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := writeCatalog(cat); err != nil {
+	if err := regenerateCatalogMD(db); err != nil {
 		return err
 	}
 	fmt.Println(formatRunSummary(len(targets), passes, total, time.Since(start)))
 	return nil
+}
+
+// regenerateCatalogMD renders .catalog.md fresh from every row in the store
+// and writes it to disk — the database is the sole source of truth, so this
+// runs after every write, even one that changed nothing, to normalize
+// layout and correct any drift.
+func regenerateCatalogMD(db *sql.DB) error {
+	rows, err := readProfiles(db)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(catalogPath, []byte(render(rows)), 0o644)
 }
 
 // formatRunSummary renders the end-of-run report: documents, passes, the API
@@ -216,68 +288,48 @@ func formatRunSummary(docs, passes int, t tokens, elapsed time.Duration) string 
 		docs, passes, docs*passes, t.input, t.cached, t.output, elapsed.Seconds())
 }
 
-// selectStale picks the documents update should re-infer: those Git reports
-// stale, plus any document missing an entry. Targets follow the input order of
-// docs (which callers keep sorted) so a run is deterministic.
-func selectStale(docs []string, entries map[string]*entry, stale map[string]bool) []string {
-	var targets []string
-	for _, d := range docs {
-		if stale[d] || entries[d] == nil {
-			targets = append(targets, d)
-		}
-	}
-	return targets
-}
-
-// pruneOrphans removes entries whose document is no longer enumerated (deleted
-// or now ignored), mutating entries in place.
-func pruneOrphans(entries map[string]*entry, docs []string) {
-	present := map[string]bool{}
-	for _, d := range docs {
-		present[d] = true
-	}
-	for p := range entries {
-		if !present[p] {
-			delete(entries, p)
-		}
-	}
-}
-
-// inferPass infers a fresh profile for each target document and writes it into
-// the catalog, using every other entry as neighbor context. It returns the
-// token counts the pass consumed.
-func inferPass(ctx context.Context, client *anthropic.Client, cfg *config, cat *catalog, targets []string) (tokens, error) {
+// inferPass infers a fresh profile for each target document and writes it
+// into the store immediately, using every other row as neighbor context. It
+// returns the token counts the pass consumed.
+func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *config, targets []string) (tokens, error) {
 	var total tokens
 	for _, path := range targets {
 		text, err := os.ReadFile(path)
 		if err != nil {
 			return total, fmt.Errorf("reading %s: %w", path, err)
 		}
+		neighborText, err := neighbors(db, path)
+		if err != nil {
+			return total, err
+		}
 		fmt.Fprintf(os.Stderr, "  profile: %s\n", path)
-		profile, used, err := inferProfile(ctx, client, cfg, path, string(text), neighbors(cat, path))
+		profile, used, err := inferProfile(ctx, client, cfg, path, string(text), neighborText)
 		if err != nil {
 			return total, fmt.Errorf("%s: %w", path, err)
 		}
-		cat.entries[path] = &entry{path: path, profile: profile}
+		row := profileRow{path: path, contentHash: contentHash(text), profile: profile}
+		if err := writeProfile(db, row); err != nil {
+			return total, err
+		}
 		total = total.add(used)
 	}
 	return total, nil
 }
 
-// neighbors renders the other entries' profiles as context for positioning.
-func neighbors(cat *catalog, self string) string {
-	paths := make([]string, 0, len(cat.entries))
-	for p := range cat.entries {
-		if p != self {
-			paths = append(paths, p)
+// neighbors renders every other row's profile as context for positioning.
+func neighbors(db *sql.DB, self string) (string, error) {
+	rows, err := readProfiles(db)
+	if err != nil {
+		return "", err
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].path < rows[j].path })
+	var b strings.Builder
+	for _, r := range rows {
+		if r.path != self {
+			fmt.Fprintf(&b, "- %s: %s\n", r.path, r.profile)
 		}
 	}
-	sort.Strings(paths)
-	var b strings.Builder
-	for _, p := range paths {
-		fmt.Fprintf(&b, "- %s: %s\n", p, cat.entries[p].profile)
-	}
-	return b.String()
+	return b.String(), nil
 }
 
 // buildProfilePrompt assembles the user message: the document under a path-
