@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"os"
 
 	_ "modernc.org/sqlite"
 )
@@ -21,6 +22,16 @@ CREATE TABLE IF NOT EXISTS profiles (
 	content_hash TEXT NOT NULL,
 	profile      TEXT NOT NULL
 )`
+
+// storeExists reports whether a database file already sits at path, before
+// openStore's create-if-missing behavior would otherwise hide that fact. A
+// missing database means every enumerated document would report as new —
+// status and diff check this first so that case gets its own message
+// instead of reading like every profile was lost.
+func storeExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
 // openStore opens (creating if necessary) the database at path and ensures
 // the profiles table exists. A file that exists but isn't a valid SQLite

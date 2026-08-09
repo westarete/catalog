@@ -15,6 +15,9 @@ func cmdDiff(args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("diff takes no arguments")
 	}
+	if !storeExists(storePath) {
+		return fmt.Errorf("no database yet (%s not found) — run `catalog bootstrap` to build one", storePath)
+	}
 	db, err := openStore(storePath)
 	if err != nil {
 		return err

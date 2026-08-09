@@ -28,6 +28,21 @@ func TestCmdDiffRejectsArguments(t *testing.T) {
 	}
 }
 
+func TestCmdDiffNoDatabaseErrorsDistinctly(t *testing.T) {
+	chdirTemp(t)
+	if err := os.WriteFile(catalogPath, []byte("# Catalog\n\n## (root)\n\n### a.md\n\nexisting profile\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := cmdDiff(nil)
+	if err == nil {
+		t.Fatal("missing database: cmdDiff should return an error")
+	}
+	if !strings.Contains(err.Error(), "bootstrap") {
+		t.Errorf("missing-database error should point at bootstrap, got: %v", err)
+	}
+}
+
 func TestCmdDiffNoOutputWhenMatching(t *testing.T) {
 	chdirTemp(t)
 	db, err := openStore(storePath)

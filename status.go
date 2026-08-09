@@ -24,6 +24,10 @@ func cmdStatus(args []string) error {
 	if err != nil {
 		return err
 	}
+	if !storeExists(storePath) {
+		fmt.Printf("catalog: no database yet (%s not found) — run `catalog bootstrap` to build one\n", storePath)
+		return fmt.Errorf("run `catalog bootstrap` to build the database")
+	}
 	db, err := openStore(storePath)
 	if err != nil {
 		return err

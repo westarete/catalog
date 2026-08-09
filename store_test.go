@@ -20,6 +20,21 @@ func openTestStore(t *testing.T) *sql.DB {
 	return db
 }
 
+func TestStoreExists(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.db")
+	if storeExists(path) {
+		t.Error("storeExists on a path with nothing there should be false")
+	}
+	db, err := openStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	if !storeExists(path) {
+		t.Error("storeExists after openStore created the file should be true")
+	}
+}
+
 func TestOpenStoreCreatesTable(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "catalog.db")
 	db, err := openStore(path)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -88,6 +89,51 @@ func TestCatalogMDDriftedHandEdit(t *testing.T) {
 func TestCmdStatusRejectsArguments(t *testing.T) {
 	if err := cmdStatus([]string{"unexpected"}); err == nil {
 		t.Error("cmdStatus with arguments should error")
+	}
+}
+
+// TestCmdStatusNoDatabaseReportsDistinctly guards against a real gap: a repo
+// with a real, populated .catalog.md but no database yet (never migrated)
+// must not be reported the same way as one where every document has
+// genuinely never been profiled. Both would otherwise look identical —
+// every document classified "new" — which reads as data loss rather than
+// "run bootstrap."
+func TestCmdStatusNoDatabaseReportsDistinctly(t *testing.T) {
+	dir := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	if err := os.MkdirAll(".catalog", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(".catalog/config.toml", []byte(`enumerate = ["a.md"]`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("a.md", []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A real, populated .catalog.md, as if hand-authored or from before the
+	// store existed — deliberately not touching .catalog/catalog.db.
+	if err := os.WriteFile(catalogPath, []byte("# Catalog\n\n## (root)\n\n### a.md\n\nexisting profile\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(storePath); err == nil {
+		t.Fatal("test setup: storePath should not exist yet")
+	}
+
+	err = cmdStatus(nil)
+	if err == nil {
+		t.Fatal("missing database: cmdStatus should return an error")
+	}
+	if strings.Contains(err.Error(), "refresh") {
+		t.Errorf("missing-database error should be distinct from the normal out-of-sync error, got: %v", err)
 	}
 }
 
