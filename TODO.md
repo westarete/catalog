@@ -52,9 +52,12 @@ steps.
 - [ ] Add a content-hash function (SHA-256) for document text. Test:
       identical content hashes identically, different content hashes
       differently.
-- [ ] Add a store read (fetch all rows) and a store write (upsert one
-      row by path). Test both against a real temp-file database — no
-      mocking needed, since the driver is pure Go.
+- [ ] Add a store read (fetch all rows), a store write (upsert one row
+      by path), and a store delete (remove one row by path — pulled in
+      early since `update`'s "drop rows for deleted docs" job needs it
+      and it belongs with the other store operations). Test all three
+      against a real temp-file database — no mocking needed, since the
+      driver is pure Go.
 - [ ] Add a pure classification function: given the enumerated docs'
       current hashes and the store's rows, return which are new,
       modified, or deleted. Test with table-driven cases, no I/O and no
