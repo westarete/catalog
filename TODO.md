@@ -22,7 +22,7 @@ catalog stays a root-level dotfile rather than moving inside
 
 - [x] Update the hardcoded filename in `catalog.go`
 - [x] Update all references in the Go source, README.md, and FUTURE.md
-- [ ] Update the catalog skill in `hq` (SKILL.md, SETUP.md,
+- [x] Update the catalog skill in `hq` (SKILL.md, SETUP.md,
       config.example.toml, pre-commit)
 
 ## 2. SQLite profile store
