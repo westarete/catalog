@@ -96,24 +96,72 @@ place a profile lives. Normalized: one fact, one home. When a document
 changes, one profile record is updated, and that triggers regeneration
 of every catalog that references it.
 
-The store is a generated cache, not an authored artifact. Profiles are
-never hand-edited; any correction flows upstream into the generator or
-the content docs themselves. The right storage format is a committed
-SQLite database rather than a directory of text files.
+The store holds current state only, no history: one row per document,
+with columns `path`, `content_hash` (a hash of the document's content at
+the time the profile was last written), and `profile` (the profile text
+itself). A document is stale when its current content hash no longer
+matches the stored one, or when it has no row at all. A renamed document
+is just a deleted path plus a new one — its profile isn't carried across
+the rename.
+
+Staleness is a property of the database and the filesystem only —
+`catalog` has no dependency on Git and doesn't require running inside a
+repository. Whatever version control (or none) sits around the content
+is outside its concern.
+
+The database is the sole source of truth; `.catalog.md` is always just
+an artifact rendered from it. If a repo has no database yet, `bootstrap`
+runs even when a `.catalog.md` already exists — its content is not read
+or trusted, only overwritten. There is no partial-trust path that
+carries old profile text into the database without re-inferring it.
+
+The store is a generated cache, not an authored artifact — with one
+planned exception: `catalog edit` (see TODO.md) will let a person set a
+document's profile text directly, overriding inference until that
+document's content changes again. The right storage format is a
+committed SQLite database rather than a directory of text files.
+
+`catalog status` reports the same comparison, run at two levels: each
+enumerated document's content hash against its row in the database
+(reporting `new`, `modified`, or `deleted`, in the same vocabulary and
+orientation as `git status` — describing what happened to the user's
+files, not the catalog's bookkeeping), and `.catalog.md` on disk against
+what rendering the database right now would produce. `catalog diff`
+shows the second comparison in full: a unified diff between the file on
+disk and a fresh render of the database, which is exactly what running
+`update` would change.
+
+`deleted` covers both "the file is gone" and "the file still exists but
+`.catalog/config.toml` no longer enumerates it" — either way, the
+document's row is dropped on the next `update`, so `status` reports it
+the same way rather than adding a separate category for the config-only
+case.
+
+A database that exists but can't be opened (corrupt, truncated, or not
+actually a SQLite file) is a hard error, never treated as "missing." A
+missing database is the normal first-run case and triggers `bootstrap`;
+a broken one is a sign of something else gone wrong — a bad checkout, an
+interrupted write, a botched merge resolution — and silently rebuilding
+over it would hide that.
 
 SQLite fits this role well. Git detects it as binary automatically (it's
 not valid UTF-8), so `git diff` produces a clean "binary files differ"
 line with no configuration needed. The file travels with the repo on
 clone and through subtree exports, so every machine starts with the same
-cache state without an expensive bootstrap run. Inspection uses
-dedicated commands (`catalog show`, `catalog diff`) rather than
-`git diff` — the right tool anyway, since anyone debugging why the wrong
-files loaded is already in developer mode.
+cache state without an expensive bootstrap run.
+
+The driver is `modernc.org/sqlite`, a pure-Go reimplementation of SQLite
+— no cgo, no C compiler needed at build time. That matches
+`.goreleaser.yaml`'s `CGO_ENABLED=0` (see "Why Go" in README.md): a
+static binary with no build-time or runtime dependencies. The pure-Go
+driver is slower than a cgo-wrapped one, but at the scale of a catalog —
+dozens to a few hundred small text rows — that difference doesn't
+matter.
 
 Merges are the one place that needs a documented procedure. If two
 branches both ran `catalog update`, Git will flag a binary conflict on
 the database file. The resolution: pick either side
-(`git checkout --theirs profiles.db` or `--ours`), then re-run
+(`git checkout --theirs .catalog/catalog.db` or `--ours`), then re-run
 `catalog update` for the content docs that changed on the other branch.
 Which docs those are is a `git diff --name-only MERGE_HEAD` away. You're
 not resolving a conflict — you're regenerating, which is always the
