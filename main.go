@@ -3,19 +3,25 @@
 // pull a document into context, the same way a skill's description tells the
 // harness when to load the skill body.
 //
+// Profiles live in a committed SQLite database (.catalog/catalog.db); the
+// database is the sole source of truth, and .catalog.md is always a
+// generated artifact rendered from it. Staleness is a content-hash
+// comparison against that database — catalog has no dependency on Git and
+// does not require running inside a repository.
+//
 // Four subcommands, split by whether they need an API key:
 //
 //	bootstrap  Rebuild every entry from scratch in two passes. For creating
-//	           .catalog.md or rebuilding it wholesale. Needs ANTHROPIC_API_KEY.
-//	update     Re-infer profiles for the documents Git reports changed and
-//	           rewrite those in place. The routine job. Needs ANTHROPIC_API_KEY.
-//	force      Re-infer named documents even when Git thinks they're current
-//	           (or all of them, given no names). Needs ANTHROPIC_API_KEY.
-//	check      Pure Git query: is every enumerated document present and
-//	           un-stale? No API key, no model call. CI's gate.
+//	           the database or rebuilding it wholesale. Needs ANTHROPIC_API_KEY.
+//	update     Re-infer profiles for new or modified documents and drop rows
+//	           for deleted ones. The routine job. Needs ANTHROPIC_API_KEY.
+//	force      Re-infer named documents unconditionally (or all of them,
+//	           given no names). Needs ANTHROPIC_API_KEY.
+//	status     Report new/modified/deleted documents and whether .catalog.md
+//	           matches the database. No API key, no model call. CI's gate.
 //
 // The three key-using commands differ only in which entries they rewrite and how
-// many passes they run; check is the deterministic gate that never calls a model.
+// many passes they run; status is the deterministic gate that never calls a model.
 //
 // Run from the repo root.
 package main
@@ -58,8 +64,8 @@ func main() {
 		err = cmdUpdate(args)
 	case "force":
 		err = cmdForce(args)
-	case "check":
-		err = cmdCheck(args)
+	case "status":
+		err = cmdStatus(args)
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -82,14 +88,14 @@ func usage() {
 
 usage:
   catalog bootstrap            rebuild every entry from scratch, two passes (needs ANTHROPIC_API_KEY)
-  catalog update               re-infer profiles for docs Git reports changed (needs ANTHROPIC_API_KEY)
-  catalog force [file ...]     re-infer named docs even if current; no names = all (needs ANTHROPIC_API_KEY)
-  catalog check                staleness gate, pure Git query (no API key)
+  catalog update               re-infer profiles for new or modified docs (needs ANTHROPIC_API_KEY)
+  catalog force [file ...]     re-infer named docs unconditionally; no names = all (needs ANTHROPIC_API_KEY)
+  catalog status               report new/modified/deleted docs and catalog.md drift (no API key)
   catalog version              print version and exit
   catalog help                 show this message
 
 update is the routine job. force redoes specific entries you're unhappy with,
 or rebuilds all of them in one pass after a prompt change. bootstrap is the
-two-pass build for an empty or missing catalog.
+two-pass build for an empty or missing database.
 `)
 }
