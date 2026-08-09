@@ -175,6 +175,18 @@ match the problem domain, not the implementation. When something feels
 awkward to name or test, that is usually a design problem, not a naming
 problem.
 
+### Testing catalog against its own repo
+
+This repo is currently below the catalog skill's own size threshold for
+adopting a catalog (see the skill's SETUP.md). If you run
+`catalog bootstrap` or similar here to verify a change end to end, treat
+`.catalog/` and `.catalog.md` as throwaway output and delete them
+afterward rather than committing them. Don't add them to `.gitignore`
+either — the goal is not to create them for a real reason, not to hide
+them once created. If this repo ever grows enough to clear the threshold
+for real, that's a deliberate decision to make afresh, not something
+that should already be half-done because the files were quietly ignored.
+
 ### Work incrementally
 
 Do not generate large amounts of code in one move. Propose a step,
