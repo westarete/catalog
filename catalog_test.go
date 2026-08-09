@@ -41,7 +41,9 @@ func TestParseRoundTrip(t *testing.T) {
 	}
 
 	// Rendering then re-parsing must preserve the entry set and profiles.
-	out := render(c)
+	// The header does not round-trip: render always emits defaultHeader(),
+	// since the store holds no header field — see render's doc comment.
+	out := render(entriesToRows(c.entries))
 	c2 := parseCatalog(out)
 	if len(c2.entries) != 3 {
 		t.Fatalf("round-trip got %d entries, want 3", len(c2.entries))
@@ -54,6 +56,30 @@ func TestParseRoundTrip(t *testing.T) {
 	// Sections must be present and ordered.
 	if !strings.Contains(out, "## leadership/") || !strings.Contains(out, "## product/") {
 		t.Errorf("section headers missing:\n%s", out)
+	}
+}
+
+func TestRenderFromRows(t *testing.T) {
+	rows := []profileRow{
+		{path: "b/two.md", profile: "profile two"},
+		{path: "a/one.md", profile: "profile one"},
+	}
+	out := render(rows)
+	if !strings.Contains(out, "### a/one.md") || !strings.Contains(out, "profile one") {
+		t.Errorf("a/one.md entry missing:\n%s", out)
+	}
+	if !strings.Contains(out, "### b/two.md") || !strings.Contains(out, "profile two") {
+		t.Errorf("b/two.md entry missing:\n%s", out)
+	}
+	if strings.Index(out, "a/one.md") > strings.Index(out, "b/two.md") {
+		t.Errorf("entries not sorted by path:\n%s", out)
+	}
+}
+
+func TestRenderAlwaysUsesDefaultHeader(t *testing.T) {
+	out := render(nil)
+	if !strings.Contains(out, strings.TrimSpace(defaultHeader())) {
+		t.Errorf("render output missing default header:\n%s", out)
 	}
 }
 
@@ -72,7 +98,7 @@ func TestInPlaceRewritePreservesOthers(t *testing.T) {
 	}, "\n")
 	c := parseCatalog(src)
 	c.entries["a/one.md"].profile = "REWRITTEN one"
-	out := render(c)
+	out := render(entriesToRows(c.entries))
 	if !strings.Contains(out, "REWRITTEN one") {
 		t.Errorf("rewrite not applied")
 	}

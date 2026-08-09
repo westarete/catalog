@@ -88,24 +88,27 @@ func parseCatalog(text string) *catalog {
 	return c
 }
 
-// render produces the full .catalog.md: the header, then entries grouped under
-// "## <dir>/" section headers and emitted as "### <path>" stanzas. Profiles are
-// written as single-line paragraphs and left for bin/format (Prettier) to wrap,
-// the same discipline as every other Markdown file in the repo.
-func render(c *catalog) string {
+// render produces the full .catalog.md from the store's rows: the header,
+// then entries grouped under "## <dir>/" section headers and emitted as
+// "### <path>" stanzas. Profiles are written as single-line paragraphs and
+// left for bin/format (Prettier) to wrap, the same discipline as every other
+// Markdown file in the repo.
+//
+// The header is always defaultHeader() — the store holds no header field, so
+// there is nothing per-repo to preserve. The header is generic boilerplate
+// describing what the file is, not project-specific prose anyone hand-tunes.
+func render(rows []profileRow) string {
 	var b strings.Builder
-	b.WriteString(strings.TrimRight(c.header, "\n"))
+	b.WriteString(strings.TrimRight(defaultHeader(), "\n"))
 	b.WriteString("\n")
 
-	paths := make([]string, 0, len(c.entries))
-	for p := range c.entries {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
+	sorted := make([]profileRow, len(rows))
+	copy(sorted, rows)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].path < sorted[j].path })
 
 	lastDir := ""
-	for _, p := range paths {
-		dir := dirOf(p)
+	for _, r := range sorted {
+		dir := dirOf(r.path)
 		if dir != lastDir {
 			b.WriteString("\n## ")
 			b.WriteString(dir)
@@ -113,9 +116,9 @@ func render(c *catalog) string {
 			lastDir = dir
 		}
 		b.WriteString("\n### ")
-		b.WriteString(p)
+		b.WriteString(r.path)
 		b.WriteString("\n\n")
-		b.WriteString(strings.TrimSpace(c.entries[p].profile))
+		b.WriteString(strings.TrimSpace(r.profile))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -128,8 +131,20 @@ func dirOf(path string) string {
 	return "(root)"
 }
 
+// entriesToRows is a bridge kept only until bootstrap/update/force are
+// rewired against the store directly (see TODO.md): it lets check.go and
+// generate.go keep compiling against *catalog while render itself already
+// takes the store's row shape.
+func entriesToRows(entries map[string]*entry) []profileRow {
+	rows := make([]profileRow, 0, len(entries))
+	for path, e := range entries {
+		rows = append(rows, profileRow{path: path, profile: e.profile})
+	}
+	return rows
+}
+
 func writeCatalog(c *catalog) error {
-	return os.WriteFile(catalogPath, []byte(render(c)), 0o644)
+	return os.WriteFile(catalogPath, []byte(render(entriesToRows(c.entries))), 0o644)
 }
 
 func defaultHeader() string {
