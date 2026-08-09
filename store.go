@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 
 	_ "modernc.org/sqlite"
@@ -39,4 +41,13 @@ func openStore(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("initializing %s: %w", path, err)
 	}
 	return db, nil
+}
+
+// contentHash returns the hash a document's row is compared against to
+// decide staleness: identical content always hashes identically, and any
+// change to the content changes the hash. Not a security boundary — just
+// change detection — so a fast, collision-resistant hash is all this needs.
+func contentHash(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
 }

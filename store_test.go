@@ -61,3 +61,25 @@ func TestOpenStoreRejectsCorruptFile(t *testing.T) {
 		t.Fatal("openStore on a corrupt file: got nil error, want an error")
 	}
 }
+
+func TestContentHashDeterministic(t *testing.T) {
+	if contentHash([]byte("hello")) != contentHash([]byte("hello")) {
+		t.Error("identical content produced different hashes")
+	}
+}
+
+func TestContentHashDiffers(t *testing.T) {
+	if contentHash([]byte("hello")) == contentHash([]byte("world")) {
+		t.Error("different content produced the same hash")
+	}
+}
+
+func TestContentHashKnownValue(t *testing.T) {
+	// sha256("hello") — a fixed value so a regression to a different hash
+	// (or a broken implementation like appending instead of hashing) is
+	// caught even if it happens to still be deterministic.
+	want := "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+	if got := contentHash([]byte("hello")); got != want {
+		t.Errorf("contentHash(%q) = %s, want %s", "hello", got, want)
+	}
+}
