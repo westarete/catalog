@@ -51,3 +51,56 @@ func contentHash(content []byte) string {
 	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
 }
+
+// profileRow is one document's current state in the store: current state
+// only, no history — see FUTURE.md's "The profile store" section.
+type profileRow struct {
+	path        string
+	contentHash string
+	profile     string
+}
+
+// readProfiles fetches every row in the store.
+func readProfiles(db *sql.DB) ([]profileRow, error) {
+	rows, err := db.Query(`SELECT path, content_hash, profile FROM profiles`)
+	if err != nil {
+		return nil, fmt.Errorf("reading profiles: %w", err)
+	}
+	defer rows.Close()
+
+	var out []profileRow
+	for rows.Next() {
+		var r profileRow
+		if err := rows.Scan(&r.path, &r.contentHash, &r.profile); err != nil {
+			return nil, fmt.Errorf("reading profiles: %w", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("reading profiles: %w", err)
+	}
+	return out, nil
+}
+
+// writeProfile upserts one row by path: insert if the path is new, overwrite
+// its hash and profile if it already exists.
+func writeProfile(db *sql.DB, r profileRow) error {
+	_, err := db.Exec(`
+		INSERT INTO profiles (path, content_hash, profile) VALUES (?, ?, ?)
+		ON CONFLICT(path) DO UPDATE SET content_hash = excluded.content_hash, profile = excluded.profile
+	`, r.path, r.contentHash, r.profile)
+	if err != nil {
+		return fmt.Errorf("writing profile for %s: %w", r.path, err)
+	}
+	return nil
+}
+
+// deleteProfile removes the row for path, if one exists. Used when a
+// document is deleted or no longer enumerated — see FUTURE.md: both cases
+// are treated the same way.
+func deleteProfile(db *sql.DB, path string) error {
+	if _, err := db.Exec(`DELETE FROM profiles WHERE path = ?`, path); err != nil {
+		return fmt.Errorf("deleting profile for %s: %w", path, err)
+	}
+	return nil
+}

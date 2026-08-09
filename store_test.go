@@ -1,10 +1,24 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 )
+
+func openTestStore(t *testing.T) *sql.DB {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "catalog.db")
+	db, err := openStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
 
 func TestOpenStoreCreatesTable(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "catalog.db")
@@ -81,5 +95,101 @@ func TestContentHashKnownValue(t *testing.T) {
 	want := "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 	if got := contentHash([]byte("hello")); got != want {
 		t.Errorf("contentHash(%q) = %s, want %s", "hello", got, want)
+	}
+}
+
+func TestReadProfilesEmpty(t *testing.T) {
+	db := openTestStore(t)
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("readProfiles on empty store = %v, want empty", rows)
+	}
+}
+
+func TestWriteThenReadProfile(t *testing.T) {
+	db := openTestStore(t)
+	want := profileRow{path: "a.md", contentHash: "hash1", profile: "profile text"}
+	if err := writeProfile(db, want); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0] != want {
+		t.Errorf("readProfiles = %v, want [%v]", rows, want)
+	}
+}
+
+func TestWriteProfileUpsertsExistingPath(t *testing.T) {
+	db := openTestStore(t)
+	if err := writeProfile(db, profileRow{path: "a.md", contentHash: "hash1", profile: "old"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeProfile(db, profileRow{path: "a.md", contentHash: "hash2", profile: "new"}); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := profileRow{path: "a.md", contentHash: "hash2", profile: "new"}
+	if len(rows) != 1 || rows[0] != want {
+		t.Errorf("readProfiles after upsert = %v, want [%v] (one row, not two)", rows, want)
+	}
+}
+
+func TestWriteProfileMultipleRows(t *testing.T) {
+	db := openTestStore(t)
+	for _, r := range []profileRow{
+		{path: "a.md", contentHash: "h1", profile: "p1"},
+		{path: "b.md", contentHash: "h2", profile: "p2"},
+	} {
+		if err := writeProfile(db, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].path < rows[j].path })
+	want := []profileRow{
+		{path: "a.md", contentHash: "h1", profile: "p1"},
+		{path: "b.md", contentHash: "h2", profile: "p2"},
+	}
+	if !reflect.DeepEqual(rows, want) {
+		t.Errorf("readProfiles = %v, want %v", rows, want)
+	}
+}
+
+func TestDeleteProfile(t *testing.T) {
+	db := openTestStore(t)
+	if err := writeProfile(db, profileRow{path: "a.md", contentHash: "h1", profile: "p1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := deleteProfile(db, "a.md"); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("readProfiles after delete = %v, want empty", rows)
+	}
+}
+
+func TestDeleteProfileMissingPathIsNotAnError(t *testing.T) {
+	db := openTestStore(t)
+	if err := deleteProfile(db, "never-existed.md"); err != nil {
+		t.Errorf("deleteProfile on a missing path returned an error: %v", err)
 	}
 }
