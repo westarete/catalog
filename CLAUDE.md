@@ -5,9 +5,8 @@
 This file governs agent behavior in this repository: communication
 habits, process discipline, Markdown quality, and Git hygiene.
 
-This file is instructions, not documentation. Use [Anthropic's best
-practices for
-skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+This file is instructions, not documentation. Use
+[Anthropic's best practices for skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
 for guidance on how to get good results using file.
 
 ## Do not use the agent memory system
