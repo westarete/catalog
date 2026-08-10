@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(go mod tidy)",
+      "Bash(go get *)",
+      "Bash(go list *)",
+      "Bash(CGO_ENABLED=0 go build *)",
+      "Bash(CGO_ENABLED=0 go test *)",
+      "Bash(make markdown)",
+      "Bash(make test)",
+      "Bash(make lint)",
+      "Bash(git add *)",
+      "Bash(git --no-pager diff *)",
+      "Bash(git --no-pager log *)",
+      "Bash(git restore --staged *)"
+    ]
+  }
+}
