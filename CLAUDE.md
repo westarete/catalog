@@ -118,6 +118,13 @@ terminal opened at the repo.
 **Never run `sudo` or elevated-privilege commands.** If something truly
 needs that, describe the issue and stop.
 
+**Never search or `find` starting from `/`, `$HOME`, or other paths
+outside this repo and its dependency caches.** A full-filesystem scan is
+slow, and it can read files that have nothing to do with the task. To
+look up a Go dependency's source, use `go doc <package>` scoped to the
+module, or `go list -m -f '{{.Dir}}' <module>` to get its exact path,
+rather than guessing a glob and searching from root.
+
 ## Markdown
 
 After editing any `.md` file, run `make markdown`. It formats the whole
