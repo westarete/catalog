@@ -11,7 +11,15 @@ permissions:
   contents: write
 
 jobs:
+  # Runs the same lint/test/markdown checks check.yml runs on every push to
+  # main — a tag push doesn't trigger that workflow on its own (tags aren't
+  # branches), so without this a tagged commit could release without ever
+  # being checked.
+  check:
+    uses: ./.github/workflows/check.yml
+
   release:
+    needs: check
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7

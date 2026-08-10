@@ -6,6 +6,10 @@ on:
   pull_request:
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
+  # Let release.yml call this workflow and gate the release job on it — a
+  # tag push doesn't match branches: [main] above, so without this a tagged
+  # commit could release without ever running these checks.
+  workflow_call:
 
 jobs:
   # Lint then test, via the same `make test` a developer runs locally —
