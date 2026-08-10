@@ -385,7 +385,10 @@ func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, pa
 	}
 	t := strings.TrimSpace(out.String())
 	if t == "" {
-		return "", tokens{}, fmt.Errorf("model returned no profile text")
+		if resp.StopReason == anthropic.StopReasonRefusal {
+			return "", tokens{}, fmt.Errorf("model refused (%s): %s", resp.StopDetails.Category, resp.StopDetails.Explanation)
+		}
+		return "", tokens{}, fmt.Errorf("model returned no profile text (stop_reason=%s)", resp.StopReason)
 	}
 	used := tokens{
 		input:  resp.Usage.InputTokens,

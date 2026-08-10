@@ -1,12 +1,19 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
 func TestTokensAdd(t *testing.T) {
@@ -72,6 +79,37 @@ func TestBuildProfilePrompt(t *testing.T) {
 	}
 	if !strings.Contains(withN, "- b.md: when X") {
 		t.Errorf("missing neighbor line:\n%s", withN)
+	}
+}
+
+func TestInferProfileReportsRefusalDetail(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":          "msg_test",
+			"type":        "message",
+			"role":        "assistant",
+			"model":       "claude-test",
+			"content":     []any{},
+			"stop_reason": "refusal",
+			"stop_details": map[string]any{
+				"type":        "refusal",
+				"category":    "cyber",
+				"explanation": "the request resembled exploit content",
+			},
+			"usage": map[string]any{"input_tokens": 1, "output_tokens": 0},
+		})
+	}))
+	defer srv.Close()
+
+	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
+	cfg := &config{Model: "claude-test"}
+	_, _, err := inferProfile(context.Background(), &client, cfg, "a.md", "body", "")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "cyber") || !strings.Contains(err.Error(), "exploit content") {
+		t.Errorf("error should surface refusal category/explanation, got: %v", err)
 	}
 }
 
