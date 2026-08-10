@@ -39,7 +39,7 @@ step is one commit, in the order listed — the order is a dependency
 order, not just a reading order, so don't reorder or squash across
 steps.
 
-- [ ] Add the `modernc.org/sqlite` dependency (pure Go, no cgo — matches
+- [x] Add the `modernc.org/sqlite` dependency (pure Go, no cgo — matches
       `.goreleaser.yaml`'s `CGO_ENABLED=0`) together with the schema
       (`path`, `content_hash`, `profile`) and a function to
       open/initialize `.catalog/catalog.db` — `go mod tidy` drops an
@@ -49,23 +49,23 @@ steps.
       rows alone; opening a corrupt or non-SQLite file at that path
       returns a clear error rather than silently treating it as missing
       and rebuilding over it.
-- [ ] Add a content-hash function (SHA-256) for document text. Test:
+- [x] Add a content-hash function (SHA-256) for document text. Test:
       identical content hashes identically, different content hashes
       differently.
-- [ ] Add a store read (fetch all rows), a store write (upsert one row
+- [x] Add a store read (fetch all rows), a store write (upsert one row
       by path), and a store delete (remove one row by path — pulled in
       early since `update`'s "drop rows for deleted docs" job needs it
       and it belongs with the other store operations). Test all three
       against a real temp-file database — no mocking needed, since the
       driver is pure Go.
-- [ ] Add a pure classification function: given the enumerated docs'
+- [x] Add a pure classification function: given the enumerated docs'
       current hashes and the store's rows, return which are new,
       modified, or deleted. Test with table-driven cases, no I/O and no
       real store.
-- [ ] Adapt `render` to build `.catalog.md` from store rows instead of
+- [x] Adapt `render` to build `.catalog.md` from store rows instead of
       the parsed `*catalog` struct. Carry over the existing render
       tests, adjusted for the new input shape.
-- [ ] Wire `bootstrap`, `update`, and `force` against the store. Landed
+- [x] Wire `bootstrap`, `update`, and `force` against the store. Landed
       as one commit rather than three — they share `runGenerate`,
       `inferPass`, `neighbors`, `hashDocs`, and `requirePopulated`,
       which all had to change shape together; splitting them wouldn't
@@ -79,22 +79,24 @@ steps.
       end, since `runGenerate` needs a real key before it reaches the
       network — see CLAUDE.md and FUTURE.md on keeping the model-calling
       path out of automated tests.
-- [ ] Add `catalog status`: run the classification function and report
+- [x] Add `catalog status`: run the classification function and report
       new/modified/deleted in `git status`-style language (oriented
       around the user's files, not the catalog's bookkeeping), plus a
       separate check for whether `.catalog.md` on disk matches a fresh
       render of the store. Non-zero exit if anything is out of sync. No
       model call. Test each category independently.
-- [ ] Add `catalog diff`: render the store, unified-diff it against
-      `.catalog.md` on disk. Pick a Go unified-diff library and test
-      against known before/after string pairs.
-- [ ] Delete `git.go` and `git_test.go`; remove the git calls from
+- [x] Add `catalog diff`: unified-diff a projection of the store
+      (deleted docs dropped, new docs placeholdered) against
+      `.catalog.md` on disk — not the store as it literally sits, which
+      would silently show no difference for a file added or removed
+      since the last `update`. Found and fixed live against a real repo.
+- [x] Delete `git.go` and `git_test.go`; remove the git calls from
       `check.go` (renamed `status.go`) and `generate.go`. `catalog` no
       longer depends on Git or on running inside a repository. Must come
       after `force` is rewired (the previous step) — `force` is the last
       caller of the git-based staleness functions, so deleting them any
       earlier breaks the build.
-- [ ] Update README.md's Commands section to describe `status`, `diff`,
+- [x] Update README.md's Commands section to describe `status`, `diff`,
       and hash-based staleness in place of the current Git-based
       description.
 - [ ] Update the `hq` catalog skill. This lives in a separate repo
@@ -139,3 +141,12 @@ steps.
       `git checkout --theirs/--ours` syntax mid-merge. The manual
       two-step path (check out a side, then run `catalog update`) always
       works, so this is a convenience, not a blocker.
+- [ ] Improve the "no config" error a brand-new repo hits on every
+      command. Today (`config.go`'s `loadConfig`) it just says "copy
+      config.example.toml from the catalog skill and edit it" — no path
+      to that file, no mention that `catalog init` (SETUP.md's planned
+      one-command setup) doesn't exist yet either. A person with no
+      prior context has nowhere to go from this message. At minimum,
+      name where the skill actually lives; ideally, this is the moment
+      `catalog init` should exist to walk someone through setup instead
+      of just refusing.
