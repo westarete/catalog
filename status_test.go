@@ -7,15 +7,7 @@ import (
 )
 
 func TestCatalogMDDriftedMissingFile(t *testing.T) {
-	dir := t.TempDir()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirTemp(t)
 
 	drifted, err := catalogMDDrifted([]profileRow{{path: "a.md", contentHash: "h", profile: "p"}})
 	if err != nil {
@@ -27,15 +19,7 @@ func TestCatalogMDDriftedMissingFile(t *testing.T) {
 }
 
 func TestCatalogMDDriftedMatches(t *testing.T) {
-	dir := t.TempDir()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirTemp(t)
 
 	rows := []profileRow{{path: "a.md", contentHash: "h", profile: "p"}}
 	if err := os.WriteFile(catalogPath, []byte(render(rows)), 0o644); err != nil {
@@ -52,15 +36,7 @@ func TestCatalogMDDriftedMatches(t *testing.T) {
 }
 
 func TestCatalogMDDriftedHandEdit(t *testing.T) {
-	dir := t.TempDir()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirTemp(t)
 
 	rows := []profileRow{{path: "a.md", contentHash: "h", profile: "p"}}
 	if err := os.WriteFile(catalogPath, []byte(render(rows)), 0o644); err != nil {
@@ -75,7 +51,9 @@ func TestCatalogMDDriftedHandEdit(t *testing.T) {
 	if _, err := f.WriteString("\nhand-added text\n"); err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	drifted, err := catalogMDDrifted(rows)
 	if err != nil {
@@ -99,19 +77,8 @@ func TestCmdStatusRejectsArguments(t *testing.T) {
 // every document classified "new" — which reads as data loss rather than
 // "run bootstrap."
 func TestCmdStatusNoDatabaseReportsDistinctly(t *testing.T) {
-	dir := t.TempDir()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirTemp(t)
 
-	if err := os.MkdirAll(".catalog", 0o755); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(".catalog/config.toml", []byte(`enumerate = ["a.md"]`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +95,7 @@ func TestCmdStatusNoDatabaseReportsDistinctly(t *testing.T) {
 		t.Fatal("test setup: storePath should not exist yet")
 	}
 
-	err = cmdStatus(nil)
+	err := cmdStatus(nil)
 	if err == nil {
 		t.Fatal("missing database: cmdStatus should return an error")
 	}
@@ -138,19 +105,8 @@ func TestCmdStatusNoDatabaseReportsDistinctly(t *testing.T) {
 }
 
 func TestCmdStatusCleanRepoReportsUpToDate(t *testing.T) {
-	dir := t.TempDir()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirTemp(t)
 
-	if err := os.MkdirAll(".catalog", 0o755); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(".catalog/config.toml", []byte(`enumerate = ["a.md"]`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +125,9 @@ func TestCmdStatusCleanRepoReportsUpToDate(t *testing.T) {
 	if err := os.WriteFile(catalogPath, []byte(render([]profileRow{row})), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := cmdStatus(nil); err != nil {
 		t.Errorf("clean repo: cmdStatus returned an error: %v", err)
@@ -177,19 +135,8 @@ func TestCmdStatusCleanRepoReportsUpToDate(t *testing.T) {
 }
 
 func TestCmdStatusReportsModifiedAndErrors(t *testing.T) {
-	dir := t.TempDir()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirTemp(t)
 
-	if err := os.MkdirAll(".catalog", 0o755); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(".catalog/config.toml", []byte(`enumerate = ["a.md"]`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +151,9 @@ func TestCmdStatusReportsModifiedAndErrors(t *testing.T) {
 	if err := writeProfile(db, profileRow{path: "a.md", contentHash: "stale-hash", profile: "old profile"}); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := cmdStatus(nil); err == nil {
 		t.Error("modified doc: cmdStatus should return a non-nil error")

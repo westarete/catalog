@@ -63,7 +63,7 @@ func cmdBootstrap(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Bootstrap starts from nothing: drop every existing row so pass one
 	// truly has no neighbor context, matching a fresh database.
@@ -90,7 +90,7 @@ func cmdUpdate(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows, err := readProfiles(db)
 	if err != nil {
@@ -134,7 +134,7 @@ func cmdForce(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows, err := readProfiles(db)
 	if err != nil {

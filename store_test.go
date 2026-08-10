@@ -16,7 +16,11 @@ func openTestStore(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("closing store: %v", err)
+		}
+	})
 	return db
 }
 
@@ -29,7 +33,9 @@ func TestStoreExists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if !storeExists(path) {
 		t.Error("storeExists after openStore created the file should be true")
 	}
@@ -41,7 +47,11 @@ func TestOpenStoreCreatesTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("closing store: %v", err)
+		}
+	}()
 
 	var name string
 	err = db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'profiles'`).Scan(&name)
@@ -61,13 +71,19 @@ func TestOpenStorePreservesExistingRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	db2, err := openStore(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db2.Close()
+	defer func() {
+		if err := db2.Close(); err != nil {
+			t.Errorf("closing store: %v", err)
+		}
+	}()
 
 	var profile string
 	err = db2.QueryRow(`SELECT profile FROM profiles WHERE path = ?`, "a.md").Scan(&profile)
@@ -92,7 +108,10 @@ func TestOpenStoreRejectsCorruptFile(t *testing.T) {
 }
 
 func TestContentHashDeterministic(t *testing.T) {
-	if contentHash([]byte("hello")) != contentHash([]byte("hello")) {
+	content := []byte("hello")
+	first := contentHash(content)
+	second := contentHash(content)
+	if first != second {
 		t.Error("identical content produced different hashes")
 	}
 }

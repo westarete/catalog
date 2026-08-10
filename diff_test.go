@@ -16,7 +16,11 @@ func chdirTemp(t *testing.T) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	t.Cleanup(func() {
+		if err := os.Chdir(orig); err != nil {
+			t.Errorf("restoring working directory: %v", err)
+		}
+	})
 	if err := os.MkdirAll(".catalog", 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +125,9 @@ func TestCmdDiffNoOutputWhenMatching(t *testing.T) {
 	if err := os.WriteFile(catalogPath, []byte(render([]profileRow{row})), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	out := captureStdout(t, func() {
 		if err := cmdDiff(nil); err != nil {
@@ -147,7 +153,9 @@ func TestCmdDiffShowsUnifiedFormatWhenDrifted(t *testing.T) {
 	if err := writeProfile(db, profileRow{path: "a.md", contentHash: contentHash([]byte("content")), profile: "new profile"}); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(catalogPath, []byte("stale content on disk\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +193,9 @@ func TestCmdDiffMissingFileDiffsAsEmpty(t *testing.T) {
 	if err := writeProfile(db, profileRow{path: "a.md", contentHash: contentHash([]byte("content")), profile: "p"}); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 	// catalogPath deliberately not written.
 
 	out := captureStdout(t, func() {
@@ -223,7 +233,9 @@ func TestCmdDiffShowsNewFileAsAddition(t *testing.T) {
 	if err := os.WriteFile(catalogPath, []byte(render([]profileRow{row})), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	out := captureStdout(t, func() {
 		if err := cmdDiff(nil); err != nil {
@@ -264,7 +276,9 @@ func TestCmdDiffShowsDeletedFileAsRemoval(t *testing.T) {
 	if err := os.WriteFile(catalogPath, []byte(render([]profileRow{keptRow, removedRow})), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	out := captureStdout(t, func() {
 		if err := cmdDiff(nil); err != nil {
@@ -296,7 +310,9 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	fn()
 
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	buf := make([]byte, 64*1024)
 	n, _ := r.Read(buf)
 	return string(buf[:n])

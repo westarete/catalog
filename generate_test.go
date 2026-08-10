@@ -80,7 +80,7 @@ func TestNeighborsExcludesSelfAndSorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	for _, r := range []profileRow{
 		{path: "c.md", contentHash: "h", profile: "pc"},
 		{path: "a.md", contentHash: "h", profile: "pa"},

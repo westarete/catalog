@@ -44,11 +44,11 @@ func openStore(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
 	if _, err := db.Exec(createProfilesTable); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("initializing %s: %w", path, err)
 	}
 	return db, nil
@@ -77,7 +77,7 @@ func readProfiles(db *sql.DB) ([]profileRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading profiles: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []profileRow
 	for rows.Next() {

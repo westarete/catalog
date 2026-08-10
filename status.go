@@ -32,7 +32,7 @@ func cmdStatus(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	docHashes, err := hashDocs(docs)
 	if err != nil {

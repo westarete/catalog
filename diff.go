@@ -40,7 +40,7 @@ func cmdDiff(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows, err := readProfiles(db)
 	if err != nil {

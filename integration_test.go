@@ -54,7 +54,7 @@ func TestClassifyAgainstRealStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	writeFile(t, "current.md", "unchanged content")
 	writeFile(t, "changed.md", "new content")
@@ -101,7 +101,7 @@ func TestRegenerateCatalogMDReflectsStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	for _, r := range []profileRow{
 		{path: "x/one.md", contentHash: "h1", profile: "profile one"},
@@ -139,7 +139,7 @@ func TestUpdateDeletesOrphanRowsWithoutModelCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	writeFile(t, "kept.md", "content")
 	if err := writeProfile(db, profileRow{path: "kept.md", contentHash: contentHash([]byte("content")), profile: "p"}); err != nil {
