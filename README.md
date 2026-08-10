@@ -161,6 +161,11 @@ Homebrew with no version management required on the user's end.
 
 Near-term work in progress is tracked in [TODO.md](TODO.md).
 
+Before committing: `make test` after touching any `.go` file (it lints
+with `golangci-lint`, then runs the Go test suite — one command, no
+separate lint step to remember), and `make markdown` after touching any
+`.md` file (formats and lints the whole repo).
+
 The typical cycle when working on the binary:
 
 1. **Build locally** into `~/.local/bin` to shadow the Homebrew version:

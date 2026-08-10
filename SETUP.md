@@ -12,12 +12,12 @@ Install these once with Homebrew:
 brew install go prettier markdownlint-cli2 golangci-lint
 ```
 
-Minimum versions: Go 1.24, Prettier 3, markdownlint-cli2 0.17. The
+Minimum versions: Go 1.25, Prettier 3, markdownlint-cli2 0.17. The
 versions above will satisfy those.
 
 You also need an Anthropic API key to run the commands that infer
-profiles (`bootstrap`, `update`, `force`). `check` and all tests run
-without one.
+profiles (`bootstrap`, `update`, `force`). `status`, `diff`, and all
+tests run without one.
 
 ## Clone and verify
 
@@ -39,13 +39,5 @@ environment. Export it in your shell profile, or prefix commands inline:
 ANTHROPIC_API_KEY=sk-... catalog bootstrap
 ```
 
-## Day-to-day
-
-- `make test` — run the Go test suite
-- `make lint` — run golangci-lint (includes `go vet`, staticcheck,
-  errcheck, and more)
-- `make build` — build the binary
-- `make markdown` — format and lint all Markdown (always the whole repo)
-
-Run `make markdown` after editing any `.md` file, and before committing.
-Run `make test` and `make lint` after editing any `.go` file.
+See [README.md](README.md)'s development workflow for the day-to-day
+commands once you're set up.

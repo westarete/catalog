@@ -5,6 +5,11 @@
 This file governs agent behavior in this repository: communication
 habits, process discipline, Markdown quality, and Git hygiene.
 
+This file is instructions, not documentation. Use [Anthropic's best
+practices for
+skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+for guidance on how to get good results using file.
+
 ## Do not use the agent memory system
 
 Do not write to or rely on a per-machine agent memory store (for
@@ -107,8 +112,8 @@ Assume the **current working directory is this repository's root**.
 Invoke tools relative to that root, the same way a developer would in a
 terminal opened at the repo.
 
-- Prefer `make markdown`, `make test`, `make lint`, `git status`,
-  `git commit`, etc. — not absolute paths.
+- Prefer `make markdown`, `make test`, `git status`, `git commit`, etc.
+  — not absolute paths.
 - Do not use `cd` in the command string when you can avoid it.
 
 **Never run `sudo` or elevated-privilege commands.** If something truly
@@ -133,9 +138,9 @@ not pre-approval of a message. Commit messages follow Tim Pope's
 Follow the release process in [README.md](README.md).
 
 For the git-commit skill, the project's CHECK command is `make markdown`
-and there is no separate FORMAT command — `make markdown` both formats
-and checks. Run it in Phase 2 before proposing a commit message, every
-time.
+and `make test` — there is no separate FORMAT command. Run whichever
+applies to what changed, in Phase 2, before proposing a commit message,
+every time.
 
 ### When process fails
 

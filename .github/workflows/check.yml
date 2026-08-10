@@ -8,7 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Go tests and static analysis. No API key needed — tests don't call the model.
+  # Lint then test, via the same `make test` a developer runs locally —
+  # one command, not a hand-maintained parallel sequence of CI-only steps.
+  # No API key needed — tests don't call the model.
   go:
     runs-on: ubuntu-latest
     steps:
@@ -16,12 +18,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
+      - name: Install golangci-lint
+        run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
       - name: Test
-        run: go test ./...
-      - name: Lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
+        run: make test
 
   # Markdown formatting and structure. ubuntu-latest ships with Node/npm.
   markdown:

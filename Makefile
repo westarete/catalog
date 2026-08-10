@@ -8,7 +8,7 @@ markdown:
 build:
 	go build ./...
 
-test:
+test: lint
 	go test ./...
 
 lint:
