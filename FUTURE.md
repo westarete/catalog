@@ -127,9 +127,16 @@ enumerated document's content hash against its row in the database
 orientation as `git status` — describing what happened to the user's
 files, not the catalog's bookkeeping), and `.catalog.md` on disk against
 what rendering the database right now would produce. `catalog diff`
-shows the second comparison in full: a unified diff between the file on
-disk and a fresh render of the database, which is exactly what running
-`update` would change.
+shows the second comparison in full, as a unified diff — but against a
+projection of the database, not the database as it literally sits: rows
+for deleted documents are dropped, and new documents appear with a
+placeholder profile, since diff makes no model call and can't produce
+what `update` would actually infer. Without that projection, a file
+created or removed since the last `update` would show as no difference
+at all, because the stale database hasn't caught up yet — an internal
+detail nobody asked about. The point of `diff` is showing the real
+difference a person would see, not the state of an implementation detail
+they shouldn't have to think about.
 
 `deleted` covers both "the file is gone" and "the file still exists but
 `.catalog/config.toml` no longer enumerates it" — either way, the
