@@ -32,6 +32,11 @@ The tool infers profiles by reading each document with the surrounding
 catalog as context, so it can distinguish near-neighbors from each other
 rather than describing them in isolation.
 
+Documents aren't limited to Markdown. Plain text and CSV work today with
+no extra setup — just point a glob at them in `.catalog/config.toml`.
+PDFs are also supported: catalog sends them to the model as native PDF
+documents rather than raw text.
+
 ## Commands
 
 Run from the repo root. Profiles live in a committed SQLite database at

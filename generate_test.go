@@ -82,6 +82,81 @@ func TestBuildProfilePrompt(t *testing.T) {
 	}
 }
 
+func TestIsPDF(t *testing.T) {
+	cases := map[string]bool{
+		"a.pdf":              true,
+		"A.PDF":              true,
+		"reports/annual.pdf": true,
+		"a.md":               false,
+		"a.txt":              false,
+		"a.pdf.md":           false,
+	}
+	for path, want := range cases {
+		if got := isPDF(path); got != want {
+			t.Errorf("isPDF(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestBuildDocumentBlocksTextPath(t *testing.T) {
+	blocks := buildDocumentBlocks("a.md", []byte("body text"), "- b.md: when X\n")
+	if len(blocks) != 1 {
+		t.Fatalf("want 1 block for a text document, got %d", len(blocks))
+	}
+	text := blocks[0].OfText
+	if text == nil {
+		t.Fatal("want a text block")
+	}
+	if !strings.Contains(text.Text, `<document path="a.md">`) || !strings.Contains(text.Text, "body text") {
+		t.Errorf("missing document tag/body:\n%s", text.Text)
+	}
+	if !strings.Contains(text.Text, "- b.md: when X") {
+		t.Errorf("missing neighbor line:\n%s", text.Text)
+	}
+}
+
+func TestBuildDocumentBlocksPDFPath(t *testing.T) {
+	blocks := buildDocumentBlocks("a.pdf", []byte("%PDF-1.4 fake content"), "- b.md: when X\n")
+	if len(blocks) != 2 {
+		t.Fatalf("want a document block plus a neighbor text block, got %d blocks", len(blocks))
+	}
+	doc := blocks[0].OfDocument
+	if doc == nil {
+		t.Fatal("want the first block to be a document block")
+	}
+	pdfSource := doc.Source.OfBase64
+	if pdfSource == nil {
+		t.Fatal("want a base64 PDF source")
+	}
+	wantData := "JVBERi0xLjQgZmFrZSBjb250ZW50" // base64 of "%PDF-1.4 fake content"
+	if pdfSource.Data != wantData {
+		t.Errorf("PDF data = %q, want %q", pdfSource.Data, wantData)
+	}
+	text := blocks[1].OfText
+	if text == nil {
+		t.Fatal("want the second block to be a text block")
+	}
+	if !strings.Contains(text.Text, "Existing profiles for other documents") {
+		t.Errorf("missing neighbor section:\n%s", text.Text)
+	}
+	if !strings.Contains(text.Text, "- b.md: when X") {
+		t.Errorf("missing neighbor line:\n%s", text.Text)
+	}
+	if strings.Contains(text.Text, "<document path=") {
+		t.Errorf("PDF path should not also inline a <document> tag:\n%s", text.Text)
+	}
+}
+
+func TestBuildDocumentBlocksPDFPathNoNeighbors(t *testing.T) {
+	blocks := buildDocumentBlocks("a.pdf", []byte("content"), "")
+	if len(blocks) != 1 {
+		t.Fatalf("want just the document block when there are no neighbors, got %d blocks", len(blocks))
+	}
+	if blocks[0].OfDocument == nil {
+		t.Fatal("want a document block")
+	}
+}
+
 func TestInferProfileReportsRefusalDetail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -104,12 +179,56 @@ func TestInferProfileReportsRefusalDetail(t *testing.T) {
 
 	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
 	cfg := &config{Model: "claude-test"}
-	_, _, err := inferProfile(context.Background(), &client, cfg, "a.md", "body", "")
+	_, _, err := inferProfile(context.Background(), &client, cfg, "a.md", []byte("body"), "")
 	if err == nil {
 		t.Fatal("expected an error")
 	}
 	if !strings.Contains(err.Error(), "cyber") || !strings.Contains(err.Error(), "exploit content") {
 		t.Errorf("error should surface refusal category/explanation, got: %v", err)
+	}
+}
+
+func TestInferProfileSendsDocumentBlockForPDF(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":          "msg_test",
+			"type":        "message",
+			"role":        "assistant",
+			"model":       "claude-test",
+			"content":     []any{map[string]any{"type": "text", "text": "a profile"}},
+			"stop_reason": "end_turn",
+			"usage":       map[string]any{"input_tokens": 1, "output_tokens": 1},
+		})
+	}))
+	defer srv.Close()
+
+	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
+	cfg := &config{Model: "claude-test"}
+	_, _, err := inferProfile(context.Background(), &client, cfg, "a.pdf", []byte("%PDF-1.4 fake"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	messages, _ := gotBody["messages"].([]any)
+	if len(messages) != 1 {
+		t.Fatalf("want 1 message, got %d", len(messages))
+	}
+	content, _ := messages[0].(map[string]any)["content"].([]any)
+	if len(content) != 1 {
+		t.Fatalf("want 1 content block for a PDF with no neighbors, got %d", len(content))
+	}
+	block, _ := content[0].(map[string]any)
+	if block["type"] != "document" {
+		t.Fatalf("want a document block on the wire, got type %v", block["type"])
+	}
+	source, _ := block["source"].(map[string]any)
+	if source["media_type"] != "application/pdf" {
+		t.Errorf("want application/pdf media type, got %v", source["media_type"])
 	}
 }
 

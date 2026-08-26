@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -311,7 +313,7 @@ func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *c
 			return total, err
 		}
 		fmt.Fprintf(os.Stderr, "  %s\n", path)
-		profile, used, err := inferProfile(ctx, client, cfg, path, string(text), neighborText)
+		profile, used, err := inferProfile(ctx, client, cfg, path, text, neighborText)
 		if err != nil {
 			return total, fmt.Errorf("%s: %w", path, err)
 		}
@@ -347,11 +349,48 @@ func neighbors(db *sql.DB, self string) (string, error) {
 func buildProfilePrompt(path, text, neighborText string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<document path=%q>\n%s\n</document>\n", path, text)
-	if neighborText != "" {
-		b.WriteString("\n# Existing profiles for other documents in this catalog\n\n")
-		b.WriteString(neighborText)
-	}
+	b.WriteString(buildNeighborPrompt(neighborText))
 	return b.String()
+}
+
+// buildNeighborPrompt renders the "existing profiles" positioning section on
+// its own, for callers (like the PDF path) that send the document itself as
+// a separate content block rather than inlined in the text prompt.
+func buildNeighborPrompt(neighborText string) string {
+	if neighborText == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n# Existing profiles for other documents in this catalog\n\n")
+	b.WriteString(neighborText)
+	return b.String()
+}
+
+// isPDF reports whether path names a PDF document, which the model reads
+// natively as a document content block instead of inlined text.
+func isPDF(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), ".pdf")
+}
+
+// buildDocumentBlocks assembles the content blocks for the user message: a
+// PDF is sent as a native document block (plus a separate text block for
+// neighbor positioning, since that context isn't part of the file itself);
+// anything else is sent as a single inlined text block, as before.
+func buildDocumentBlocks(path string, content []byte, neighborText string) []anthropic.ContentBlockParamUnion {
+	if !isPDF(path) {
+		return []anthropic.ContentBlockParamUnion{
+			anthropic.NewTextBlock(buildProfilePrompt(path, string(content), neighborText)),
+		}
+	}
+	blocks := []anthropic.ContentBlockParamUnion{
+		anthropic.NewDocumentBlock(anthropic.Base64PDFSourceParam{
+			Data: base64.StdEncoding.EncodeToString(content),
+		}),
+	}
+	if neighbors := buildNeighborPrompt(neighborText); neighbors != "" {
+		blocks = append(blocks, anthropic.NewTextBlock(neighbors))
+	}
+	return blocks
 }
 
 // tokens holds the token counts the API reports for the work a run did. They
@@ -365,13 +404,13 @@ func (t tokens) add(o tokens) tokens {
 	return tokens{t.input + o.input, t.cached + o.cached, t.output + o.output}
 }
 
-func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, path, text, neighborText string) (string, tokens, error) {
+func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, path string, content []byte, neighborText string) (string, tokens, error) {
 	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(cfg.Model),
 		MaxTokens: 400,
 		System:    []anthropic.TextBlockParam{{Text: profileInstruction}},
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(buildProfilePrompt(path, text, neighborText))),
+			anthropic.NewUserMessage(buildDocumentBlocks(path, content, neighborText)...),
 		},
 	})
 	if err != nil {
