@@ -259,6 +259,7 @@ func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
 	start := time.Now()
 	var total tokens
 
+	var passErr error
 	for p := 1; p <= passes; p++ {
 		if passes > 1 {
 			fmt.Fprintf(os.Stderr, "  pass %d of %d...\n", p, passes)
@@ -266,12 +267,19 @@ func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
 		used, err := inferPass(ctx, db, &client, cfg, targets)
 		total = total.add(used)
 		if err != nil {
-			return err
+			passErr = err
+			break
 		}
 	}
 
+	// Regenerate .catalog.md from whatever landed in the store even on a
+	// partial failure — the successful profiles from this run are already
+	// written, and the rendered file should never lag behind the database.
 	if err := regenerateCatalogMD(db); err != nil {
 		return err
+	}
+	if passErr != nil {
+		return passErr
 	}
 	fmt.Println(formatRunSummary(len(targets), passes, total, time.Since(start)))
 	return nil
@@ -300,9 +308,14 @@ func formatRunSummary(docs, passes int, t tokens, elapsed time.Duration) string 
 
 // inferPass infers a fresh profile for each target document and writes it
 // into the store immediately, using every other row as neighbor context. It
-// returns the token counts the pass consumed.
+// returns the token counts the pass consumed. A document whose inference
+// fails (e.g. the model hit its token cap before producing profile text) is
+// reported to stderr and skipped rather than aborting the whole pass — one
+// bad document in a batch of hundreds shouldn't block every other entry from
+// being written.
 func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *config, targets []string) (tokens, error) {
 	var total tokens
+	var failed []string
 	for _, path := range targets {
 		text, err := os.ReadFile(path)
 		if err != nil {
@@ -314,14 +327,19 @@ func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *c
 		}
 		fmt.Fprintf(os.Stderr, "  %s\n", path)
 		profile, used, err := inferProfile(ctx, client, cfg, path, text, neighborText)
+		total = total.add(used)
 		if err != nil {
-			return total, fmt.Errorf("%s: %w", path, err)
+			fmt.Fprintf(os.Stderr, "  catalog: %s: %v\n", path, err)
+			failed = append(failed, path)
+			continue
 		}
 		row := profileRow{path: path, contentHash: contentHash(text), profile: profile}
 		if err := writeProfile(db, row); err != nil {
 			return total, err
 		}
-		total = total.add(used)
+	}
+	if len(failed) > 0 {
+		return total, fmt.Errorf("%d of %d documents failed: %s", len(failed), len(targets), strings.Join(failed, ", "))
 	}
 	return total, nil
 }
@@ -407,7 +425,7 @@ func (t tokens) add(o tokens) tokens {
 func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, path string, content []byte, neighborText string) (string, tokens, error) {
 	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(cfg.Model),
-		MaxTokens: 400,
+		MaxTokens: 1024,
 		System:    []anthropic.TextBlockParam{{Text: profileInstruction}},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(buildDocumentBlocks(path, content, neighborText)...),

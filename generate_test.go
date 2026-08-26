@@ -257,6 +257,73 @@ func TestNeighborsExcludesSelfAndSorts(t *testing.T) {
 	}
 }
 
+// TestInferPassSkipsFailuresAndKeepsGoing verifies that one document's
+// inference failure (e.g. the model exhausted MaxTokens before producing
+// profile text) does not stop the pass from writing every other document's
+// profile — it should be reported, not fatal to the whole batch.
+func TestInferPassSkipsFailuresAndKeepsGoing(t *testing.T) {
+	dir := t.TempDir()
+	good := filepath.Join(dir, "good.md")
+	bad := filepath.Join(dir, "bad.md")
+	if err := os.WriteFile(good, []byte("good content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bad, []byte("bad content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		messages, _ := body["messages"].([]any)
+		msg, _ := messages[0].(map[string]any)
+		content, _ := msg["content"].([]any)
+		block, _ := content[0].(map[string]any)
+		text, _ := block["text"].(string)
+
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(text, "bad content") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "msg_test", "type": "message", "role": "assistant", "model": "claude-test",
+				"content": []any{}, "stop_reason": "max_tokens",
+				"usage": map[string]any{"input_tokens": 1, "output_tokens": 400},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "msg_test", "type": "message", "role": "assistant", "model": "claude-test",
+			"content": []any{map[string]any{"type": "text", "text": "a good profile"}}, "stop_reason": "end_turn",
+			"usage": map[string]any{"input_tokens": 1, "output_tokens": 3},
+		})
+	}))
+	defer srv.Close()
+
+	db, err := openStore(filepath.Join(t.TempDir(), "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
+	cfg := &config{Model: "claude-test"}
+
+	_, err = inferPass(context.Background(), db, &client, cfg, []string{bad, good})
+	if err == nil {
+		t.Fatal("want an error naming the failed document, got nil")
+	}
+	if !strings.Contains(err.Error(), bad) {
+		t.Errorf("error should name the failed path %q, got: %v", bad, err)
+	}
+
+	rows, err := readProfiles(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].path != good || rows[0].profile != "a good profile" {
+		t.Errorf("want only %s written with its profile, got %+v", good, rows)
+	}
+}
+
 func TestHashDocs(t *testing.T) {
 	dir := t.TempDir()
 	pathA := filepath.Join(dir, "a.md")
