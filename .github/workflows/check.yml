@@ -21,7 +21,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          # Pinned, not "stable": golangci-lint trails new Go releases,
+          # so this needs to stay a version golangci-lint supports —
+          # bump deliberately, not automatically.
+          go-version: "1.26"
       - name: Install golangci-lint
         run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
       - name: Test

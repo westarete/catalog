@@ -29,7 +29,9 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          # Keep in sync with check.yml's go-version — see the comment
+          # there for why this is pinned instead of "stable".
+          go-version: "1.26"
 
       - uses: goreleaser/goreleaser-action@v7
         with:
