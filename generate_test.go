@@ -188,6 +188,37 @@ func TestInferProfileReportsRefusalDetail(t *testing.T) {
 	}
 }
 
+// A 1024-token cap let a thinking model spend the whole response thinking and
+// return no profile text. This pins the request to the roomier cap.
+func TestInferProfileLeavesRoomForThinking(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":          "msg_test",
+			"type":        "message",
+			"role":        "assistant",
+			"model":       "claude-test",
+			"content":     []any{map[string]any{"type": "text", "text": "a profile"}},
+			"stop_reason": "end_turn",
+			"usage":       map[string]any{"input_tokens": 1, "output_tokens": 1},
+		})
+	}))
+	defer srv.Close()
+
+	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
+	cfg := &config{Model: "claude-test"}
+	if _, _, err := inferProfile(context.Background(), &client, cfg, "a.md", []byte("body"), ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := gotBody["max_tokens"]; got != float64(profileMaxTokens) {
+		t.Errorf("max_tokens = %v, want %d", got, profileMaxTokens)
+	}
+}
+
 func TestInferProfileSendsDocumentBlockForPDF(t *testing.T) {
 	var gotBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

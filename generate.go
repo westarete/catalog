@@ -15,6 +15,16 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+// profileMaxTokens caps the response to one profile request. A profile is only a
+// few hundred tokens, but models that think by default (Sonnet 5 and later)
+// spend output tokens thinking before they write, and a document that is hard
+// to position against its neighbors can use up a small cap before any profile
+// text appears. A near-duplicate transcript in one repo failed at 1024 and 2048
+// and succeeded using 848 to 1856 tokens at higher caps; usage varies from run
+// to run. The cap bounds what one runaway document can cost, so it is set with
+// headroom over that, not as high as the API allows.
+const profileMaxTokens = 4096
+
 // The profile prompt. The generator's job is not to summarize a document well —
 // it is to infer the conditions under which an agent should pull the document
 // into context, exactly as a skill's description tells the harness when to load
@@ -425,7 +435,7 @@ func (t tokens) add(o tokens) tokens {
 func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, path string, content []byte, neighborText string) (string, tokens, error) {
 	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(cfg.Model),
-		MaxTokens: 1024,
+		MaxTokens: profileMaxTokens,
 		System:    []anthropic.TextBlockParam{{Text: profileInstruction}},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(buildDocumentBlocks(path, content, neighborText)...),
