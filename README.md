@@ -144,8 +144,8 @@ git push origin vX.Y.Z
 ```
 
 Pushing the tag triggers the GoReleaser workflow, which builds binaries,
-creates the GitHub release, and opens a PR against the tap repo to
-update the cask.
+creates the GitHub release, and commits the updated cask directly to the
+tap repo's `main`.
 
 ## macOS Gatekeeper and code signing
 
