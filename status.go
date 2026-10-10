@@ -25,8 +25,7 @@ func cmdStatus(args []string) error {
 		return err
 	}
 	if !storeExists(storePath) {
-		fmt.Printf("catalog: no database yet (%s not found) — run `catalog bootstrap` to build one\n", storePath)
-		return fmt.Errorf("run `catalog bootstrap` to build the database")
+		return fmt.Errorf("no database yet (%s not found) — run `catalog bootstrap` to build one", storePath)
 	}
 	db, err := openStore(storePath)
 	if err != nil {
@@ -49,23 +48,26 @@ func cmdStatus(args []string) error {
 		return err
 	}
 
-	if len(docsStatus.new) == 0 && len(docsStatus.modified) == 0 && len(docsStatus.deleted) == 0 && !drifted {
-		fmt.Printf("catalog: up to date (%d docs).\n", len(docs))
-		return nil
+	if reportStatus(newReporter(os.Stdout), docsStatus, drifted, len(docs)) {
+		return errReported
 	}
-	for _, p := range docsStatus.new {
-		fmt.Printf("new: %s (no profile yet)\n", p)
+	return nil
+}
+
+// reportStatus prints each out-of-sync document with the same words a run
+// uses for it, then the closing line. It returns whether
+// anything needs attention.
+func reportStatus(rep *reporter, s docStatus, drifted bool, total int) bool {
+	for _, p := range s.new {
+		rep.pending(actionAdd, p)
 	}
-	for _, p := range docsStatus.modified {
-		fmt.Printf("modified: %s (content changed since the profile was written)\n", p)
+	for _, p := range s.modified {
+		rep.pending(actionModify, p)
 	}
-	for _, p := range docsStatus.deleted {
-		fmt.Printf("deleted: %s (profile exists but the document is gone or no longer enumerated)\n", p)
+	for _, p := range s.deleted {
+		rep.pending(actionDelete, p)
 	}
-	if drifted {
-		fmt.Println("catalog.md: out of sync with the database (run `catalog diff` to see what would change)")
-	}
-	return fmt.Errorf("run `catalog update` to refresh")
+	return rep.attention(total, drifted)
 }
 
 // catalogMDDrifted reports whether .catalog.md on disk differs from what

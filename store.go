@@ -93,6 +93,15 @@ func readProfiles(db *sql.DB) ([]profileRow, error) {
 	return out, nil
 }
 
+// hasProfile reports whether the store has a row for path.
+func hasProfile(db *sql.DB, path string) (bool, error) {
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM profiles WHERE path = ?`, path).Scan(&n); err != nil {
+		return false, fmt.Errorf("checking profile for %s: %w", path, err)
+	}
+	return n > 0, nil
+}
+
 // writeProfile upserts one row by path: insert if the path is new, overwrite
 // its hash and profile if it already exists.
 func writeProfile(db *sql.DB, r profileRow) error {

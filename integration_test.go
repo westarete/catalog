@@ -112,8 +112,12 @@ func TestRegenerateCatalogMDReflectsStore(t *testing.T) {
 		}
 	}
 
-	if err := regenerateCatalogMD(db); err != nil {
+	docs, err := regenerateCatalogMD(db)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if docs != 2 {
+		t.Errorf("regenerateCatalogMD reported %d documents, want 2", docs)
 	}
 
 	got, err := os.ReadFile(catalogPath)

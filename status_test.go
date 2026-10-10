@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -155,7 +157,64 @@ func TestCmdStatusReportsModifiedAndErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cmdStatus(nil); err == nil {
-		t.Error("modified doc: cmdStatus should return a non-nil error")
+	var statusErr error
+	out := captureStdout(t, func() { statusErr = cmdStatus(nil) })
+	if !errors.Is(statusErr, errReported) {
+		t.Errorf("modified doc: cmdStatus err = %v, want errReported (exit non-zero, nothing more to print)", statusErr)
+	}
+	if !strings.Contains(out, "modified  a.md") {
+		t.Errorf("status output should list the modified document, got:\n%s", out)
+	}
+}
+
+func TestReportStatusEachDocumentWithItsOwnVerb(t *testing.T) {
+	var buf bytes.Buffer
+	needs := reportStatus(newReporter(&buf), docStatus{
+		new:      []string{"research/survey-2026.md"},
+		modified: []string{"README.md"},
+		deleted:  []string{"old/plan.md"},
+	}, true, 50)
+	if !needs {
+		t.Error("out-of-sync documents should need attention")
+	}
+
+	want := "added     research/survey-2026.md\n" +
+		"modified  README.md\n" +
+		"deleted   old/plan.md\n" +
+		".catalog.md is out of sync with the database (run `catalog diff` to see what would change)\n" +
+		"\ncatalog: 3 documents need attention — run `catalog update`.\n"
+	if got := buf.String(); got != want {
+		t.Errorf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestReportStatusSingularDocument(t *testing.T) {
+	var buf bytes.Buffer
+	reportStatus(newReporter(&buf), docStatus{modified: []string{"a.md"}}, false, 1)
+	want := "modified  a.md\n\ncatalog: 1 document needs attention — run `catalog update`.\n"
+	if got := buf.String(); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestReportStatusUpToDateMatchesUpdate(t *testing.T) {
+	var buf bytes.Buffer
+	if reportStatus(newReporter(&buf), docStatus{}, false, 52) {
+		t.Error("nothing out of sync should not need attention")
+	}
+	if got, want := buf.String(), "catalog: up to date — 52 documents.\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestReportStatusDriftOnly(t *testing.T) {
+	var buf bytes.Buffer
+	if !reportStatus(newReporter(&buf), docStatus{}, true, 3) {
+		t.Error("a drifted .catalog.md should need attention")
+	}
+	want := ".catalog.md is out of sync with the database (run `catalog diff` to see what would change)\n" +
+		"\ncatalog: run `catalog update` to rewrite .catalog.md.\n"
+	if got := buf.String(); got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }

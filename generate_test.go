@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -10,7 +11,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -21,26 +21,6 @@ func TestTokensAdd(t *testing.T) {
 	got := tokens{input: 1, cached: 2, output: 3}.add(tokens{input: 10, cached: 20, output: 30})
 	if got != (tokens{input: 11, cached: 22, output: 33}) {
 		t.Errorf("add = %+v", got)
-	}
-}
-
-func TestFormatRunSummary(t *testing.T) {
-	s := formatRunSummary(20, 2, tokens{input: 1000, cached: 500, output: 200}, 90*time.Second)
-	for _, want := range []string{"20 docs", "2 pass", "40 calls", "1000 input", "500 cached", "200 output", "90s"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("summary missing %q: %s", want, s)
-		}
-	}
-}
-
-func TestFormatDeletedReport(t *testing.T) {
-	if got := formatDeletedReport(nil); got != "" {
-		t.Errorf("no deletions: got %q, want empty", got)
-	}
-	got := formatDeletedReport([]string{"a.md", "docs/b.md"})
-	want := "catalog: removed 2 deleted doc(s):\n  a.md\n  docs/b.md"
-	if got != want {
-		t.Errorf("report = %q, want %q", got, want)
 	}
 }
 
@@ -405,12 +385,19 @@ func TestInferPassSkipsFailuresAndKeepsGoing(t *testing.T) {
 	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
 	cfg := &config{Model: "claude-test"}
 
-	_, err = inferPass(context.Background(), db, &client, cfg, []string{bad, good})
+	var out bytes.Buffer
+	_, calls, err := inferPass(context.Background(), db, &client, cfg, newReporter(&out), []string{bad, good})
 	if err == nil {
-		t.Fatal("want an error naming the failed document, got nil")
+		t.Fatal("want an error counting the failed documents, got nil")
 	}
-	if !strings.Contains(err.Error(), bad) {
-		t.Errorf("error should name the failed path %q, got: %v", bad, err)
+	if !strings.Contains(err.Error(), "1 of 2 documents failed") {
+		t.Errorf("error should count the failures, got: %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("calls = %d, want 2", calls)
+	}
+	if !strings.Contains(out.String(), "failed    "+bad) || !strings.Contains(out.String(), "added     "+good) {
+		t.Errorf("output should show each document with its own verb, got:\n%s", out.String())
 	}
 
 	rows, err := readProfiles(db)
@@ -436,5 +423,97 @@ func TestHashDocs(t *testing.T) {
 	want := contentHash([]byte("content A"))
 	if got[pathA] != want {
 		t.Errorf("hashDocs[%s] = %s, want %s", pathA, got[pathA], want)
+	}
+}
+
+// okServer answers every profile request with the same profile text.
+func okServer(t *testing.T) *anthropic.Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "msg_test", "type": "message", "role": "assistant", "model": "claude-test",
+			"content": []any{map[string]any{"type": "text", "text": "a profile"}}, "stop_reason": "end_turn",
+			"usage": map[string]any{"input_tokens": 10, "output_tokens": 2},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	client := anthropic.NewClient(option.WithBaseURL(srv.URL), option.WithAPIKey("test"))
+	return &client
+}
+
+// TestUpdateRunShowsEachDocumentWithItsOwnVerb: one deletion, one new document
+// and one modified document must read as three different things, not as a
+// list under one heading.
+func TestUpdateRunShowsEachDocumentWithItsOwnVerb(t *testing.T) {
+	dir := t.TempDir()
+	fresh := filepath.Join(dir, "fresh.md")
+	changed := filepath.Join(dir, "changed.md")
+	for _, p := range []string{fresh, changed} {
+		if err := os.WriteFile(p, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db, err := openStore(filepath.Join(dir, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	for _, r := range []profileRow{
+		{path: "gone.md", contentHash: "h", profile: "p"},
+		{path: changed, contentHash: "old", profile: "p"},
+	} {
+		if err := writeProfile(db, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var out bytes.Buffer
+	rep := newReporter(&out)
+	if err := removeDeleted(db, rep, []string{"gone.md"}); err != nil {
+		t.Fatal(err)
+	}
+	rep.startProfiling(2)
+	if _, _, err := inferPass(context.Background(), db, okServer(t), &config{Model: "claude-test"}, rep, []string{changed, fresh}); err != nil {
+		t.Fatal(err)
+	}
+	rep.outcome(2)
+
+	want := "deleted   gone.md\n" +
+		"modified  " + changed + "\n" +
+		"added     " + fresh + "\n" +
+		"\ncatalog: 1 added, 1 modified, 1 deleted — 2 documents in .catalog.md\n"
+	if out.String() != want {
+		t.Errorf("output:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
+func TestInferPassNotesTruncatedDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.csv")
+	if err := os.WriteFile(path, make([]byte, maxDocumentBytes+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	db, err := openStore(filepath.Join(t.TempDir(), "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	var out bytes.Buffer
+	if _, _, err := inferPass(context.Background(), db, okServer(t), &config{Model: "claude-test"}, newReporter(&out), []string{path}); err != nil {
+		t.Fatal(err)
+	}
+	want := "added     " + path + " (truncated: profiled the first 400 KB of 401 KB)\n"
+	if out.String() != want {
+		t.Errorf("output = %q, want %q", out.String(), want)
+	}
+}
+
+func TestPassHeading(t *testing.T) {
+	if got, want := passHeading(1, 2), "pass 1 of 2: first drafts"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if got, want := passHeading(2, 2), "pass 2 of 2: sharpening against the full catalog"; got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }

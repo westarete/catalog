@@ -30,6 +30,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -83,7 +84,9 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "catalog: %v\n", err)
+		if !errors.Is(err, errReported) {
+			fmt.Fprintf(os.Stderr, "catalog: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }

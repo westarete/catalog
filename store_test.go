@@ -227,3 +227,23 @@ func TestDeleteProfileMissingPathIsNotAnError(t *testing.T) {
 		t.Errorf("deleteProfile on a missing path returned an error: %v", err)
 	}
 }
+
+func TestHasProfile(t *testing.T) {
+	db, err := openStore(filepath.Join(t.TempDir(), "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if err := writeProfile(db, profileRow{path: "a.md", contentHash: "h", profile: "p"}); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]bool{"a.md": true, "b.md": false} {
+		got, err := hasProfile(db, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("hasProfile(%q) = %v, want %v", path, got, want)
+		}
+	}
+}

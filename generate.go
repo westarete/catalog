@@ -83,7 +83,7 @@ func cmdBootstrap(args []string) error {
 	if _, err := db.Exec(`DELETE FROM profiles`); err != nil {
 		return fmt.Errorf("clearing store: %w", err)
 	}
-	return runGenerate(db, cfg, docs, 2)
+	return runGenerate(db, cfg, newReporter(os.Stdout), docs, 2)
 }
 
 // cmdUpdate re-infers profiles only for the documents that are new or
@@ -118,38 +118,34 @@ func cmdUpdate(args []string) error {
 		return err
 	}
 	status := classify(docHashes, rows)
-	for _, path := range status.deleted {
-		if err := deleteProfile(db, path); err != nil {
-			return err
-		}
-	}
-	if report := formatDeletedReport(status.deleted); report != "" {
-		fmt.Println(report)
+	rep := newReporter(os.Stdout)
+	if err := removeDeleted(db, rep, status.deleted); err != nil {
+		return err
 	}
 	targets := append(append([]string{}, status.new...), status.modified...)
 	sort.Strings(targets)
 
 	if len(targets) == 0 {
-		if len(status.deleted) == 0 {
-			fmt.Printf("catalog: up to date (%d docs).\n", len(docs))
+		total, err := regenerateCatalogMD(db) // normalize layout even when no profiles change
+		if err != nil {
+			return err
 		}
-		return regenerateCatalogMD(db) // normalize layout even when no profiles change
+		rep.outcome(total)
+		return nil
 	}
-	return runGenerate(db, cfg, targets, 1)
+	return runGenerate(db, cfg, rep, targets, 1)
 }
 
-// formatDeletedReport lists the documents whose profiles update dropped, one
-// per line under a count, or returns "" when nothing was dropped.
-func formatDeletedReport(deleted []string) string {
-	if len(deleted) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "catalog: removed %d deleted doc(s):", len(deleted))
+// removeDeleted drops the rows for documents that are gone or no longer
+// enumerated, reporting each one.
+func removeDeleted(db *sql.DB, rep *reporter, deleted []string) error {
 	for _, path := range deleted {
-		fmt.Fprintf(&b, "\n  %s", path)
+		if err := deleteProfile(db, path); err != nil {
+			return err
+		}
+		rep.done(actionDelete, path, "")
 	}
-	return b.String()
+	return nil
 }
 
 // cmdForce re-infers the named documents (or all, with no names)
@@ -187,12 +183,11 @@ func cmdForce(args []string) error {
 	if err != nil {
 		return err
 	}
-	for _, path := range classify(docHashes, rows).deleted {
-		if err := deleteProfile(db, path); err != nil {
-			return err
-		}
+	rep := newReporter(os.Stdout)
+	if err := removeDeleted(db, rep, classify(docHashes, rows).deleted); err != nil {
+		return err
 	}
-	return runGenerate(db, cfg, targets, 1)
+	return runGenerate(db, cfg, rep, targets, 1)
 }
 
 // loadDocsAndConfig reads the two inputs every command needs before it can
@@ -268,10 +263,11 @@ func resolveForceTargets(args, docs []string) ([]string, error) {
 // the key, infer profiles for the targets in the given number of passes,
 // writing each one into the store as it's produced so later targets in the
 // same pass (and every target in a later pass) read it as a real neighbor,
-// then regenerate .catalog.md and print the run summary. The caller has
+// then regenerate .catalog.md and report the outcome and cost. The caller has
 // already chosen the targets and the pass count — the two knobs that
-// distinguish the three commands.
-func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
+// distinguish the three commands — and reports whatever it did before this
+// (such as removing deleted documents) through the same reporter.
+func runGenerate(db *sql.DB, cfg *config, rep *reporter, targets []string, passes int) error {
 	key, err := loadAPIKey(cfg)
 	if err != nil {
 		return err
@@ -288,14 +284,17 @@ func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
 	ctx := context.Background()
 	start := time.Now()
 	var total tokens
+	var calls int
 
 	var passErr error
 	for p := 1; p <= passes; p++ {
 		if passes > 1 {
-			fmt.Fprintf(os.Stderr, "  pass %d of %d...\n", p, passes)
+			rep.heading(passHeading(p, passes))
 		}
-		used, err := inferPass(ctx, db, &client, cfg, targets)
+		rep.startProfiling(len(targets))
+		used, n, err := inferPass(ctx, db, &client, cfg, rep, targets)
 		total = total.add(used)
+		calls += n
 		if err != nil {
 			passErr = err
 			break
@@ -305,76 +304,86 @@ func runGenerate(db *sql.DB, cfg *config, targets []string, passes int) error {
 	// Regenerate .catalog.md from whatever landed in the store even on a
 	// partial failure — the successful profiles from this run are already
 	// written, and the rendered file should never lag behind the database.
-	if err := regenerateCatalogMD(db); err != nil {
+	docs, err := regenerateCatalogMD(db)
+	if err != nil {
 		return err
 	}
-	if passErr != nil {
-		return passErr
+	rep.outcome(docs)
+	rep.cost(calls, total, time.Since(start))
+	return passErr
+}
+
+// passHeading titles one pass of a multi-pass run.
+func passHeading(pass, passes int) string {
+	title := "sharpening against the full catalog"
+	if pass == 1 {
+		title = "first drafts"
 	}
-	fmt.Println(formatRunSummary(len(targets), passes, total, time.Since(start)))
-	return nil
+	return fmt.Sprintf("pass %d of %d: %s", pass, passes, title)
 }
 
 // regenerateCatalogMD renders .catalog.md fresh from every row in the store
 // and writes it to disk — the database is the sole source of truth, so this
 // runs after every write, even one that changed nothing, to normalize
-// layout and correct any drift.
-func regenerateCatalogMD(db *sql.DB) error {
+// layout and correct any drift. It returns how many documents the file now
+// describes.
+func regenerateCatalogMD(db *sql.DB) (int, error) {
 	rows, err := readProfiles(db)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return os.WriteFile(catalogPath, []byte(render(rows)), 0o644)
-}
-
-// formatRunSummary renders the end-of-run report: documents, passes, the API
-// call count, the token counts the run consumed, and wall-clock. No dollar
-// figure — multiply the token counts by the current published rate for that.
-func formatRunSummary(docs, passes int, t tokens, elapsed time.Duration) string {
-	return fmt.Sprintf(
-		"catalog: %d docs in %d pass(es) — %d calls, %d input + %d cached + %d output tokens, %.0fs",
-		docs, passes, docs*passes, t.input, t.cached, t.output, elapsed.Seconds())
+	return len(rows), os.WriteFile(catalogPath, []byte(render(rows)), 0o644)
 }
 
 // inferPass infers a fresh profile for each target document and writes it
 // into the store immediately, using every other row as neighbor context. It
-// returns the token counts the pass consumed. A document whose inference
-// fails (e.g. the model hit its token cap before producing profile text) is
-// reported to stderr and skipped rather than aborting the whole pass — one
-// bad document in a batch of hundreds shouldn't block every other entry from
-// being written.
-func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *config, targets []string) (tokens, error) {
+// returns the token counts the pass consumed and how many model calls it
+// made. A document whose inference fails (e.g. the model hit its token cap
+// before producing profile text) is reported as failed and skipped rather
+// than aborting the whole pass — one bad document in a batch of hundreds
+// shouldn't block every other entry from being written.
+func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *config, rep *reporter, targets []string) (tokens, int, error) {
 	var total tokens
-	var failed []string
+	var calls, failed int
 	for _, path := range targets {
 		text, err := os.ReadFile(path)
 		if err != nil {
-			return total, fmt.Errorf("reading %s: %w", path, err)
+			return total, calls, fmt.Errorf("reading %s: %w", path, err)
 		}
 		neighborText, err := neighbors(db, path)
 		if err != nil {
-			return total, err
+			return total, calls, err
 		}
-		fmt.Fprintf(os.Stderr, "  %s\n", path)
-		if isTruncated(path, text) {
-			fmt.Fprintf(os.Stderr, "  catalog: %s: %d bytes is over the %d-byte limit; profiling only the start\n", path, len(text), maxDocumentBytes)
+		had, err := hasProfile(db, path)
+		if err != nil {
+			return total, calls, err
 		}
 		profile, used, err := inferProfile(ctx, client, cfg, path, text, neighborText)
+		calls++
 		total = total.add(used)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  catalog: %s: %v\n", path, err)
-			failed = append(failed, path)
+			rep.profiled(actionFail, path, err.Error())
+			failed++
 			continue
 		}
 		row := profileRow{path: path, contentHash: contentHash(text), profile: profile}
 		if err := writeProfile(db, row); err != nil {
-			return total, err
+			return total, calls, err
 		}
+		verb := actionAdd
+		if had {
+			verb = actionModify
+		}
+		note := ""
+		if isTruncated(path, text) {
+			note = fmt.Sprintf("truncated: profiled the first %s of %s", formatBytes(maxDocumentBytes), formatBytes(len(text)))
+		}
+		rep.profiled(verb, path, note)
 	}
-	if len(failed) > 0 {
-		return total, fmt.Errorf("%d of %d documents failed: %s", len(failed), len(targets), strings.Join(failed, ", "))
+	if failed > 0 {
+		return total, calls, fmt.Errorf("%d of %d documents failed", failed, len(targets))
 	}
-	return total, nil
+	return total, calls, nil
 }
 
 // neighbors renders every other row's profile as context for positioning.
