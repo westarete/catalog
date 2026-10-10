@@ -35,7 +35,9 @@ rather than describing them in isolation.
 Documents aren't limited to Markdown. Plain text and CSV work today with
 no extra setup — just point a glob at them in `.catalog/config.toml`.
 PDFs are also supported: catalog sends them to the model as native PDF
-documents rather than raw text.
+documents rather than raw text. A text document longer than 400,000
+bytes is cut at a line boundary before it goes to the model, with a note
+saying so; a profile only needs the start of a file to say what it is.
 
 ## Commands
 

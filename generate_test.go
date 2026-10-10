@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -123,6 +124,47 @@ func TestBuildDocumentBlocksTextPath(t *testing.T) {
 	}
 	if !strings.Contains(text.Text, "- b.md: when X") {
 		t.Errorf("missing neighbor line:\n%s", text.Text)
+	}
+}
+
+func TestTruncateDocument(t *testing.T) {
+	t.Run("within the limit is unchanged", func(t *testing.T) {
+		if got := truncateDocument("a\nb\n", 100); got != "a\nb\n" {
+			t.Errorf("got %q", got)
+		}
+	})
+	t.Run("cuts at a line boundary and says so", func(t *testing.T) {
+		got := truncateDocument("row1\nrow2\nrow3\n", 12)
+		if !strings.HasPrefix(got, "row1\nrow2\n\n[Document truncated") {
+			t.Errorf("want cut after row2, got %q", got)
+		}
+		if strings.Contains(got, "row3") {
+			t.Errorf("row3 should be cut: %q", got)
+		}
+		if !strings.Contains(got, "first 9 of 15 bytes") {
+			t.Errorf("note should give the byte counts: %q", got)
+		}
+	})
+	t.Run("a single long line is cut on a character boundary", func(t *testing.T) {
+		got := truncateDocument("éééééé", 5) // each é is 2 bytes
+		if !utf8.ValidString(got) {
+			t.Errorf("cut split a character: %q", got)
+		}
+		if !strings.HasPrefix(got, "éé\n\n[Document truncated") {
+			t.Errorf("got %q", got)
+		}
+	})
+}
+
+func TestBuildDocumentBlocksTruncatesHugeText(t *testing.T) {
+	huge := strings.Repeat("a,b,c\n", maxDocumentBytes) // 6x the cap
+	blocks := buildDocumentBlocks("big.csv", []byte(huge), "")
+	text := blocks[0].OfText.Text
+	if len(text) > maxDocumentBytes+1000 {
+		t.Errorf("prompt is %d bytes, want about %d", len(text), maxDocumentBytes)
+	}
+	if !strings.Contains(text, "[Document truncated") {
+		t.Error("prompt should say the document was truncated")
 	}
 }
 

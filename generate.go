@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -419,6 +420,33 @@ func isPDF(path string) bool {
 	return strings.EqualFold(filepath.Ext(path), ".pdf")
 }
 
+// maxDocumentBytes caps how much of a text document is sent to the model. The
+// API rejects a prompt over 1,000,000 tokens, and a large CSV can run past that
+// (one 1.5M-token file failed every run). A profile only needs enough of a
+// document to tell what it is and when to open it, so the rest is cut. 400,000
+// bytes stays well under the limit even for dense, token-hungry data like CSV,
+// and is far beyond any prose document the catalog is meant for.
+const maxDocumentBytes = 400_000
+
+// truncateDocument returns text cut to at most limit bytes, ending at a line
+// boundary (or, if one line is longer than the limit, at a character boundary)
+// with a note telling the model the rest was left out. Text within the limit
+// comes back unchanged.
+func truncateDocument(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	cut := limit
+	if i := strings.LastIndexByte(text[:cut], '\n'); i > 0 {
+		cut = i
+	} else {
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+	}
+	return fmt.Sprintf("%s\n\n[Document truncated: showing the first %d of %d bytes. Profile it from this part.]", text[:cut], cut, len(text))
+}
+
 // buildDocumentBlocks assembles the content blocks for the user message: a
 // PDF is sent as a native document block (plus a separate text block for
 // neighbor positioning, since that context isn't part of the file itself);
@@ -426,7 +454,7 @@ func isPDF(path string) bool {
 func buildDocumentBlocks(path string, content []byte, neighborText string) []anthropic.ContentBlockParamUnion {
 	if !isPDF(path) {
 		return []anthropic.ContentBlockParamUnion{
-			anthropic.NewTextBlock(buildProfilePrompt(path, string(content), neighborText)),
+			anthropic.NewTextBlock(buildProfilePrompt(path, truncateDocument(string(content), maxDocumentBytes), neighborText)),
 		}
 	}
 	blocks := []anthropic.ContentBlockParamUnion{
