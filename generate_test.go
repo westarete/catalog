@@ -156,6 +156,20 @@ func TestTruncateDocument(t *testing.T) {
 	})
 }
 
+func TestIsTruncated(t *testing.T) {
+	big := make([]byte, maxDocumentBytes+1)
+	atLimit := make([]byte, maxDocumentBytes)
+	if !isTruncated("a.csv", big) {
+		t.Error("text over the limit should be truncated")
+	}
+	if isTruncated("a.csv", atLimit) {
+		t.Error("text at the limit should not be truncated")
+	}
+	if isTruncated("a.pdf", big) {
+		t.Error("PDFs are sent whole, so never truncated")
+	}
+}
+
 func TestBuildDocumentBlocksTruncatesHugeText(t *testing.T) {
 	huge := strings.Repeat("a,b,c\n", maxDocumentBytes) // 6x the cap
 	blocks := buildDocumentBlocks("big.csv", []byte(huge), "")

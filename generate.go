@@ -356,6 +356,9 @@ func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *c
 			return total, err
 		}
 		fmt.Fprintf(os.Stderr, "  %s\n", path)
+		if isTruncated(path, text) {
+			fmt.Fprintf(os.Stderr, "  catalog: %s: %d bytes is over the %d-byte limit; profiling only the start\n", path, len(text), maxDocumentBytes)
+		}
 		profile, used, err := inferProfile(ctx, client, cfg, path, text, neighborText)
 		total = total.add(used)
 		if err != nil {
@@ -427,6 +430,12 @@ func isPDF(path string) bool {
 // bytes stays well under the limit even for dense, token-hungry data like CSV,
 // and is far beyond any prose document the catalog is meant for.
 const maxDocumentBytes = 400_000
+
+// isTruncated reports whether buildDocumentBlocks will cut this document. PDFs
+// are sent whole, so only text documents can be truncated.
+func isTruncated(path string, content []byte) bool {
+	return !isPDF(path) && len(content) > maxDocumentBytes
+}
 
 // truncateDocument returns text cut to at most limit bytes, ending at a line
 // boundary (or, if one line is longer than the limit, at a character boundary)
