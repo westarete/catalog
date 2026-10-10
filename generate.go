@@ -122,14 +122,33 @@ func cmdUpdate(args []string) error {
 			return err
 		}
 	}
+	if report := formatDeletedReport(status.deleted); report != "" {
+		fmt.Println(report)
+	}
 	targets := append(append([]string{}, status.new...), status.modified...)
 	sort.Strings(targets)
 
 	if len(targets) == 0 {
-		fmt.Printf("catalog: up to date (%d docs).\n", len(docs))
+		if len(status.deleted) == 0 {
+			fmt.Printf("catalog: up to date (%d docs).\n", len(docs))
+		}
 		return regenerateCatalogMD(db) // normalize layout even when no profiles change
 	}
 	return runGenerate(db, cfg, targets, 1)
+}
+
+// formatDeletedReport lists the documents whose profiles update dropped, one
+// per line under a count, or returns "" when nothing was dropped.
+func formatDeletedReport(deleted []string) string {
+	if len(deleted) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "catalog: removed %d deleted doc(s):", len(deleted))
+	for _, path := range deleted {
+		fmt.Fprintf(&b, "\n  %s", path)
+	}
+	return b.String()
 }
 
 // cmdForce re-infers the named documents (or all, with no names)

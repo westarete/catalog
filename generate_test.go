@@ -32,6 +32,17 @@ func TestFormatRunSummary(t *testing.T) {
 	}
 }
 
+func TestFormatDeletedReport(t *testing.T) {
+	if got := formatDeletedReport(nil); got != "" {
+		t.Errorf("no deletions: got %q, want empty", got)
+	}
+	got := formatDeletedReport([]string{"a.md", "docs/b.md"})
+	want := "catalog: removed 2 deleted doc(s):\n  a.md\n  docs/b.md"
+	if got != want {
+		t.Errorf("report = %q, want %q", got, want)
+	}
+}
+
 func TestRequirePopulated(t *testing.T) {
 	// Empty store: refuse and point at bootstrap.
 	err := requirePopulated(nil)
