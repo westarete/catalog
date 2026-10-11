@@ -1,0 +1,9 @@
+# The exact Prettier and markdownlint-cli2 versions this repo formats and
+# checks with. bin/format-markdown runs these through npx, locally and in
+# CI, so every machine formats alike. Prettier's patch releases wrap text
+# differently, so an unpinned install drifts.
+#
+# To move to a new release: change the number here, run
+# bin/format-markdown, and commit the result as its own change.
+PRETTIER_VERSION=3.9.9
+MARKDOWNLINT_CLI2_VERSION=0.23.3

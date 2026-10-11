@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Format every Markdown file in the repo with Prettier, then check the
+# whole repo for structural errors with markdownlint. Formatting is
+# fixed in place; structural problems are reported (this exits non-zero
+# so they can't slip past).
+#
+# With --check it rewrites nothing: Prettier only reports unformatted
+# files. CI runs exactly that, so a local run and CI can't disagree.
+#
+# Both tools run through npx at the exact versions pinned in
+# .markdown-tool-versions, never whatever happens to be installed.
+# Prettier's patch releases wrap text differently, so two copies one
+# release apart keep rewriting each other's files. npx downloads a
+# pinned version once and caches it.
+#
+# Output is deliberately quiet on success and complete on failure, with a
+# clear final status line. It works from any directory in the repo.
+set -euo pipefail
+
+mode=--write
+case "${1:-}" in
+  "") ;;
+  --check) mode=--check ;;
+  *)
+    echo "usage: bin/format-markdown [--check]" >&2
+    exit 2
+    ;;
+esac
+
+# Fail with a pointer instead of bash's bare "command not found". An agent
+# that hits a missing tool tends to improvise a substitute formatter unless
+# it is told where the answer lives.
+if ! command -v npx >/dev/null; then
+  echo "npx not found. Install Node (on macOS: brew install node), then" >&2
+  echo "rerun. Do not substitute another formatter or run a different" >&2
+  echo "command." >&2
+  exit 127
+fi
+
+cd "$(dirname "$0")/.."
+source .markdown-tool-versions
+
+# Prettier prints one line per reformatted file at the default log level,
+# which floods scrollback and tempts callers to pipe through `tail`.
+# --log-level warn silences that, leaving only genuine warnings (and, in
+# --check mode, the list of unformatted files).
+if ! npx --yes "prettier@$PRETTIER_VERSION" "$mode" --log-level warn "**/*.md"; then
+  echo "Markdown FAILED — the files above aren't formatted. Run" >&2
+  echo "bin/format-markdown (without --check) and commit the result." >&2
+  exit 1
+fi
+
+# markdownlint-cli2 is quiet when clean and prints file:line:rule for each
+# violation when not. Capture its output so we can render a clear status
+# line either way rather than leaving the caller to infer success.
+if npx --yes "markdownlint-cli2@$MARKDOWNLINT_CLI2_VERSION" "**/*.md" 2>&1; then
+  echo "Markdown OK — formatted and structurally clean."
+else
+  status=$?
+  echo "Markdown FAILED — fix the markdownlint errors above, then rerun." >&2
+  exit "$status"
+fi

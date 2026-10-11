@@ -35,9 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Markdown tools
-        run: npm install -g prettier markdownlint-cli2
-      - name: Check
-        run: |
-          prettier --check "**/*.md"
-          markdownlint-cli2 "**/*.md"
+      # Prettier and markdownlint-cli2 through npx, at the versions pinned
+      # in .markdown-tool-versions. --check rewrites nothing.
+      - name: Check Markdown
+        run: bin/format-markdown --check

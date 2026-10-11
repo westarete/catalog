@@ -133,8 +133,14 @@ After editing any `.md` file, run `make markdown`. It formats the whole
 repo with Prettier, then lints the whole repo with markdownlint-cli2 —
 always the full repo, never scoped to specific files. Write long
 single-line paragraphs and let Prettier wrap. Do not hand-format, and do
-not re-edit a file to undo what the formatter did. Install the tools
-once with `brew install prettier markdownlint-cli2`.
+not re-edit a file to undo what the formatter did.
+
+`make markdown` runs `bin/format-markdown`, which runs both tools
+through `npx` at the exact versions pinned in `.markdown-tool-versions`;
+CI runs the same script with `--check`. Always use `make markdown`, in
+Cowork too; never run `prettier` or `markdownlint-cli2` directly,
+because a different version wraps text differently. The only thing to
+install is Node.
 
 ## Git workflow
 

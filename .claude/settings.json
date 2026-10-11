@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Bash(bin/format-markdown)",
+      "Bash(bin/format-markdown *)",
       "Bash(go build *)",
       "Bash(go vet *)",
       "Bash(go test *)",
