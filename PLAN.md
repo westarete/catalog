@@ -20,7 +20,7 @@ conventions.
       `git checkout --theirs/--ours` syntax mid-merge. The manual
       two-step path (check out a side, then run `catalog update`) always
       works, so this is a convenience, not a blocker.
-- [ ] Improve the "no config" error a brand-new repo hits on every
+- [x] Improve the "no config" error a brand-new repo hits on every
       command. Today (`config.go`'s `loadConfig`) it just says "copy
       config.example.toml from the catalog skill and edit it" — no path
       to that file, no mention that `catalog init` (SETUP.md's planned

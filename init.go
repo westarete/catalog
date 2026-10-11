@@ -28,7 +28,11 @@ func runInit(args []string, out io.Writer) error {
 		_, err := io.WriteString(out, exampleConfig)
 		return err
 	case len(args) > 0:
-		return fmt.Errorf("init: unexpected argument %q (the only option is --print)", args[0])
+		unexpected := args[0]
+		if unexpected == "--print" { // valid on its own, so the culprit is what follows it
+			unexpected = args[1]
+		}
+		return fmt.Errorf("init: unexpected argument %q (the only option is --print)", unexpected)
 	}
 	if _, err := os.Stat(configPath); err == nil {
 		return fmt.Errorf("init: %s already exists; `catalog init --print` shows the current template to compare it with", configPath)

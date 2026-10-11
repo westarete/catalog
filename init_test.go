@@ -84,9 +84,17 @@ func TestInitPrintWorksWhereAConfigAlreadyExists(t *testing.T) {
 
 func TestInitRejectsUnknownArguments(t *testing.T) {
 	inEmptyDir(t)
-	for _, args := range [][]string{{"--force"}, {"--print", "extra"}, {"somewhere"}} {
-		if err := runInit(args, &bytes.Buffer{}); err == nil {
-			t.Errorf("runInit(%v): expected an error", args)
+	for _, tc := range []struct {
+		args []string
+		bad  string // the argument the error should name
+	}{
+		{[]string{"--force"}, "--force"},
+		{[]string{"--print", "extra"}, "extra"},
+		{[]string{"somewhere"}, "somewhere"},
+	} {
+		err := runInit(tc.args, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), `"`+tc.bad+`"`) {
+			t.Errorf("runInit(%v) = %v, want an error naming %q", tc.args, err, tc.bad)
 		}
 	}
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
