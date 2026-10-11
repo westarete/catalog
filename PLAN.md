@@ -1,16 +1,9 @@
 # Short-term development plan for Catalog
 
-This file tracks near-term work in progress. A few conventions:
-
-- Work is grouped into phases. Each phase is a section below.
-- Check off items in the same commit that completes the work, so the
-  history and the checklist stay in sync.
-- Do not check an item off until a human has tested and verified it. Ask
-  them to do so, and then only check it off after they've confirmed that
-  it's satisfactory.
-- This is not a historical record. We will clear completed phases out
-  periodically so the file stays useful as a view of what's actually in
-  progress.
+This file lists work that hasn't happened yet. Items are shared work for
+the developer and the agent, and many are conversations to have rather
+than tasks to finish. See the maintaining-plans skill for the
+conventions.
 
 ## Someday
 

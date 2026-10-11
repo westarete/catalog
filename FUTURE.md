@@ -116,7 +116,7 @@ or trusted, only overwritten. There is no partial-trust path that
 carries old profile text into the database without re-inferring it.
 
 The store is a generated cache, not an authored artifact — with one
-planned exception: `catalog edit` (see TODO.md) will let a person set a
+planned exception: `catalog edit` (see PLAN.md) will let a person set a
 document's profile text directly, overriding inference until that
 document's content changes again. The right storage format is a
 committed SQLite database rather than a directory of text files.

@@ -166,7 +166,7 @@ Homebrew with no version management required on the user's end.
 
 ## Development workflow
 
-Near-term work in progress is tracked in [TODO.md](TODO.md).
+Near-term work in progress is tracked in [PLAN.md](PLAN.md).
 
 Before committing: `make test` after touching any `.go` file (it lints
 with `golangci-lint`, then runs the Go test suite — one command, no

@@ -30,9 +30,11 @@ the next conversation. Prefer small, verifiable steps; call out
 trade-offs when a choice matters; avoid expanding scope beyond what they
 asked.
 
-Near-term work in progress is tracked in [TODO.md](TODO.md). Do not
-check off items — that's the developer's job after verifying the work.
-Bundle the checkbox update in the same commit that completes the work.
+Work still to do is tracked in [PLAN.md](PLAN.md), following the
+maintaining-plans skill. Do not check off an item until the developer
+agrees it is done. Bundle the checkbox update in the same commit that
+completes the work, and delete a section once every item in it is
+checked.
 
 When pointing at web pages or repo files, use **clickable Markdown
 links** (e.g. `[README](README.md)`), not bare URLs in backticks or
