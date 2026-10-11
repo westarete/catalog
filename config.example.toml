@@ -1,10 +1,12 @@
-# Catalog configuration, written by `catalog init`. Edit it for this repo; the
-# enumerate and ignore globs below are placeholders. `catalog init --print`
-# shows the current template, to compare against a config from an older version.
+# This is the per-repo configuration file for `catalog`, written by
+# `catalog init`. You can use `catalog init --print` to print the
+# current template, to compare against a config from an older version.
 
-# Documents to infer a profile for. Globs are repo-root-relative; ** spans
-# directories. Point these at the directories your repo authors. Not limited
-# to Markdown — plain text, CSV, and PDF all work too, e.g. "docs/**/*.pdf".
+# The file patterns to include in the catalog. Globs are relative to the
+# repo root, and ** matches any number of directories. This default
+# covers every Markdown, PDF, text, and CSV file in the repo. If only
+# some directories hold documents, narrow it, for example to
+# "docs/**/*.md".
 enumerate = [
   "**/*.csv",
   "**/*.txt",
@@ -12,9 +14,9 @@ enumerate = [
   "**/*.pdf",
 ]
 
-# Subtracted from enumerate: front-door files that tend to be read
-# automatically, generated files, and any subtree the repo consumes, if
-# it already contains a catalog too.
+# The files to exclude from "enumerate" above: these may be files that
+# agents tend to read automatically, volatile files, massive files, or
+# subdirectories that have their own catalog.
 ignore = [
   "README.md",
   ".catalog.md",
@@ -22,32 +24,39 @@ ignore = [
   "**/AGENTS.md",
 ]
 
-# Model that infers profiles. Haiku 5.5 is the default; Claude Sonnet or Opus
-# is the costlier fallback if a repo's profiles come out weak.
-model = "claude-haiku-5-5"
-
-# Named section in ~/.config/catalog/credentials to use for the API key.
-# Omit to use [default]. Override at runtime with ANTHROPIC_API_KEY (env var wins).
+# The named section in ~/.config/catalog/credentials to use for the API
+# key. Comment it out to use "[default]". You can override this at
+# runtime with ANTHROPIC_API_KEY (env var wins).
 # profile = "westarete"
 
-# What the model charges, in dollars per million tokens. With these prices, each
-# run ends its report with an estimated cost such as ~$0.045. The API doesn't
-# report prices, so copy them for your model from
-# https://platform.claude.com/docs/en/about-claude/pricing and update them
-# when prices change. Set input and output together. Omit all three and runs
-# report tokens but no cost.
+# The Anthropic model to use when generating profiles. The default
+# optimizes for cost. Upgrade as needed, or switch to a more capable
+# model if the generated profiles aren't of sufficient quality.
+model = "claude-haiku-5-5"
+
+# The pricing for the model listed above, in dollars per million tokens.
+# These prices are used to generate the estimated cost at the end of
+# each run, such as "~$0.045". The API doesn't report prices, so you
+# must maintain these prices yourself whenever you change the model
+# above. The prices are currently available at
+# https://platform.claude.com/docs/en/about-claude/pricing. If you don't
+# want catalog to estimate and print costs, you can comment these
+# fields out.
 input_price_per_mtok = 0.10
 output_price_per_mtok = 0.50
 cache_read_price_per_mtok = 0.01 # optional; defaults to the input price
 
-# Haiku 5.5 charges 5x more for a request whose prompt is over 100,000 tokens.
-# catalog doesn't price that, so the cost estimate uses the base prices.
-# Instead, the report notes how many requests went over this size. Raise or
-# lower it to match your model's threshold.
+# Haiku 5.5 charges 5x more for a request whose prompt is over 100,000
+# tokens. catalog doesn't include that pricing logic. Instead, the
+# report simply notes how many requests went over this size. Raise or
+# lower it to match your model's pricing threshold. If you comment this
+# out you won't get any warnings about large requests.
 warn_request_tokens = 100000
 
-# Cut each text document to roughly this many tokens (4 bytes per token) before
-# it goes to the model, to keep requests under a size you care about. The
-# budget covers the document only, not the neighbor profiles, so leave room.
-# Omit to use catalog's default cap of 400,000 bytes. PDFs are never cut.
+# Truncate each text document to roughly this many tokens (4 bytes per
+# token) before it goes to the model, to keep requests under a certain
+# size for cost or time reasons. This budget covers the current document
+# only, and not the neighbor profiles that also get included with it, so
+# leave some headroom. Omit this to use catalog's default cap of 400,000
+# bytes. PDFs are never truncated.
 # truncate_request_tokens = 80000
