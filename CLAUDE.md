@@ -215,6 +215,18 @@ them once created. If this repo ever grows enough to clear the threshold
 for real, that's a deliberate decision to make afresh, not something
 that should already be half-done because the files were quietly ignored.
 
+### Changing the default model
+
+Change `defaultModel` in `config.go` and the model, `[pricing]` and
+`warn_request_tokens` in `config.example.toml` in one commit, then
+release. `catalog init --print` is how the catalog skill learns the
+recommended config, so a stale template means repos upgrade to the wrong
+model or prices. Copy the prices from the
+[pricing page](https://platform.claude.com/docs/en/about-claude/pricing),
+and set `warn_request_tokens` to the model's long-request threshold or
+drop it if there is none. A test keeps the template's model equal to
+`defaultModel`, but nothing checks the prices.
+
 ### Work incrementally
 
 Do not generate large amounts of code in one move. Propose a step,
