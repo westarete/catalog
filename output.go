@@ -44,17 +44,13 @@ var words = map[action]string{
 // wordWidth is the longest verb plus two spaces, so paths line up.
 const wordWidth = 10
 
-// counterThreshold is how many documents a run must profile before each
-// profiled line gets a [n/total] counter. Short runs don't need one.
-const counterThreshold = 20
-
 type reporter struct {
 	out     io.Writer
 	counts  map[action]int
 	seen    map[string]bool // documents already counted, so a two-pass run counts each once
 	wrote   bool            // whether anything has been printed yet
 	waiting int             // documents reported as pending
-	steps   int             // documents to profile this run; 0 means no counter
+	steps   int             // documents to profile this run; 0 means no counter (status, deletions only)
 	step    int             // documents profiled so far
 }
 
@@ -70,8 +66,8 @@ func (r *reporter) pending(a action, path string) {
 }
 
 // done prints a line for work a run did and counts it toward the outcome
-// line. A removal has no counter; profiled documents get
-// one when the run is long enough (see startProfiling).
+// line. A removal has no counter; profiled documents always get one (see
+// startProfiling).
 func (r *reporter) done(a action, path, note string) {
 	if !r.seen[path] {
 		r.seen[path] = true
@@ -90,13 +86,11 @@ func (r *reporter) heading(text string) {
 }
 
 // startProfiling tells the reporter how many documents the model is about to
-// profile, so profiled lines can carry a [n/total] counter on long runs.
+// profile, so every profiled line carries a [n/total] counter, even when the
+// run is a single document.
 func (r *reporter) startProfiling(total int) {
 	r.step = 0
-	r.steps = 0
-	if total > counterThreshold {
-		r.steps = total
-	}
+	r.steps = total
 }
 
 // profiled is done for a document the model profiled, counting it toward the
@@ -179,14 +173,19 @@ func (r *reporter) attention(total int, drifted bool) bool {
 	return true
 }
 
-// cost prints what a run that called the model consumed.
-func (r *reporter) cost(calls int, t tokens, elapsed time.Duration) {
+// cost prints what a run that called the model consumed, ending in an
+// estimated dollar cost when the config gave prices.
+func (r *reporter) cost(calls int, t tokens, elapsed time.Duration, p *pricing) {
 	in := withCommas(t.input) + " tokens in"
 	if t.cached > 0 {
 		in += fmt.Sprintf(" (%s cached)", withCommas(t.cached))
 	}
-	r.printf("%s, %s, %s out, %s\n",
+	line := fmt.Sprintf("%s, %s, %s out, %s",
 		plural(calls, "model call"), in, withCommas(t.output), elapsed.Round(time.Second))
+	if p != nil {
+		line += ", " + formatDollars(p.cost(t))
+	}
+	r.printf("%s\n", line)
 }
 
 // formatBytes renders a size for people: "950 bytes", "400 KB", "1.2 MB".

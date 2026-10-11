@@ -25,6 +25,7 @@ type config struct {
 	Enumerate []string `toml:"enumerate"`
 	Ignore    []string `toml:"ignore"`
 	Model     string   `toml:"model"`
+	Pricing   *pricing `toml:"pricing"` // optional; without it runs report tokens but no cost
 }
 
 func loadConfig() (*config, error) {
@@ -44,7 +45,8 @@ func loadConfig() (*config, error) {
 	return cfg, nil
 }
 
-// parseConfig decodes config TOML and applies the model default. Separated from
+// parseConfig decodes config TOML, applies the model default, and checks the
+// pricing table if there is one. Separated from
 // the file read so it can be tested without touching the filesystem.
 func parseConfig(data []byte) (*config, error) {
 	var cfg config
@@ -53,6 +55,11 @@ func parseConfig(data []byte) (*config, error) {
 	}
 	if cfg.Model == "" {
 		cfg.Model = defaultModel
+	}
+	if cfg.Pricing != nil {
+		if err := cfg.Pricing.validate(); err != nil {
+			return nil, err
+		}
 	}
 	return &cfg, nil
 }

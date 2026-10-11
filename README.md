@@ -68,6 +68,29 @@ database and the filesystem, need no key, and have no dependency on Git.
   a fresh render of the database: exactly what `update` would change. No
   model call needed.
 
+### What a run costs
+
+Every command that calls the model ends with a line like
+`24 model calls, 388,131 tokens in, 12,560 out, 1m8s`. Add a `[pricing]`
+table to `.catalog/config.toml` and the line ends with an estimate, such
+as `~$0.045`:
+
+```toml
+model = "claude-haiku-5-5"
+
+[pricing]
+input_per_mtok = 0.10 # dollars per million input tokens
+output_per_mtok = 0.50
+cache_read_per_mtok = 0.01 # optional; defaults to the input price
+```
+
+The Models API doesn't report prices, so catalog can't look them up.
+Copy them from
+[Anthropic's pricing page](https://platform.claude.com/docs/en/about-claude/pricing)
+when you pick a model and again when prices change. The estimate uses
+standard prices and counts only the tokens the API reports; it ignores
+any batch discount.
+
 ### Why bootstrap needs two passes
 
 A profile's job is to distinguish a document from the things it might be

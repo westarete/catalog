@@ -49,3 +49,41 @@ func TestFilterDocs(t *testing.T) {
 		t.Errorf("filterDocs = %v, want [a.md c.md]", got)
 	}
 }
+
+func TestParseConfigPricingOptional(t *testing.T) {
+	cfg, err := parseConfig([]byte(`enumerate = ["a.md"]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Pricing != nil {
+		t.Errorf("pricing = %+v, want nil when the table is absent", cfg.Pricing)
+	}
+}
+
+func TestParseConfigPricing(t *testing.T) {
+	cfg, err := parseConfig([]byte(`
+[pricing]
+input_per_mtok = 0.10
+output_per_mtok = 0.50
+cache_read_per_mtok = 0.01
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50, CacheReadPerMTok: 0.01}
+	if cfg.Pricing == nil || *cfg.Pricing != want {
+		t.Errorf("pricing = %+v, want %+v", cfg.Pricing, want)
+	}
+}
+
+func TestParseConfigPricingRejectsMissingOrNegativePrices(t *testing.T) {
+	for name, toml := range map[string]string{
+		"no output price": "[pricing]\ninput_per_mtok = 0.10\n",
+		"no input price":  "[pricing]\noutput_per_mtok = 0.50\n",
+		"negative cache":  "[pricing]\ninput_per_mtok = 1\noutput_per_mtok = 5\ncache_read_per_mtok = -1\n",
+	} {
+		if _, err := parseConfig([]byte(toml)); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}

@@ -118,12 +118,13 @@ func cmdUpdate(args []string) error {
 		return err
 	}
 	status := classify(docHashes, rows)
+	targets := append(append([]string{}, status.new...), status.modified...)
+	sort.Strings(targets)
 	rep := newReporter(os.Stdout)
+	rep.startProfiling(len(targets)) // so deletion lines, printed first, line up with the counter
 	if err := removeDeleted(db, rep, status.deleted); err != nil {
 		return err
 	}
-	targets := append(append([]string{}, status.new...), status.modified...)
-	sort.Strings(targets)
 
 	if len(targets) == 0 {
 		total, err := regenerateCatalogMD(db) // normalize layout even when no profiles change
@@ -184,6 +185,7 @@ func cmdForce(args []string) error {
 		return err
 	}
 	rep := newReporter(os.Stdout)
+	rep.startProfiling(len(targets))
 	if err := removeDeleted(db, rep, classify(docHashes, rows).deleted); err != nil {
 		return err
 	}
@@ -309,7 +311,7 @@ func runGenerate(db *sql.DB, cfg *config, rep *reporter, targets []string, passe
 		return err
 	}
 	rep.outcome(docs)
-	rep.cost(calls, total, time.Since(start))
+	rep.cost(calls, total, time.Since(start), cfg.Pricing)
 	return passErr
 }
 

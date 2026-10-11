@@ -470,18 +470,18 @@ func TestUpdateRunShowsEachDocumentWithItsOwnVerb(t *testing.T) {
 
 	var out bytes.Buffer
 	rep := newReporter(&out)
+	rep.startProfiling(2)
 	if err := removeDeleted(db, rep, []string{"gone.md"}); err != nil {
 		t.Fatal(err)
 	}
-	rep.startProfiling(2)
 	if _, _, err := inferPass(context.Background(), db, okServer(t), &config{Model: "claude-test"}, rep, []string{changed, fresh}); err != nil {
 		t.Fatal(err)
 	}
 	rep.outcome(2)
 
-	want := "deleted   gone.md\n" +
-		"modified  " + changed + "\n" +
-		"added     " + fresh + "\n" +
+	want := "      deleted   gone.md\n" +
+		"[1/2] modified  " + changed + "\n" +
+		"[2/2] added     " + fresh + "\n" +
 		"\ncatalog: 1 added, 1 modified, 1 deleted — 2 documents in .catalog.md\n"
 	if out.String() != want {
 		t.Errorf("output:\n%s\nwant:\n%s", out.String(), want)
