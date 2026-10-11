@@ -184,8 +184,8 @@ func (r *reporter) cost(calls int, t tokens, elapsed time.Duration, cfg *config)
 	}
 	line := fmt.Sprintf("%s, %s, %s out, %s",
 		plural(calls, "model call"), in, withCommas(t.output), elapsed.Round(time.Second))
-	if cfg.Pricing != nil {
-		line += ", " + formatDollars(cfg.Pricing.cost(t))
+	if p := cfg.prices(); p != nil {
+		line += ", " + formatDollars(p.cost(t))
 	}
 	r.printf("%s\n", line)
 	if t.long > 0 {
@@ -196,7 +196,7 @@ func (r *reporter) cost(calls int, t tokens, elapsed time.Duration, cfg *config)
 
 // longNote finishes the long-request note: what the size means for the cost.
 func longNote(cfg *config) string {
-	if cfg.Pricing == nil {
+	if cfg.prices() == nil {
 		return "some models charge more for long requests."
 	}
 	return "the estimate uses base prices, so the real cost may be higher."

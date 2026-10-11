@@ -26,7 +26,12 @@ type config struct {
 	Enumerate []string `toml:"enumerate"`
 	Ignore    []string `toml:"ignore"`
 	Model     string   `toml:"model"`
-	Pricing   *pricing `toml:"pricing"` // optional; without it runs report tokens but no cost
+
+	// What the model charges, in dollars per million tokens. Optional: with no
+	// prices a run reports tokens but no cost. Read them through prices().
+	InputPricePerMTok     float64 `toml:"input_price_per_mtok"`
+	OutputPricePerMTok    float64 `toml:"output_price_per_mtok"`
+	CacheReadPricePerMTok float64 `toml:"cache_read_price_per_mtok"`
 
 	// WarnRequestTokens and TruncateRequestTokens manage request size. Some
 	// models charge much more once a request's prompt passes a size, so the
@@ -34,6 +39,18 @@ type config struct {
 	// is cut to fit TruncateRequestTokens. Zero leaves each off.
 	WarnRequestTokens     int `toml:"warn_request_tokens"`
 	TruncateRequestTokens int `toml:"truncate_request_tokens"`
+
+	warnings []string // problems with the file that don't stop a run, such as unrecognized keys
+}
+
+// prices is what the config says the model charges, or nil when it gives no
+// prices at all.
+func (c *config) prices() *pricing {
+	p := pricing{c.InputPricePerMTok, c.OutputPricePerMTok, c.CacheReadPricePerMTok}
+	if p == (pricing{}) {
+		return nil
+	}
+	return &p
 }
 
 // bytesPerToken converts a token budget to a document size. Counting tokens
@@ -69,29 +86,53 @@ func loadConfig() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", configPath, err)
 	}
+	for _, w := range cfg.warnings {
+		fmt.Fprintf(os.Stderr, "catalog: warning: %s: %s\n", configPath, w)
+	}
 	return cfg, nil
 }
 
-// parseConfig decodes config TOML, applies the model default, and checks the
-// pricing table if there is one. Separated from
+// parseConfig decodes config TOML, applies the model default, checks the
+// prices if there are any, and notes keys it does not recognize. Separated from
 // the file read so it can be tested without touching the filesystem.
 func parseConfig(data []byte) (*config, error) {
 	var cfg config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	md, err := toml.Decode(string(data), &cfg)
+	if err != nil {
 		return nil, err
 	}
+	cfg.warnings = unrecognizedKeyWarnings(md.Undecoded())
 	if cfg.Model == "" {
 		cfg.Model = defaultModel
 	}
 	if cfg.WarnRequestTokens < 0 || cfg.TruncateRequestTokens < 0 {
 		return nil, errors.New("warn_request_tokens and truncate_request_tokens cannot be negative")
 	}
-	if cfg.Pricing != nil {
-		if err := cfg.Pricing.validate(); err != nil {
+	if p := cfg.prices(); p != nil {
+		if err := p.validate(); err != nil {
 			return nil, err
 		}
 	}
 	return &cfg, nil
+}
+
+// unrecognizedKeyWarnings turns the keys the config struct did not take into
+// messages. A typo is otherwise silent: the setting just never applies. The
+// [pricing] table gets its own message because earlier versions read one.
+func unrecognizedKeyWarnings(keys []toml.Key) []string {
+	var out []string
+	legacyPricing := false
+	for _, k := range keys {
+		if k[0] == "pricing" {
+			if !legacyPricing {
+				out = append(out, "[pricing] is no longer read; use input_price_per_mtok, output_price_per_mtok and cache_read_price_per_mtok at the top level")
+			}
+			legacyPricing = true
+			continue
+		}
+		out = append(out, fmt.Sprintf("unrecognized key %q is ignored", k.String()))
+	}
+	return out
 }
 
 // includedDocs returns the enumerated documents minus the ignored ones, as

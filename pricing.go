@@ -8,21 +8,21 @@ import (
 // pricing is what the configured model charges, in dollars per million tokens.
 // The Models API reports no prices, and they change, so they live in
 // .catalog/config.toml where a person (or an agent reading the pricing page)
-// keeps them current. Without a [pricing] table a run reports tokens only.
+// keeps them current. Without them a run reports tokens only.
 type pricing struct {
-	InputPerMTok  float64 `toml:"input_per_mtok"`
-	OutputPerMTok float64 `toml:"output_per_mtok"`
+	InputPerMTok  float64
+	OutputPerMTok float64
 	// CacheReadPerMTok is optional. Unset, cached tokens are charged at the
 	// input price, which can only overstate the cost.
-	CacheReadPerMTok float64 `toml:"cache_read_per_mtok"`
+	CacheReadPerMTok float64
 }
 
 func (p pricing) validate() error {
 	if p.InputPerMTok <= 0 || p.OutputPerMTok <= 0 {
-		return errors.New("[pricing] needs input_per_mtok and output_per_mtok, both above zero")
+		return errors.New("input_price_per_mtok and output_price_per_mtok must be set together, both above zero")
 	}
 	if p.CacheReadPerMTok < 0 {
-		return errors.New("[pricing] cache_read_per_mtok cannot be negative")
+		return errors.New("cache_read_price_per_mtok cannot be negative")
 	}
 	return nil
 }

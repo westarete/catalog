@@ -217,8 +217,8 @@ that should already be half-done because the files were quietly ignored.
 
 ### Changing the default model
 
-Change `defaultModel` in `config.go` and the model, `[pricing]` and
-`warn_request_tokens` in `config.example.toml` in one commit, then
+Change `defaultModel` in `config.go` and the model, the three price keys
+and `warn_request_tokens` in `config.example.toml` in one commit, then
 release. `catalog init --print` is how the catalog skill learns the
 recommended config, so a stale template means repos upgrade to the wrong
 model or prices. Copy the prices from the

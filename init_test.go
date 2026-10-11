@@ -113,8 +113,11 @@ func TestExampleConfigParses(t *testing.T) {
 	if len(cfg.Enumerate) == 0 || len(cfg.Ignore) == 0 {
 		t.Errorf("template should show enumerate and ignore, got %v and %v", cfg.Enumerate, cfg.Ignore)
 	}
-	if cfg.Pricing == nil || cfg.WarnRequestTokens == 0 {
-		t.Errorf("template should show pricing and warn_request_tokens, got %+v and %d", cfg.Pricing, cfg.WarnRequestTokens)
+	if cfg.prices() == nil || cfg.WarnRequestTokens == 0 {
+		t.Errorf("template should show prices and warn_request_tokens, got %+v and %d", cfg.prices(), cfg.WarnRequestTokens)
+	}
+	if len(cfg.warnings) != 0 {
+		t.Errorf("template has keys the config does not recognize: %v", cfg.warnings)
 	}
 }
 

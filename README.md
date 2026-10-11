@@ -81,18 +81,19 @@ and have no dependency on Git.
 ### What a run costs
 
 Every command that calls the model ends with a line like
-`24 model calls, 388,131 tokens in, 12,560 out, 1m8s`. Add a `[pricing]`
-table to `.catalog/config.toml` and the line ends with an estimate, such
-as `~$0.045`:
+`24 model calls, 388,131 tokens in, 12,560 out, 1m8s`. Add the model's
+prices to `.catalog/config.toml` and the line ends with an estimate,
+such as `~$0.045`:
 
 ```toml
 model = "claude-haiku-5-5"
-
-[pricing]
-input_per_mtok = 0.10 # dollars per million input tokens
-output_per_mtok = 0.50
-cache_read_per_mtok = 0.01 # optional; defaults to the input price
+input_price_per_mtok = 0.10 # dollars per million input tokens
+output_price_per_mtok = 0.50
+cache_read_price_per_mtok = 0.01 # optional; defaults to the input price
 ```
+
+Set input and output together. Keys catalog doesn't recognize are
+ignored with a warning, so a typo doesn't fail silently.
 
 The Models API doesn't report prices, so catalog can't look them up.
 Copy them from
@@ -114,7 +115,7 @@ truncate_request_tokens = 80000 # cut text documents to fit this budget
 
 - `warn_request_tokens` adds a line after the cost line saying how many
   requests went over, and that the real cost may be higher than the
-  estimate. It works without `[pricing]`.
+  estimate. It works without prices.
 - `truncate_request_tokens` cuts a text document at a line boundary
   before it goes to the model, the same way the 400,000-byte limit does,
   and the run notes each cut. Tokens are converted at 4 bytes each,

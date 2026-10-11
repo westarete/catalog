@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -50,41 +51,68 @@ func TestFilterDocs(t *testing.T) {
 	}
 }
 
-func TestParseConfigPricingOptional(t *testing.T) {
+func TestParseConfigPricesOptional(t *testing.T) {
 	cfg, err := parseConfig([]byte(`enumerate = ["a.md"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Pricing != nil {
-		t.Errorf("pricing = %+v, want nil when the table is absent", cfg.Pricing)
+	if p := cfg.prices(); p != nil {
+		t.Errorf("prices = %+v, want nil when none are set", p)
 	}
 }
 
-func TestParseConfigPricing(t *testing.T) {
+func TestParseConfigPrices(t *testing.T) {
 	cfg, err := parseConfig([]byte(`
-[pricing]
-input_per_mtok = 0.10
-output_per_mtok = 0.50
-cache_read_per_mtok = 0.01
+input_price_per_mtok = 0.10
+output_price_per_mtok = 0.50
+cache_read_price_per_mtok = 0.01
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50, CacheReadPerMTok: 0.01}
-	if cfg.Pricing == nil || *cfg.Pricing != want {
-		t.Errorf("pricing = %+v, want %+v", cfg.Pricing, want)
+	if p := cfg.prices(); p == nil || *p != want {
+		t.Errorf("prices = %+v, want %+v", p, want)
+	}
+	if len(cfg.warnings) != 0 {
+		t.Errorf("warnings = %v, want none", cfg.warnings)
 	}
 }
 
-func TestParseConfigPricingRejectsMissingOrNegativePrices(t *testing.T) {
+func TestParseConfigRejectsIncompleteOrNegativePrices(t *testing.T) {
 	for name, toml := range map[string]string{
-		"no output price": "[pricing]\ninput_per_mtok = 0.10\n",
-		"no input price":  "[pricing]\noutput_per_mtok = 0.50\n",
-		"negative cache":  "[pricing]\ninput_per_mtok = 1\noutput_per_mtok = 5\ncache_read_per_mtok = -1\n",
+		"no output price": "input_price_per_mtok = 0.10\n",
+		"no input price":  "output_price_per_mtok = 0.50\n",
+		"only cache read": "cache_read_price_per_mtok = 0.01\n",
+		"negative cache":  "input_price_per_mtok = 1\noutput_price_per_mtok = 5\ncache_read_price_per_mtok = -1\n",
 	} {
 		if _, err := parseConfig([]byte(toml)); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+}
+
+func TestParseConfigWarnsAboutUnrecognizedKeys(t *testing.T) {
+	cfg, err := parseConfig([]byte("enumerat = [\"a.md\"]\nmodle = \"x\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`unrecognized key "enumerat" is ignored`, `unrecognized key "modle" is ignored`}
+	if !reflect.DeepEqual(cfg.warnings, want) {
+		t.Errorf("warnings = %q, want %q", cfg.warnings, want)
+	}
+}
+
+func TestParseConfigPointsTheOldPricingTableAtTheNewKeys(t *testing.T) {
+	cfg, err := parseConfig([]byte("[pricing]\ninput_per_mtok = 0.10\noutput_per_mtok = 0.50\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.warnings) != 1 || !strings.Contains(cfg.warnings[0], "[pricing] is no longer read") || !strings.Contains(cfg.warnings[0], "input_price_per_mtok") {
+		t.Errorf("warnings = %q, want one pointing at the new price keys", cfg.warnings)
+	}
+	if cfg.prices() != nil {
+		t.Error("the old table should not set prices")
 	}
 }
 

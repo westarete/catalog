@@ -49,7 +49,7 @@ func TestFormatDollars(t *testing.T) {
 
 func TestCostLineEndsWithEstimateWhenPriced(t *testing.T) {
 	var buf bytes.Buffer
-	cfg := &config{Pricing: &pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50}}
+	cfg := &config{InputPricePerMTok: 0.10, OutputPricePerMTok: 0.50}
 	newReporter(&buf).cost(24, tokens{input: 388131, output: 12560}, 68*time.Second, cfg)
 	want := "24 model calls, 388,131 tokens in, 12,560 out, 1m8s, ~$0.045\n"
 	if got := buf.String(); got != want {
@@ -64,7 +64,7 @@ func TestCostLineNotesRequestsOverTheWarningSize(t *testing.T) {
 		want string
 	}{
 		"priced": {
-			&config{WarnRequestTokens: 100_000, Pricing: &pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50}},
+			&config{WarnRequestTokens: 100_000, InputPricePerMTok: 0.10, OutputPricePerMTok: 0.50},
 			"24 model calls, 388,131 tokens in, 12,560 out, 1m8s, ~$0.045\n" +
 				"note: 3 of 24 requests went over 100,000 tokens; the estimate uses base prices, so the real cost may be higher.\n",
 		},
