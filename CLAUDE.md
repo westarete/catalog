@@ -154,6 +154,12 @@ not pre-approval of a message. Commit messages follow Tim Pope's
 
 Follow the release process in [README.md](README.md).
 
+Tagging a release is a commit-level decision. Before running `git tag`,
+propose the version number and the exact tag message in chat and wait
+for approval, the same as a commit message. "Do the release" is not
+approval of either. Do not push `main` or the tag until that approval is
+given.
+
 For the git-commit skill, the project's CHECK command is `make markdown`
 and `make test` — there is no separate FORMAT command. Run whichever
 applies to what changed, in Phase 2, before proposing a commit message,
