@@ -16,10 +16,10 @@ import (
 // directory because, unlike .catalog.md, it is set once and forgotten.
 const configPath = ".catalog/config.toml"
 
-// defaultModel infers profiles. Sonnet matched Opus on this repo's documents at
-// about a third the cost; Opus is the costlier fallback when profiles come out
-// weak. See SKILL.md.
-const defaultModel = "claude-sonnet-4-6"
+// defaultModel infers profiles. Haiku is the cheapest model that does the job;
+// Sonnet or Opus is the costlier fallback when profiles come out weak. See
+// SKILL.md.
+const defaultModel = "claude-haiku-5-5"
 
 type config struct {
 	Profile   string   `toml:"profile"`
