@@ -9,9 +9,9 @@
 # "docs/**/*.md".
 enumerate = [
   "**/*.csv",
-  "**/*.txt",
   "**/*.md",
   "**/*.pdf",
+  "**/*.txt",
 ]
 
 # The files to exclude from "enumerate" above: these may be files that
