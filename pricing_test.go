@@ -49,10 +49,35 @@ func TestFormatDollars(t *testing.T) {
 
 func TestCostLineEndsWithEstimateWhenPriced(t *testing.T) {
 	var buf bytes.Buffer
-	p := &pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50}
-	newReporter(&buf).cost(24, tokens{input: 388131, output: 12560}, 68*time.Second, p)
+	cfg := &config{Pricing: &pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50}}
+	newReporter(&buf).cost(24, tokens{input: 388131, output: 12560}, 68*time.Second, cfg)
 	want := "24 model calls, 388,131 tokens in, 12,560 out, 1m8s, ~$0.045\n"
 	if got := buf.String(); got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCostLineNotesRequestsOverTheWarningSize(t *testing.T) {
+	used := tokens{input: 388131, output: 12560, long: 3}
+	for name, tc := range map[string]struct {
+		cfg  *config
+		want string
+	}{
+		"priced": {
+			&config{WarnRequestTokens: 100_000, Pricing: &pricing{InputPerMTok: 0.10, OutputPerMTok: 0.50}},
+			"24 model calls, 388,131 tokens in, 12,560 out, 1m8s, ~$0.045\n" +
+				"note: 3 of 24 requests went over 100,000 tokens; the estimate uses base prices, so the real cost may be higher.\n",
+		},
+		"unpriced": {
+			&config{WarnRequestTokens: 100_000},
+			"24 model calls, 388,131 tokens in, 12,560 out, 1m8s\n" +
+				"note: 3 of 24 requests went over 100,000 tokens; some models charge more for long requests.\n",
+		},
+	} {
+		var buf bytes.Buffer
+		newReporter(&buf).cost(24, used, 68*time.Second, tc.cfg)
+		if got := buf.String(); got != tc.want {
+			t.Errorf("%s: got %q, want %q", name, got, tc.want)
+		}
 	}
 }

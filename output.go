@@ -174,18 +174,32 @@ func (r *reporter) attention(total int, drifted bool) bool {
 }
 
 // cost prints what a run that called the model consumed, ending in an
-// estimated dollar cost when the config gave prices.
-func (r *reporter) cost(calls int, t tokens, elapsed time.Duration, p *pricing) {
+// estimated dollar cost when the config gave prices. The estimate uses base
+// prices, so when requests went over the config's warning size it adds a note
+// that the real cost may be higher.
+func (r *reporter) cost(calls int, t tokens, elapsed time.Duration, cfg *config) {
 	in := withCommas(t.input) + " tokens in"
 	if t.cached > 0 {
 		in += fmt.Sprintf(" (%s cached)", withCommas(t.cached))
 	}
 	line := fmt.Sprintf("%s, %s, %s out, %s",
 		plural(calls, "model call"), in, withCommas(t.output), elapsed.Round(time.Second))
-	if p != nil {
-		line += ", " + formatDollars(p.cost(t))
+	if cfg.Pricing != nil {
+		line += ", " + formatDollars(cfg.Pricing.cost(t))
 	}
 	r.printf("%s\n", line)
+	if t.long > 0 {
+		r.printf("note: %s went over %s tokens; %s\n",
+			fmt.Sprintf("%d of %s", t.long, plural(calls, "request")), withCommas(int64(cfg.WarnRequestTokens)), longNote(cfg))
+	}
+}
+
+// longNote finishes the long-request note: what the size means for the cost.
+func longNote(cfg *config) string {
+	if cfg.Pricing == nil {
+		return "some models charge more for long requests."
+	}
+	return "the estimate uses base prices, so the real cost may be higher."
 }
 
 // formatBytes renders a size for people: "950 bytes", "400 KB", "1.2 MB".

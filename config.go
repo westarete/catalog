@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -26,6 +27,32 @@ type config struct {
 	Ignore    []string `toml:"ignore"`
 	Model     string   `toml:"model"`
 	Pricing   *pricing `toml:"pricing"` // optional; without it runs report tokens but no cost
+
+	// WarnRequestTokens and TruncateRequestTokens manage request size. Some
+	// models charge much more once a request's prompt passes a size, so the
+	// report warns about requests over WarnRequestTokens, and a text document
+	// is cut to fit TruncateRequestTokens. Zero leaves each off.
+	WarnRequestTokens     int `toml:"warn_request_tokens"`
+	TruncateRequestTokens int `toml:"truncate_request_tokens"`
+}
+
+// bytesPerToken converts a token budget to a document size. Counting tokens
+// exactly would take a second API call per document, so this is a rough rule
+// for English prose; dense data like CSV runs more tokens per byte.
+const bytesPerToken = 4
+
+// documentLimit is how many bytes of a text document are sent to the model.
+func (c *config) documentLimit() int {
+	if c.TruncateRequestTokens > 0 {
+		return c.TruncateRequestTokens * bytesPerToken
+	}
+	return maxDocumentBytes
+}
+
+// warnsAbout reports whether a request used more prompt tokens than
+// warn_request_tokens. Cache reads count: the prompt is what was sent.
+func (c *config) warnsAbout(used tokens) bool {
+	return c.WarnRequestTokens > 0 && used.input+used.cached > int64(c.WarnRequestTokens)
 }
 
 func loadConfig() (*config, error) {
@@ -55,6 +82,9 @@ func parseConfig(data []byte) (*config, error) {
 	}
 	if cfg.Model == "" {
 		cfg.Model = defaultModel
+	}
+	if cfg.WarnRequestTokens < 0 || cfg.TruncateRequestTokens < 0 {
+		return nil, errors.New("warn_request_tokens and truncate_request_tokens cannot be negative")
 	}
 	if cfg.Pricing != nil {
 		if err := cfg.Pricing.validate(); err != nil {

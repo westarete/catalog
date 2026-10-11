@@ -91,7 +91,7 @@ func TestIsPDF(t *testing.T) {
 }
 
 func TestBuildDocumentBlocksTextPath(t *testing.T) {
-	blocks := buildDocumentBlocks("a.md", []byte("body text"), "- b.md: when X\n")
+	blocks := buildDocumentBlocks("a.md", []byte("body text"), "- b.md: when X\n", maxDocumentBytes)
 	if len(blocks) != 1 {
 		t.Fatalf("want 1 block for a text document, got %d", len(blocks))
 	}
@@ -139,20 +139,20 @@ func TestTruncateDocument(t *testing.T) {
 func TestIsTruncated(t *testing.T) {
 	big := make([]byte, maxDocumentBytes+1)
 	atLimit := make([]byte, maxDocumentBytes)
-	if !isTruncated("a.csv", big) {
+	if !isTruncated("a.csv", big, maxDocumentBytes) {
 		t.Error("text over the limit should be truncated")
 	}
-	if isTruncated("a.csv", atLimit) {
+	if isTruncated("a.csv", atLimit, maxDocumentBytes) {
 		t.Error("text at the limit should not be truncated")
 	}
-	if isTruncated("a.pdf", big) {
+	if isTruncated("a.pdf", big, maxDocumentBytes) {
 		t.Error("PDFs are sent whole, so never truncated")
 	}
 }
 
 func TestBuildDocumentBlocksTruncatesHugeText(t *testing.T) {
 	huge := strings.Repeat("a,b,c\n", maxDocumentBytes) // 6x the cap
-	blocks := buildDocumentBlocks("big.csv", []byte(huge), "")
+	blocks := buildDocumentBlocks("big.csv", []byte(huge), "", maxDocumentBytes)
 	text := blocks[0].OfText.Text
 	if len(text) > maxDocumentBytes+1000 {
 		t.Errorf("prompt is %d bytes, want about %d", len(text), maxDocumentBytes)
@@ -163,7 +163,7 @@ func TestBuildDocumentBlocksTruncatesHugeText(t *testing.T) {
 }
 
 func TestBuildDocumentBlocksPDFPath(t *testing.T) {
-	blocks := buildDocumentBlocks("a.pdf", []byte("%PDF-1.4 fake content"), "- b.md: when X\n")
+	blocks := buildDocumentBlocks("a.pdf", []byte("%PDF-1.4 fake content"), "- b.md: when X\n", maxDocumentBytes)
 	if len(blocks) != 2 {
 		t.Fatalf("want a document block plus a neighbor text block, got %d blocks", len(blocks))
 	}
@@ -195,7 +195,7 @@ func TestBuildDocumentBlocksPDFPath(t *testing.T) {
 }
 
 func TestBuildDocumentBlocksPDFPathNoNeighbors(t *testing.T) {
-	blocks := buildDocumentBlocks("a.pdf", []byte("content"), "")
+	blocks := buildDocumentBlocks("a.pdf", []byte("content"), "", maxDocumentBytes)
 	if len(blocks) != 1 {
 		t.Fatalf("want just the document block when there are no neighbors, got %d blocks", len(blocks))
 	}
@@ -515,5 +515,65 @@ func TestPassHeading(t *testing.T) {
 	}
 	if got, want := passHeading(2, 2), "pass 2 of 2: sharpening against the full catalog"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestDocumentLimitFollowsTruncateRequestTokens(t *testing.T) {
+	if got := (&config{}).documentLimit(); got != maxDocumentBytes {
+		t.Errorf("default limit = %d, want %d", got, maxDocumentBytes)
+	}
+	if got := (&config{TruncateRequestTokens: 50_000}).documentLimit(); got != 200_000 {
+		t.Errorf("limit = %d, want 200000 (4 bytes per token)", got)
+	}
+}
+
+func TestWarnsAboutCountsCacheReadsTowardPromptSize(t *testing.T) {
+	cfg := &config{WarnRequestTokens: 100_000}
+	for name, tc := range map[string]struct {
+		used tokens
+		want bool
+	}{
+		"under":            {tokens{input: 99_999}, false},
+		"exactly at":       {tokens{input: 100_000}, false},
+		"over":             {tokens{input: 100_001}, true},
+		"over via cache":   {tokens{input: 60_000, cached: 50_000}, true},
+		"huge output only": {tokens{input: 10, output: 500_000}, false},
+	} {
+		if got := cfg.warnsAbout(tc.used); got != tc.want {
+			t.Errorf("%s: warnsAbout = %v, want %v", name, got, tc.want)
+		}
+	}
+	if (&config{}).warnsAbout(tokens{input: 5_000_000}) {
+		t.Error("with no warn_request_tokens set, nothing should warn")
+	}
+}
+
+func TestInferPassCountsRequestsOverTheWarningSize(t *testing.T) {
+	dir := t.TempDir()
+	var docs []string
+	for _, name := range []string{"a.md", "b.md"} {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		docs = append(docs, p)
+	}
+	db, err := openStore(filepath.Join(dir, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	// okServer reports 10 input tokens per call, so a 5-token warning size is
+	// crossed by both requests and a 50-token one by neither.
+	for warn, want := range map[int]int{5: 2, 50: 0, 0: 0} {
+		cfg := &config{Model: "claude-test", WarnRequestTokens: warn}
+		used, _, err := inferPass(context.Background(), db, okServer(t), cfg, newReporter(&bytes.Buffer{}), docs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if used.long != want {
+			t.Errorf("warn_request_tokens=%d: %d long requests, want %d", warn, used.long, want)
+		}
 	}
 }

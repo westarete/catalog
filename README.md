@@ -91,6 +91,28 @@ when you pick a model and again when prices change. The estimate uses
 standard prices and counts only the tokens the API reports; it ignores
 any batch discount.
 
+Some models charge more for a request whose prompt is long. Haiku 5.5,
+for example, charges five times as much once a prompt passes 100,000
+tokens. catalog doesn't model that: the estimate always uses the base
+prices you give it. Two optional settings help you stay out of the
+expensive range and tell you when you didn't:
+
+```toml
+warn_request_tokens = 100000 # note in the report when a request is this big
+truncate_request_tokens = 80000 # cut text documents to fit this budget
+```
+
+- `warn_request_tokens` adds a line after the cost line saying how many
+  requests went over, and that the real cost may be higher than the
+  estimate. It works without `[pricing]`.
+- `truncate_request_tokens` cuts a text document at a line boundary
+  before it goes to the model, the same way the 400,000-byte limit does,
+  and the run notes each cut. Tokens are converted at 4 bytes each,
+  which is rough, and the budget covers the document only, not the
+  neighbor profiles or the instructions, so leave room below the
+  threshold you care about. PDFs are sent whole and are never cut.
+  Unset, the 400,000-byte limit applies.
+
 ### Why bootstrap needs two passes
 
 A profile's job is to distinguish a document from the things it might be

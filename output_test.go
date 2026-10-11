@@ -16,7 +16,7 @@ func TestReporterMixedRun(t *testing.T) {
 	r.profiled(actionAdd, "research/JOB-list-of-research-software.md", "")
 	r.profiled(actionAdd, "research/list-of-research-software.md", "")
 	r.outcome(50)
-	r.cost(2, tokens{input: 47198, output: 1287}, 8*time.Second, nil)
+	r.cost(2, tokens{input: 47198, output: 1287}, 8*time.Second, &config{})
 
 	want := `      deleted   JOB-glossary.md
 [1/2] added     research/JOB-list-of-research-software.md
@@ -69,7 +69,7 @@ func TestReporterFailureAndNotes(t *testing.T) {
 	r.profiled(actionFail, "reports/q3.pdf", "model stopped before writing a profile")
 	r.profiled(actionModify, "big.md", "truncated: profiled the first 200 KB of 1.2 MB")
 	r.outcome(52)
-	r.cost(3, tokens{input: 61004, cached: 500, output: 2110}, 14*time.Second, nil)
+	r.cost(3, tokens{input: 61004, cached: 500, output: 2110}, 14*time.Second, &config{})
 
 	want := `added     notes/kickoff.md
 failed    reports/q3.pdf (model stopped before writing a profile)
@@ -128,7 +128,7 @@ func TestWithCommas(t *testing.T) {
 
 func TestCostRoundsElapsedAndHandlesLongRuns(t *testing.T) {
 	var buf bytes.Buffer
-	newReporter(&buf).cost(1, tokens{input: 5, output: 7}, 6*time.Minute+12*time.Second+400*time.Millisecond, nil)
+	newReporter(&buf).cost(1, tokens{input: 5, output: 7}, 6*time.Minute+12*time.Second+400*time.Millisecond, &config{})
 	want := fmt.Sprintf("1 model call, 5 tokens in, 7 out, %s\n", "6m12s")
 	if got := buf.String(); got != want {
 		t.Errorf("got %q, want %q", got, want)

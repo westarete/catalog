@@ -311,7 +311,7 @@ func runGenerate(db *sql.DB, cfg *config, rep *reporter, targets []string, passe
 		return err
 	}
 	rep.outcome(docs)
-	rep.cost(calls, total, time.Since(start), cfg.Pricing)
+	rep.cost(calls, total, time.Since(start), cfg)
 	return passErr
 }
 
@@ -363,6 +363,9 @@ func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *c
 		profile, used, err := inferProfile(ctx, client, cfg, path, text, neighborText)
 		calls++
 		total = total.add(used)
+		if cfg.warnsAbout(used) {
+			total.long++
+		}
 		if err != nil {
 			rep.profiled(actionFail, path, err.Error())
 			failed++
@@ -377,8 +380,8 @@ func inferPass(ctx context.Context, db *sql.DB, client *anthropic.Client, cfg *c
 			verb = actionModify
 		}
 		note := ""
-		if isTruncated(path, text) {
-			note = fmt.Sprintf("truncated: profiled the first %s of %s", formatBytes(maxDocumentBytes), formatBytes(len(text)))
+		if limit := cfg.documentLimit(); isTruncated(path, text, limit) {
+			note = fmt.Sprintf("truncated: profiled the first %s of %s", formatBytes(limit), formatBytes(len(text)))
 		}
 		rep.profiled(verb, path, note)
 	}
@@ -444,8 +447,8 @@ const maxDocumentBytes = 400_000
 
 // isTruncated reports whether buildDocumentBlocks will cut this document. PDFs
 // are sent whole, so only text documents can be truncated.
-func isTruncated(path string, content []byte) bool {
-	return !isPDF(path) && len(content) > maxDocumentBytes
+func isTruncated(path string, content []byte, limit int) bool {
+	return !isPDF(path) && len(content) > limit
 }
 
 // truncateDocument returns text cut to at most limit bytes, ending at a line
@@ -471,10 +474,10 @@ func truncateDocument(text string, limit int) string {
 // PDF is sent as a native document block (plus a separate text block for
 // neighbor positioning, since that context isn't part of the file itself);
 // anything else is sent as a single inlined text block, as before.
-func buildDocumentBlocks(path string, content []byte, neighborText string) []anthropic.ContentBlockParamUnion {
+func buildDocumentBlocks(path string, content []byte, neighborText string, limit int) []anthropic.ContentBlockParamUnion {
 	if !isPDF(path) {
 		return []anthropic.ContentBlockParamUnion{
-			anthropic.NewTextBlock(buildProfilePrompt(path, truncateDocument(string(content), maxDocumentBytes), neighborText)),
+			anthropic.NewTextBlock(buildProfilePrompt(path, truncateDocument(string(content), limit), neighborText)),
 		}
 	}
 	blocks := []anthropic.ContentBlockParamUnion{
@@ -490,13 +493,16 @@ func buildDocumentBlocks(path string, content []byte, neighborText string) []ant
 
 // tokens holds the token counts the API reports for the work a run did. They
 // are the durable facts a run produces; converting them to a dollar cost needs
-// a current price, which the program deliberately does not carry.
+// prices, which come from the config because the API doesn't report them.
 type tokens struct {
 	input, cached, output int64
+	// long counts the requests whose prompt went over the config's
+	// warn_request_tokens. Some models charge more for those.
+	long int
 }
 
 func (t tokens) add(o tokens) tokens {
-	return tokens{t.input + o.input, t.cached + o.cached, t.output + o.output}
+	return tokens{t.input + o.input, t.cached + o.cached, t.output + o.output, t.long + o.long}
 }
 
 func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, path string, content []byte, neighborText string) (string, tokens, error) {
@@ -505,7 +511,7 @@ func inferProfile(ctx context.Context, client *anthropic.Client, cfg *config, pa
 		MaxTokens: profileMaxTokens,
 		System:    []anthropic.TextBlockParam{{Text: profileInstruction}},
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(buildDocumentBlocks(path, content, neighborText)...),
+			anthropic.NewUserMessage(buildDocumentBlocks(path, content, neighborText, cfg.documentLimit())...),
 		},
 	})
 	if err != nil {

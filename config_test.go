@@ -87,3 +87,21 @@ func TestParseConfigPricingRejectsMissingOrNegativePrices(t *testing.T) {
 		}
 	}
 }
+
+func TestParseConfigRequestSizes(t *testing.T) {
+	cfg, err := parseConfig([]byte("warn_request_tokens = 100000\ntruncate_request_tokens = 80000\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WarnRequestTokens != 100000 || cfg.TruncateRequestTokens != 80000 {
+		t.Errorf("got warn=%d truncate=%d", cfg.WarnRequestTokens, cfg.TruncateRequestTokens)
+	}
+}
+
+func TestParseConfigRejectsNegativeRequestSizes(t *testing.T) {
+	for _, toml := range []string{"warn_request_tokens = -1", "truncate_request_tokens = -1"} {
+		if _, err := parseConfig([]byte(toml)); err == nil {
+			t.Errorf("%q: expected an error", toml)
+		}
+	}
+}
