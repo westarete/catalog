@@ -92,20 +92,23 @@ doing substantive work.
 ## Config files
 
 When creating config files (`.prettierrc.yaml`, `.markdownlint.yaml`,
-`.markdownlint-cli2.yaml`, and similar), copy them from `hq` rather than
-writing minimal stubs. The comments explain why each setting exists and
-are part of the convention — don't strip them.
+`.markdownlint-cli2.yaml`, and similar), copy them from the
+`knowledge-work` plugin (the markdown skill's `config/` directory)
+rather than writing minimal stubs. The comments explain why each setting
+exists and are part of the convention — don't strip them.
 
 ## Skills
 
 Load these two at the start of every conversation, before doing any work
 that might touch them:
 
-- [markdown](skill/SKILL.md) — read before editing any `.md` file. Until
-  that file exists, load the harness skill `markdown` instead.
-- [git-commit](skill/git-commit/SKILL.md) — read before running
-  `git commit` on the developer's behalf. Until that file exists, load
-  the harness skill `git-commit` instead.
+- `knowledge-work:markdown` — load before editing any `.md` file.
+- `knowledge-work:git-commit` — load before running `git commit` on the
+  developer's behalf.
+
+Both come from the `knowledge-work` plugin in the
+[claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
+marketplace.
 
 ## Running commands
 

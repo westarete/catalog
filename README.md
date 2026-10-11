@@ -11,9 +11,12 @@ need. This means better answers, faster responses, and more context
 window left for the actual work.
 
 If you want to add catalog capabilities to your repo, install the
-[catalog skill](https://github.com/westarete/hq/tree/main/skill/catalog)
-and then use it to set your repo up. It will prompt you to install this
-utility and set up the necessary configuration.
+`knowledge-work` plugin from West Arete's
+[claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
+marketplace. It includes the
+[catalog skill](https://github.com/westarete/claude-plugins-internal/tree/main/plugins/knowledge-work/skills/catalog),
+which sets your repo up. It will prompt you to install this utility and
+set up the necessary configuration.
 
 If you want to do development on this repo, See [SETUP.md](SETUP.md) for
 developer installation and first-run instructions.
@@ -137,11 +140,17 @@ catalog/
 
 ## Installing in a repo
 
-The skill walks through the decision and setup. Install it from the `hq`
-repo alongside the other West Arete skills. The short version: create
-`.catalog/config.toml`, run `catalog bootstrap` to generate the first
-`.catalog.md`, wire `@.catalog.md` into `CLAUDE.md`, and register the
-pre-commit hook.
+The skill walks through the decision and setup. Install the
+`knowledge-work` plugin in Claude Code, which includes it:
+
+```text
+/plugin marketplace add westarete/claude-plugins-internal
+/plugin install knowledge-work
+```
+
+The short version: create `.catalog/config.toml`, run
+`catalog bootstrap` to generate the first `.catalog.md`, wire
+`@.catalog.md` into `CLAUDE.md`, and register the pre-commit hook.
 
 ## Releases
 

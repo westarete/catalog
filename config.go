@@ -60,7 +60,7 @@ func loadConfig() (*config, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf(
-				"no config at %s — copy config.example.toml from the catalog skill and edit it",
+				"no config at %s — copy config.example.toml from the catalog skill (in the knowledge-work plugin, github.com/westarete/claude-plugins-internal) and edit it",
 				configPath)
 		}
 		return nil, err
