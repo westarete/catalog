@@ -47,9 +47,16 @@ saying so; a profile only needs the start of a file to say what it is.
 Run from the repo root. Profiles live in a committed SQLite database at
 `.catalog/catalog.db` — the sole source of truth; `.catalog.md` is
 always a generated artifact rendered from it. Three commands write
-profiles and need `ANTHROPIC_API_KEY`. `status` and `diff` read only the
-database and the filesystem, need no key, and have no dependency on Git.
+profiles and need `ANTHROPIC_API_KEY`. `init`, `status` and `diff` need
+no key. `status` and `diff` read only the database and the filesystem
+and have no dependency on Git.
 
+- `catalog init` — create `.catalog/config.toml` from the template built
+  into the binary, then edit its `enumerate` and `ignore` globs for the
+  repo. It won't overwrite an existing config. `catalog init --print`
+  writes the template to stdout instead and changes nothing, so you can
+  compare it with a config from an older version when upgrading. No key
+  needed.
 - `catalog bootstrap` — rebuild the database from scratch: infer
   profiles for every enumerated document in two passes (the second pass
   sharpens each profile using the full catalog as context), then write
@@ -148,8 +155,8 @@ The skill walks through the decision and setup. Install the
 /plugin install knowledge-work
 ```
 
-The short version: create `.catalog/config.toml`, run
-`catalog bootstrap` to generate the first `.catalog.md`, wire
+The short version: run `catalog init` to create `.catalog/config.toml`,
+run `catalog bootstrap` to generate the first `.catalog.md`, wire
 `@.catalog.md` into `CLAUDE.md`, and register the pre-commit hook.
 
 ## Releases

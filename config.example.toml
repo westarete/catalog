@@ -1,0 +1,48 @@
+# Catalog configuration, written by `catalog init`. Edit it for this repo; the
+# enumerate and ignore globs below are placeholders. `catalog init --print`
+# shows the current template, to compare against a config from an older version.
+
+# Named section in ~/.config/catalog/credentials to use for the API key.
+# Omit to use [default]. Override at runtime with ANTHROPIC_API_KEY (env var wins).
+# profile = "westarete"
+
+# Model that infers profiles. Haiku 5.5 is the default; Claude Sonnet or Opus
+# is the costlier fallback if a repo's profiles come out weak.
+model = "claude-haiku-5-5"
+
+# Haiku 5.5 charges 5x more for a request whose prompt is over 100,000 tokens.
+# catalog doesn't price that, so the cost estimate uses the base prices.
+# Instead, the report notes how many requests went over this size. Raise or
+# lower it to match your model's threshold.
+warn_request_tokens = 100000
+
+# Cut each text document to roughly this many tokens (4 bytes per token) before
+# it goes to the model, to keep requests under a size you care about. The
+# budget covers the document only, not the neighbor profiles, so leave room.
+# Omit to use catalog's default cap of 400,000 bytes. PDFs are never cut.
+# truncate_request_tokens = 80000
+
+# Documents to infer a profile for. Globs are repo-root-relative; ** spans
+# directories. Point these at the directories your repo authors. Not limited
+# to Markdown — plain text, CSV, and PDF all work too, e.g. "docs/**/*.pdf".
+enumerate = ["docs/**/*.md", "content/**/*.md"]
+
+# Subtracted from enumerate: front-door files, generated files, and any subtree
+# the repo consumes (add "hq/**" if this repo mounts hq as a subtree).
+ignore = [
+  "**/README.md",
+  "**/CLAUDE.md",
+  "**/AGENTS.md",
+  ".catalog.md",
+]
+
+# What the model charges, in dollars per million tokens. With this table, each
+# run ends its report with an estimated cost such as ~$0.045. The API doesn't
+# report prices, so copy them for your model from
+# https://platform.claude.com/docs/en/about-claude/pricing and update them
+# when prices change. Omit the table and runs report tokens but no cost.
+# Keep this table last: in TOML, every key after a table header belongs to it.
+[pricing]
+input_per_mtok = 0.10
+output_per_mtok = 0.50
+cache_read_per_mtok = 0.01 # optional; defaults to the input price

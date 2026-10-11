@@ -9,8 +9,10 @@
 // comparison against that database — catalog has no dependency on Git and
 // does not require running inside a repository.
 //
-// Five subcommands, split by whether they need an API key:
+// Six subcommands, split by whether they need an API key:
 //
+//	init       Write .catalog/config.toml from the template built into the
+//	           binary, or print that template with --print. No API key.
 //	bootstrap  Rebuild every entry from scratch in two passes. For creating
 //	           the database or rebuilding it wholesale. Needs ANTHROPIC_API_KEY.
 //	update     Re-infer profiles for new or modified documents and drop rows
@@ -62,6 +64,8 @@ func main() {
 
 	var err error
 	switch cmd {
+	case "init":
+		err = cmdInit(args)
 	case "bootstrap":
 		err = cmdBootstrap(args)
 	case "update":
@@ -95,6 +99,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `catalog — generate and check .catalog.md (agent profiles)
 
 usage:
+  catalog init [--print]       create .catalog/config.toml from the built-in template, or print the template (no API key)
   catalog bootstrap            rebuild every entry from scratch, two passes (needs ANTHROPIC_API_KEY)
   catalog update               re-infer profiles for new or modified docs (needs ANTHROPIC_API_KEY)
   catalog force [file ...]     re-infer named docs unconditionally; no names = all (needs ANTHROPIC_API_KEY)
