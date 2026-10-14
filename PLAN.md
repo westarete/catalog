@@ -5,6 +5,31 @@ the developer and the agent, and many are conversations to have rather
 than tasks to finish. See the maintaining-plans skill for the
 conventions.
 
+## Prompt caching
+
+- [ ] Cache the part of each profiling request that repeats, so a pass
+      over many documents stops paying full price for it on every call.
+      Today `inferProfile` sets no `cache_control`, so nothing is
+      cached, which is why Anthropic warns about the cache rate during
+      catalog runs. The repeated part is the instruction (about 600
+      tokens) plus the neighbor profiles, which are every other
+      document's profile and so grow to roughly the size of the whole
+      `.catalog.md`. Two things keep the neighbors from being cacheable
+      now: they come after the document in the request instead of before
+      it, and they change on every call, because `neighbors` leaves out
+      the document being profiled and `inferPass` writes each new
+      profile before the next call. Decide whether the model still
+      positions a document well when it sees a snapshot of the neighbors
+      taken at the start of the pass and placed ahead of the document,
+      then mark the end of that shared prefix for caching. Haiku 5.5
+      caches any prefix of 512 tokens or more, reads cost a tenth of the
+      input price, and writes cost 1.25 times it, per
+      [Anthropic's prompt caching docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+      Confirm the change in the run's cost report, which already shows
+      cached tokens, and check that an `update` touching one or two
+      documents doesn't end up costing more because of the write
+      premium.
+
 ## Someday
 
 - [ ] Size warning in `catalog status` when entry count crosses ~150
