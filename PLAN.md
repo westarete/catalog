@@ -5,6 +5,23 @@ the developer and the agent, and many are conversations to have rather
 than tasks to finish. See the maintaining-plans skill for the
 conventions.
 
+New bugs and requests go in
+[GitHub issues](https://github.com/westarete/catalog/issues) instead of
+this file, so the list of work to do is split between the two. Whenever
+you read this file, read the open issues too, so nobody plans or starts
+work that's already tracked in the other place.
+
+## Issues and the plan
+
+- [ ] Decide which work belongs in GitHub issues and which in this plan,
+      and write that down for this repo. `LINEAR-VS-REPO.md` in West
+      Arete's private `automations` repo works through the same question
+      for Linear and the Markdown files in a repo; adapt its reasoning
+      to GitHub issues and this file. This repo is public, so issues are
+      visible to anyone who uses catalog, which `automations` doesn't
+      have to consider. Until this is settled, new items go in issues
+      and the existing items here stay put.
+
 ## Prompt caching
 
 - [ ] Cache the part of each profiling request that repeats, so a pass

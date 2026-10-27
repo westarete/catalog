@@ -30,11 +30,13 @@ the next conversation. Prefer small, verifiable steps; call out
 trade-offs when a choice matters; avoid expanding scope beyond what they
 asked.
 
-Work still to do is tracked in [PLAN.md](PLAN.md), following the
-maintaining-plans skill. Do not check off an item until the developer
-agrees it is done. Bundle the checkbox update in the same commit that
-completes the work, and delete a section once every item in it is
-checked.
+Work still to do is tracked in two places: [PLAN.md](PLAN.md), following
+the maintaining-plans skill, and
+[GitHub issues](https://github.com/westarete/catalog/issues), where new
+bugs and requests go. In the plan, do not check off an item until the
+developer agrees it is done. Bundle the checkbox update in the same
+commit that completes the work, and delete a section once every item in
+it is checked.
 
 When pointing at web pages or repo files, use **clickable Markdown
 links** (e.g. `[README](README.md)`), not bare URLs in backticks or
@@ -88,6 +90,12 @@ larger, ask whether it's worth writing down.
 
 At the start of every conversation, read README.md and this file before
 doing substantive work.
+
+Before planning or starting a bug fix or feature, read PLAN.md and the
+open GitHub issues, so you don't duplicate or contradict work tracked in
+either place. Use `gh issue list`; where `gh` isn't available, as in
+Cowork, read the
+[issues page](https://github.com/westarete/catalog/issues) instead.
 
 ## Config files
 
