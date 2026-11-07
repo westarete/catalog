@@ -15,8 +15,8 @@ const catalogPath = ".catalog.md"
 // render produces the full .catalog.md from the store's rows: the header,
 // then entries grouped under "## <dir>/" section headers and emitted as
 // "### <path>" stanzas. Profiles are written as single-line paragraphs and
-// left for bin/format (Prettier) to wrap, the same discipline as every other
-// Markdown file in the repo.
+// never wrapped: `catalog status` compares the file byte for byte with a fresh
+// render, so the catalog skill keeps .catalog.md out of Prettier's reach.
 //
 // The header is always defaultHeader() — the store holds no header field, so
 // there is nothing per-repo to preserve. The header is generic boilerplate
@@ -28,7 +28,7 @@ func render(rows []profileRow) string {
 
 	sorted := make([]profileRow, len(rows))
 	copy(sorted, rows)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].path < sorted[j].path })
+	sort.Slice(sorted, func(i, j int) bool { return byDirectoryThenPath(sorted[i].path, sorted[j].path) })
 
 	lastDir := ""
 	for _, r := range sorted {
@@ -46,6 +46,17 @@ func render(rows []profileRow) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// byDirectoryThenPath orders paths so that every file in a directory sorts
+// together, which render relies on to write each "## <dir>/" heading once. A
+// plain string sort doesn't: "docs/guides/setup.md" falls between
+// "docs/PLAN.md" and "docs/overview.md".
+func byDirectoryThenPath(a, b string) bool {
+	if dirA, dirB := dirOf(a), dirOf(b); dirA != dirB {
+		return dirA < dirB
+	}
+	return a < b
 }
 
 func dirOf(path string) string {

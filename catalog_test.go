@@ -40,3 +40,32 @@ func TestRenderGroupsByDirectory(t *testing.T) {
 		t.Errorf("section headers missing:\n%s", out)
 	}
 }
+
+func TestRenderWritesEachDirectoryHeadingOnce(t *testing.T) {
+	rows := []profileRow{
+		{path: "docs/PLAN.md", profile: "plan"},
+		{path: "docs/guides/setup.md", profile: "setup"},
+		{path: "docs/overview.md", profile: "overview"},
+	}
+	out := render(rows)
+	for _, heading := range []string{"\n## docs/\n", "\n## docs/guides/\n"} {
+		if n := strings.Count(out, heading); n != 1 {
+			t.Errorf("heading %q appears %d times, want 1:\n%s", strings.TrimSpace(heading), n, out)
+		}
+	}
+	want := []string{
+		"## docs/",
+		"### docs/PLAN.md",
+		"### docs/overview.md",
+		"## docs/guides/",
+		"### docs/guides/setup.md",
+	}
+	last := -1
+	for _, line := range want {
+		i := strings.Index(out, "\n"+line+"\n")
+		if i <= last {
+			t.Errorf("%q is missing or out of order:\n%s", line, out)
+		}
+		last = i
+	}
+}
