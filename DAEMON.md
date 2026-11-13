@@ -186,6 +186,35 @@ that should be used. It makes sense that we would want to make different
 tradeoffs in privacy, speed, price, quality depending on the content at
 hand.
 
+## Profiles deepen over time
+
+Today profiling is all or nothing: either the full contents of a file
+have gone through a language model and produced a complete profile, or
+the catalog knows nothing about the file at all. Since time and cost are
+our struggles, there are middle grounds. Picture a hierarchy of
+profiling.
+
+- The bottom level is extremely fast and cheap; it can be generated
+  almost instantly. It lists the files, their types, maybe some
+  additional metadata from the file system, and the first several lines
+  or the first 512 bytes of content. This is what a profile contains at
+  first, and it's significantly better than nothing for the agent.
+- In the middle level, some portion of the content has been processed by
+  a language model, so the profile can begin to summarize the file and
+  explain when an agent might choose it.
+- At the top level, we also understand the file's relevance among its
+  peers. Peers could be neighboring files in the same directory, or
+  similarly named files elsewhere in the tree that might compete with
+  each other. This level is slow and expensive, but it gives extremely
+  high quality.
+
+The catalog always knows something about every file in its scope, and
+that knowledge deepens over time. The daemon can work through its full
+scope while balancing speed, cost, and quality, and new content becomes
+visible almost at once even when understanding it well takes longer. An
+agent should be able to tell how deeply each file has been profiled, so
+it knows how far to trust the entry.
+
 ## OS support
 
 It makes sense for the daemon design and implementation to leverage
