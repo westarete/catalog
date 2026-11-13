@@ -38,17 +38,6 @@ developer agrees it is done. Bundle the checkbox update in the same
 commit that completes the work, and delete a section once every item in
 it is checked.
 
-When pointing at web pages or repo files, use **clickable Markdown
-links** (e.g. `[README](README.md)`), not bare URLs in backticks or
-bold, so nothing requires copy-paste.
-
-**Speak plainly. Avoid throwaway metaphors from unrelated domains.**
-Phrases like "land it," "load-bearing," "in flight," "lift," "moving the
-needle," "north star," "heavy lift," or other shallow aviation,
-construction, or sports analogies are annoying when a direct verb will
-do. Say "commit it," "essential," "in progress," "effort," "changes the
-result," "goal," "hard," etc. This applies to chat as much as to docs.
-
 **Don't let existing work decide a choice.** Judge a language, library,
 design, or name by what the finished product needs. Code, branches, or
 files that already exist are not an argument for themselves; the
@@ -58,29 +47,14 @@ not as the reason.
 
 ## Writing style
 
-This is a small team, not a corporation. Match that voice everywhere you
-write — README sections, CLAUDE.md updates, replies in chat. The test
-isn't whether the writing is correct; it's whether a colleague would
-want to read it.
+@writing-style.md
 
-Some specific habits:
+## Reread before you show
 
-- **Don't write for agents when humans will read it.** Phrases like
-  "authoritative source," "deeper procedural guidance," "in full before
-  acting on its topic," or "pointers, not replacements" read like a
-  system prompt. Cut them.
-- **Don't reach for "canonical."** It disambiguates one version from
-  another; use it only when you're actually doing that. If the
-  surrounding sentence already explains what makes the document the one
-  we care about, leave the word out.
-- **Drop redundant qualifiers.** If the next clause does the work, the
-  adjective doesn't.
-- **Say what something is for, not its policy status.** "For more
-  guidance" beats "for the full policy."
-- **Skip forward references the reader will hit on their own.**
-- **Don't bold link text just because it's a link.** The link styling is
-  already enough.
-- **Use the vocabulary the doc has already defined.**
+Before you show anyone new writing that other people will read, reread
+it twice: once as a reader who doesn't know what you were thinking, and
+once as the critic who will judge it. Fix every passage either one would
+stumble on or reject.
 
 ## No willpower promises
 
@@ -164,8 +138,7 @@ install is Node.
 
 The hard rule: **never run `git commit` until the developer has approved
 the exact message you proposed in chat.** "Commit when you're done" is
-not pre-approval of a message. Commit messages follow Tim Pope's
-[A note about Git commit messages](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
+not pre-approval of a message.
 
 Follow the release process in [README.md](README.md).
 
@@ -263,7 +236,6 @@ plausible-looking code.
 
 ## Principles (short)
 
-- Prefer clarity over decoration-heavy Markdown (excessive bold, etc.).
 - Update the doc that a reader would naturally open — usually the same
   commit as the idea, not a delayed pass.
 - When recommending tools or practices, sanity-check assumptions; say
