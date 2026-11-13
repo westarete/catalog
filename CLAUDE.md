@@ -49,6 +49,13 @@ construction, or sports analogies are annoying when a direct verb will
 do. Say "commit it," "essential," "in progress," "effort," "changes the
 result," "goal," "hard," etc. This applies to chat as much as to docs.
 
+**Don't let existing work decide a choice.** Judge a language, library,
+design, or name by what the finished product needs. Code, branches, or
+files that already exist are not an argument for themselves; the
+developer will throw them away when convention or the product calls for
+it. If reuse genuinely matters, give it as a separate, named trade-off,
+not as the reason.
+
 ## Writing style
 
 This is a small team, not a corporation. Match that voice everywhere you
@@ -191,6 +198,17 @@ Write tests at every layer: unit, integration, and system. Aim for
 maximum sensible coverage — not 100% for its own sake, but enough that a
 regression is caught before it reaches the developer. When adding a
 feature or fixing a bug, tests come with it, not after.
+
+### Research the idiomatic way before designing
+
+Don't assume you know the most idiomatic way to use a tool, library,
+language, or platform; that assumption has been wrong here. Before
+proposing a new design, or a new way of using git, Claude Code, Swift,
+macOS, or anything else, find out how the most skilled practitioners do
+it: respected books, talks, and essays by experienced authors, and
+well-crafted open-source projects. A tool's own documentation says what
+the tool can do, not usually the most elegant way to use it. Report what
+you found and from whom, then propose.
 
 ### API references and dependencies
 
