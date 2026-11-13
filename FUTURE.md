@@ -5,10 +5,10 @@ down so the reasoning survives the conversation. Treat it as a proposal
 to argue with, not a spec to implement.
 
 There is also a much more radical possibility for the future, involving
-a complete rewrite to implement the catalog as a [computer-wide
-daemon](DAEMON.md) that runs automatically and can never generate
-conflicts. That is a completely separate path than the concepts below,
-which follow the current implementation.
+a complete rewrite to implement the catalog as a
+[computer-wide daemon](DAEMON.md) that runs automatically and can never
+generate conflicts. That is a completely separate path than the concepts
+below, which follow the current implementation.
 
 ## The limits of a flat catalog
 
