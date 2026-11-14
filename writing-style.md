@@ -36,6 +36,18 @@ the person or office that acts. A policy can still shape what people do.
 - Right: "If the procurement office rejects it, it puts the work out to
   bid."
 
+## Get to the verb quickly
+
+Keep the subject short so the reader reaches the verb early. Don't pack
+a clause or a list into the subject. Vary sentence structure otherwise;
+this rule is about avoiding one bad shape, not imposing one good one.
+
+- Wrong: "A warning that stays on every answer until the problem is
+  fixed is one way an agent could learn that the catalog has fallen
+  behind."
+- Right: "If the catalog falls behind, it could say so on every answer
+  until someone fixes it."
+
 ## Speak plainly and avoid throwaway metaphors
 
 **Speak plainly. Avoid throwaway metaphors from unrelated domains.**
