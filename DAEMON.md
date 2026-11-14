@@ -71,8 +71,8 @@ Think of this as one example of how to approach the problem, not a plan.
 - `catalog update` is now a simple signal to the daemon to prioritize
   the current tree.
 - Claude Cowork sees the folder tree through a mount, so it sees the
-  same live `.catalog.md` directory the daemon writes. Nothing special
-  is needed.
+  same live `.catalog.md` files the daemon writes. Nothing special is
+  needed.
 
 ## No state in git by default
 
@@ -81,9 +81,9 @@ From the user's perspective, the main difference is that now these
 are maintained "live". And the daemon's catalog state is kept outside of
 all the directory trees, in
 `~/Library/Application Support/com.westarete.catalog`. Because none of
-the dynamic catalog content is no longer kept in git, it is impossible
-for it to cause merge conflicts. What we care most about is the user's
-experience, and this is a huge win that is worth struggling for.
+the dynamic catalog content is kept in git, it is impossible for it to
+cause merge conflicts. What we care most about is the user's experience,
+and this is a huge win that is worth struggling for.
 
 ## Daemon state
 
@@ -98,10 +98,10 @@ Since it has its own state directory under
 consider whatever state storage is most advantageous. It could still be
 a SQLite database, but now that we are not concerned about filesystem
 sprawl that would create noise in a git repo, we could also consider
-storing each profile in an individual file in the the filesystem,
-similar to how git repo state works. That may or may not be a good
-design, but the point is that we are free of the constraints of working
-within the user's git repository.
+storing each profile in an individual file in the filesystem, similar to
+how git repo state works. That may or may not be a good design, but the
+point is that we are free of the constraints of working within the
+user's git repository.
 
 ## A side challenge: cloud drives
 
@@ -218,12 +218,12 @@ it knows how far to trust the entry.
 ## OS support
 
 It makes sense for the daemon design and implementation to leverage
-unique operating system advantages wherever possible. On MacOS we can
-take advantage of FSEvent to detect changes. We may even be able to
+unique operating system advantages wherever possible. On macOS we can
+take advantage of FSEvents to detect changes. We may even be able to
 leverage local LLM services that are native to the OS (Apple
 Intelligence?).
 
-100% of our users are on MacOS, so we do not need to support Windows or
+100% of our users are on macOS, so we do not need to support Windows or
 Linux. At the same time, we have deliberately kept our contract with the
 agents incredibly simple. So there is nothing stopping us from creating
 compatible, independent implementations for different platforms. We can
@@ -232,7 +232,7 @@ provides for those implementations.
 
 ## User interface
 
-Likewise, the user interface can be platform specific. Our initial MacOS
+Likewise, the user interface can be platform specific. Our initial macOS
 implementation may be completely CLI and config file based. But we would
 likely progress into `plist` entries, and then a menu bar entry, and
 then a GUI configuration. Distribution could happen via Homebrew, and
@@ -254,8 +254,8 @@ idiomatic for their environment.
 - Do we need to detect and consider which files are "in use"? Or which
   directories have active processes?
 - Which staff are on a Mac? The experiment assumes macOS.
-- Which models, local or hosted, and how good are its profiles compared
-  with Haiku?
+- Which models, local or hosted, and how good are their profiles
+  compared with Haiku?
 - What macOS file-change and on-device language model frameworks are
   currently offered?
 - What happens to repos that already have a legacy catalog? How are they
