@@ -24,16 +24,18 @@ what the helpers are named as services.
 ## How the package is divided
 
 The whole project is one Swift package with many library targets and
-about a dozen executables. Most services come as a pair of targets, one
-for the client and one for the server. The CLI executable depends on the
-argument parser, a commands library, and client libraries; it doesn't
-depend on any server target
+eleven executables. Judging by their names, many targets come in pairs,
+one for a service's client and one for its server, such as
+`ContainerAPIClient` and `ContainerAPIService`; the manifest doesn't
+describe their roles. The CLI executable depends on the argument parser,
+a commands library, and `ContainerAPIClient`; it doesn't depend directly
+on `ContainerAPIService`
 ([Package.swift](https://github.com/apple/container/blob/main/Package.swift)).
 
-Its dependencies are mostly Apple's own packages:
-`swift-argument-parser`, `swift-log`, `swift-nio`, `swift-system`,
-`swift-collections`, and `swift-configuration`, with TOML for
-configuration files (same file).
+Its dependencies include Apple's `swift-argument-parser`, `swift-log`,
+`swift-nio`, `swift-system`, `swift-collections`, and
+`swift-configuration`, along with gRPC, an HTTP client, and TOML and
+YAML parsers (same file).
 
 ## Installing it
 

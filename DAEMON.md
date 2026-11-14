@@ -258,12 +258,37 @@ take advantage of FSEvents to detect changes. We may even be able to
 leverage local LLM services that are native to the OS (Apple
 Intelligence?).
 
-100% of our users are on macOS, so we do not need to support Windows or
-Linux. At the same time, we have deliberately kept our contract with the
-agents incredibly simple. So there is nothing stopping us from creating
-compatible, independent implementations for different platforms. We can
-leverage what Windows' operating system provides, and what Linux
-provides for those implementations.
+100% of our users are on macOS, so the Mac comes first. We can also
+picture the daemon on Linux in two ways: on a headless server that keeps
+a catalog current as a central source, and in a container on a Mac or
+Windows laptop. We aren't sure how much either matters.
+
+We have deliberately kept our contract with the agents incredibly
+simple, so independent implementations for each platform would be
+possible. We now think a shared core with a thin layer for each
+operating system is the better way, because the shared part is what
+decides how good a catalog is. "Platforms and language" in
+[ARCHITECTURE.md](ARCHITECTURE.md) gives the reasoning and the languages
+we're weighing.
+
+## Delivering the catalog without a file
+
+An MCP server is another way to hand an agent the catalog. The agent
+asks for the catalog for its current path, and nothing has to be written
+into the tree, ignored by Git, or loaded from `CLAUDE.md`. It also gives
+the agent a way to tell the daemon something back.
+
+The two differ in one way that matters most. The file puts the catalog
+in front of the agent before the agent decides anything. An MCP server
+can send the agent short instructions when a session starts, but the
+agent still has to fetch the catalog, and it now knows the catalog is a
+tool. We haven't measured how reliably agents do that.
+
+For now we'd keep the file as the first way to deliver and treat MCP as
+a second one, for content that has no folder and for a central server,
+which has no other way to deliver. "Delivering the catalog over MCP" in
+[ARCHITECTURE.md](ARCHITECTURE.md) has what the documentation says and
+our reasoning.
 
 ## User interface
 
@@ -299,6 +324,10 @@ idiomatic for their environment.
 - Do we need to detect and consider which files are "in use"? Or which
   directories have active processes?
 - Which staff are on a Mac? The experiment assumes macOS.
+- Is there a real need for the daemon on Linux, on a central server or
+  in a container?
+- Is an MCP server worth building, and what would an agent usefully
+  report through one?
 - Which models, local or hosted, and how good are their profiles
   compared with Haiku?
 - What macOS file-change and on-device language model frameworks are
