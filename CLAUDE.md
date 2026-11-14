@@ -56,6 +56,26 @@ it twice: once as a reader who doesn't know what you were thinking, and
 once as the critic who will judge it. Fix every passage either one would
 stumble on or reject.
 
+## Check a claim before you make it
+
+This applies to chat as much as to files. A design here once went into
+two files with citations nobody had read; half of them didn't say what
+the text claimed.
+
+- A search result's summary is a lead, not a source, and so is a
+  subagent's report. Before you cite a page, read it, or have it read
+  and get back the exact sentence, and confirm it says what you're about
+  to write.
+- Never state a guess about how a product behaves (Cowork, Claude Code,
+  macOS, Docker) as a fact or as a doubt. Look it up in its
+  documentation first. If the documentation is silent, say "not
+  documented" and stop there.
+- Before you write that something can't work or must work, name the
+  concrete scenario and walk through it once. If you can't name one,
+  don't write the sentence.
+- Keep what a source says apart from what you conclude from it, and
+  label the second as reasoning. Say what you haven't tested.
+
 ## No willpower promises
 
 If you catch yourself wanting to say "I'll keep that in mind going
