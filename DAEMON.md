@@ -4,6 +4,8 @@ This is a brief on a design experiment. Nothing here is decided. It
 describes the problems that drive the need for the catalog, one
 architecture we are considering, and what we still don't know. It grows
 from the OPE-54 conversation in Linear.
+[ARCHITECTURE.md](ARCHITECTURE.md) outlines the components that would
+make up the daemon.
 
 ## What the catalog is for
 
@@ -16,10 +18,22 @@ That promise has consequences for the people involved:
 
 - Nobody, staff or agent, should have to look at the catalog or maintain
   it. It should be as invisible as possible.
-- When the catalog is out of date, the agent should know how to keep it
-  up to date and resolve issues on its own.
+- An agent only ever reads the catalog. It finds a `.catalog.md` that
+  its instructions already load, and it never has to update the catalog,
+  talk to the daemon, or know the daemon exists. That keeps setup small,
+  with no skill for the agent to learn, and it lets the catalog work
+  wherever the folder is visible.
 - It should feel the same everywhere: in a plain folder, in a git repo
   on `main`, on a branch, in Claude Cowork, on GitHub.
+- A missing catalog should do no harm. Most people use no catalog today,
+  and their agents explore with tools that read and write single files
+  well but are poor at finding meaning across many. Where the catalog
+  isn't present, such as a fresh clone on a machine with no daemon,
+  people get that same experience and lose nothing.
+
+The experience we want is that a person installs the catalog, points it
+at the folders they work in, and their agents everywhere get better
+without being told why.
 
 ## Who it is for
 
@@ -69,7 +83,7 @@ Think of this as one example of how to approach the problem, not a plan.
   parent directory, and if there is another catalog above it, it leaves
   that subtree alone.
 - `catalog update` is now a simple signal to the daemon to prioritize
-  the current tree.
+  the current tree. It's there for people; agents don't need it.
 - Claude Cowork sees the folder tree through a mount, so it sees the
   same live `.catalog.md` files the daemon writes. Nothing special is
   needed.
@@ -177,7 +191,8 @@ time is multi-fold:
 Given these factors, it would probably be worth making the model
 configurable. Not just within the Anthropic API like today's
 implementation, but across a variety of models, whether open or
-proprietary, cloud-based or local.
+proprietary, cloud-based or local. A person should be able to switch
+between them in the daemon's settings without anything else changing.
 
 Taking it a step further, we may consider making the model configurable
 at the directory level. The `.catalog.toml` config file for a tree may
@@ -215,6 +230,26 @@ visible almost at once even when understanding it well takes longer. An
 agent should be able to tell how deeply each file has been profiled, so
 it knows how far to trust the entry.
 
+## More than documents
+
+We designed the catalog for knowledge work, and that's still the main
+case. Today's tool already profiles CSV files alongside prose, and the
+same technique should serve data files for research and source code just
+as well. We should plan to profile any kind of file that can be
+understood, images included. We don't intend to build all of that at
+first, but the design shouldn't assume every file is a prose document.
+
+## Statistics for tuning
+
+People will want to understand how the catalog is working and tune it.
+The daemon should keep a record of what it did: how long each file took
+to profile, with which model, what it cost, and what went wrong.
+
+We don't plan to build much on that record at first. Later it could
+drive recommendations. For example, a Claude skill could read the
+statistics, notice that a set of files is slow or hard to profile, and
+suggest adding a five-line comment at the top of each one.
+
 ## OS support
 
 It makes sense for the daemon design and implementation to leverage
@@ -236,7 +271,16 @@ Likewise, the user interface can be platform specific. Our initial macOS
 implementation may be completely CLI and config file based. But we would
 likely progress into `plist` entries, and then a menu bar entry, and
 then a GUI configuration. Distribution could happen via Homebrew, and
-then via the Mac App Store.
+then via the Mac App Store. Each of these is a client of the same
+daemon, so adding one shouldn't change how the daemon works. macOS's
+rules for protected folders may mean the daemon has to ship inside an
+app bundle sooner than this order suggests; see "Processes and macOS" in
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
+Wherever we show status, a person should easily see which folders are
+cataloged and which aren't. Much later, the menu bar item might notice
+that someone is working in a folder with no catalog and offer to add
+one.
 
 Windows and Linux would be free to have user interfaces that are
 idiomatic for their environment.
@@ -244,11 +288,12 @@ idiomatic for their environment.
 ## Open questions
 
 - A new clone starts with a mostly empty catalog. That is expected. But
-  what if it fails to be noticed? How does anyone tell the difference
-  between a delay in indexing, and whether it's ever going to be indexed
-  at all?
-- If the daemon stops, nobody sees it, and the catalog falls behind
-  again. How might the catalog or agent say or know how current it is?
+  what if it fails to be noticed? A status view that lists which folders
+  are cataloged would let a person tell a delay from a folder that will
+  never be indexed; we haven't designed it.
+- If the daemon stops, the catalog falls behind again. Agents shouldn't
+  have to notice. launchd can restart the daemon and the menu bar item
+  can show its state, and we haven't worked out the details.
 - Which documents do we profile first? Do we prioritize certain new
   files, especially when they arrive in a big batch?
 - Do we need to detect and consider which files are "in use"? Or which
@@ -260,6 +305,13 @@ idiomatic for their environment.
   currently offered?
 - What happens to repos that already have a legacy catalog? How are they
   migrated?
+- How will we learn whether the catalog is helping, when agents never
+  talk to the daemon? People could tell us. An agent could review past
+  chat sessions with permission, but that's invasive and we haven't
+  settled on it.
+- Each tree needs Git to ignore `.catalog.md` and needs a line in
+  `CLAUDE.md` or `AGENTS.md` that loads it. Who sets those up, and can
+  the ignore rule be global with an occasional override?
 
 ## Background
 

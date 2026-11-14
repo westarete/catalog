@@ -10,6 +10,11 @@ repo provides agents with a catalog so they can load precisely what they
 need. This means better answers, faster responses, and more context
 window left for the actual work.
 
+We're designing a rewrite of catalog as a background daemon.
+[DAEMON.md](DAEMON.md) explains why, and
+[ARCHITECTURE.md](ARCHITECTURE.md) outlines its components. The rest of
+this file describes the tool as it works today.
+
 If you want to add catalog capabilities to your repo, install the
 `knowledge-work` plugin from West Arete's
 [claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
