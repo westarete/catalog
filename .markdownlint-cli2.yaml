@@ -9,3 +9,6 @@
 # rewriting the source.
 ignores:
   - "reference/**"
+  # Scratch files the Superpowers workflow writes while it builds; they
+  # are ignored by Git and are not project documents.
+  - ".superpowers/**"
