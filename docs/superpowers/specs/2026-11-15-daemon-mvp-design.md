@@ -3,13 +3,13 @@
 This is the design for the first version of the catalog daemon: the
 smallest version that follows
 [architecture.md](../../design/architecture.md) and is good enough for
-people to stop running today's `catalog` command. It narrows mvp.md, an
-earlier draft now removed, and changes it in three ways. A person lists
-the folders for the daemon to watch in one config on their machine, and
-a `.catalog/` folder inside them marks each place a catalog goes. A
-minimal `catalog status` comes forward from mvp.md's "What waits." The
-daemon does its work in a single loop, one file at a time.
-[daemon.md](../../design/daemon.md) explains why we're building it.
+people to stop running today's `catalog` command. It narrows mvp.md and
+changes it in three ways. A person lists the folders for the daemon to
+watch in one config on their machine, and a `.catalog/` folder inside
+them marks each place a catalog goes. A minimal `catalog status` comes
+forward from mvp.md's "What waits." The daemon does its work in a single
+loop, one file at a time. [daemon.md](../../design/daemon.md) explains
+why we're building it.
 
 We still don't know where catalogs should go so that agents find them
 where people start work. daemon.md describes that problem under "Where

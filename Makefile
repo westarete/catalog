@@ -17,4 +17,5 @@ lint:
 
 # Mutation-test one package, for example: make mutate PKG=./internal/planner
 mutate:
-	gremlins unleash $(PKG)
+	$(if $(PKG),,$(error PKG is required, e.g. make mutate PKG=./internal/planner))
+	$(shell go env GOPATH)/bin/gremlins unleash $(PKG)
