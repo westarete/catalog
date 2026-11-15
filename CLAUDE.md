@@ -42,6 +42,13 @@ developer will throw them away when convention or the product calls for
 it. If reuse genuinely matters, give it as a separate, named trade-off,
 not as the reason.
 
+**Design for the project's audience, not for whoever is testing it.**
+This is West Arete's public, open-source project, meant to be broadly
+useful and to represent the company. An early user's answers are
+evidence about the product, not its scope: never turn "it's only me for
+now" into a design, spec, or plan built around one person. Name a person
+in a doc only where the text is about that person.
+
 ## Writing style
 
 @writing-style.md
