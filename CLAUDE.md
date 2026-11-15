@@ -193,9 +193,12 @@ language, or platform; that assumption has been wrong here. Before
 proposing a new design, or a new way of using git, Claude Code, Swift,
 macOS, or anything else, find out how the most skilled practitioners do
 it: respected books, talks, and essays by experienced authors, and
-well-crafted open-source projects. A tool's own documentation says what
-the tool can do, not usually the most elegant way to use it. Report what
-you found and from whom, then propose.
+well-crafted open-source projects. For anything about processes, files,
+or how programs coordinate, start from the Unix classics in
+[docs/best-practices/craftspeople.md](docs/best-practices/craftspeople.md),
+not from newer protocols such as MCP. A tool's own documentation says
+what the tool can do, not usually the most elegant way to use it. Report
+what you found and from whom, then propose.
 
 ### API references and dependencies
 
