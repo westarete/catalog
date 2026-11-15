@@ -1,13 +1,13 @@
 # Architecture of the catalog daemon: draft outline
 
 This outline names the components of the catalog daemon, says what each
-one is for, and says what each one is kept from knowing. Nothing here is
-built, and we expect the outline to change as we work through it.
+one is for, and says what each one shouldn't know. Nothing here is
+built, and we expect to change the outline as we work through it.
 [daemon.md](daemon.md) explains the problem and what we want; this file
-is about how the application is divided. It runs on macOS and on Linux,
-both on a headless server and in a container. We'll write the shared
-core and the CLI in Go, and the parts that need Apple's frameworks in
-Swift.
+is about how we divide the application. The daemon runs on macOS and on
+Linux, both on a headless server and in a container, and we want to keep
+Windows open. We'll write the shared core and the CLI in Go, and the
+parts that need Apple's frameworks in Swift.
 
 ## The contract with agents
 
@@ -18,45 +18,59 @@ follow from that.
 
 - A missing catalog does no harm. Most people use no catalog today, and
   their agents explore a folder with the search tools they have. Where
-  no daemon runs, such as a cloud agent on a fresh clone or a colleague
-  who hasn't installed it, the agent works as it would have anyway. The
-  same goes for a catalog that has fallen behind.
-- The file has to stand on its own. It says how deeply each entry has
-  been profiled, because the agent has nowhere else to ask.
-- The catalog works anywhere the folder is visible, including through
-  Claude Cowork's mount, with no skill or setup on the agent's side.
+  no daemon runs, such as for a cloud agent on a fresh clone or a
+  colleague who hasn't installed it, the agent works as it would have
+  anyway. The same goes for a catalog that has fallen behind.
+- The file has to stand on its own. We write into it how deeply we've
+  profiled each entry, because the agent has nowhere else to ask.
+- The catalog needs no skill or setup on the agent's side, so an agent
+  can use it anywhere it can see the folder and load the file. That
+  includes Claude Cowork's mount, though we don't yet know what would
+  load the file there
+  ([research/agent-instruction-files.md](../research/agent-instruction-files.md)).
 - Status, settings, and statistics are for people, and for tools that
   help people tune the catalog. None of them are part of what an agent
-  sees. Noticing that the daemon has stopped is a job for launchd and
-  the menu bar item, not for an agent.
+  sees. launchd and the menu bar item, not an agent, should notice when
+  the daemon has stopped.
 
-The experience we want is that a person installs the catalog, points it
-at the folders they work in, and their agents get better at finding
-things without anyone telling the agents why.
+We want a person to install the catalog, point it at the folders they
+work in, and find that their agents get better at finding things without
+anyone telling the agents why.
 
-The general rule is that the catalog reaches an agent through the same
-channel the agent uses to reach the content. For files in a folder, that
-channel is a file in the folder. "Delivering the catalog over MCP" below
-covers content that has no folder.
+As a general rule, the catalog should reach an agent the same way the
+content does. For files in a folder, that means a file in the folder.
+"Delivering the catalog over MCP" below covers content that has no
+folder.
 
 ## What a tree needs
 
-Three things have to be in place before a tree's catalog reaches an
-agent. The daemon creates none of them, since its Publisher writes only
-`.catalog.md`.
+Someone has to put these things in place before an agent can read a
+tree's catalog. The daemon creates none of them, since its Publisher
+writes only `.catalog.md`.
 
-- A `.catalog.toml` at the top of the tree, which tells the daemon to
-  index it.
-- A line in the tree's `CLAUDE.md` or `AGENTS.md` that loads
-  `.catalog.md`, such as `@.catalog.md`.
-- A rule that keeps Git from tracking `.catalog.md`. A person could set
-  it once for every repository on their Mac in Git's global ignore file,
-  and a repository's own `.gitignore` takes precedence over that file
-  when a team wants something different
+- The person adds an entry for the folder to their settings, so the
+  daemon indexes it. Nobody puts a marker file inside the folder.
+- An instruction file the agent loads has a line that imports
+  `.catalog.md`. We use `AGENTS.md` as the convention, since most agents
+  read it. By default, Claude Code reads `AGENTS.md` only when there's
+  no `CLAUDE.md` in the folder or above it, so a person who has both
+  imports `@AGENTS.md` from `CLAUDE.md`
+  ([research/agent-instruction-files.md](../research/agent-instruction-files.md)).
+- In a Git repository, the person tells Git not to track `.catalog.md`.
+  They could set that once for every repository on their Mac in Git's
+  global ignore file, and a team that wants something different can
+  override it in the repository's own `.gitignore`
   ([gitignore documentation](https://git-scm.com/docs/gitignore)).
 
-Putting these in place is a job for a client, such as a setup command or
-a button in the menu bar item. We haven't designed it.
+A client, such as a setup command or a button in the menu bar item,
+would put these in place. We haven't designed it. We also don't know
+which folders should get a catalog at all. Agents start wherever people
+start them, and an instruction file has to load the catalog there.
+"Where agents start" in [daemon.md](daemon.md) describes the problem.
+
+The daemon doesn't write `.catalog.md` into a folder that a cloud drive
+syncs, because two machines would keep rewriting the same file.
+daemon.md explains why under "A side challenge: cloud drives."
 
 ## How work moves
 
@@ -82,15 +96,14 @@ Daemon connects the steps.      CLI, menu bar ──► Control ──► Daemon
 The Model is the vocabulary the other components share. It holds values
 and does no reading, writing, or network work.
 
-- A tree is a folder with a `.catalog.toml`, and everything under it
-  that no nested tree claims.
-- An entry describes a file. Source trees hold thousands of files, so an
-  entry may later need to describe a folder, and the vocabulary should
-  allow either.
+- A tree is a folder the person listed in their settings, along with
+  everything under it that no nested tree claims.
+- An entry describes a file. Source trees hold thousands of files, so we
+  may later need entries that describe folders, and the vocabulary
+  should allow either.
 - A content hash identifies what a file contained when we read it.
 - A profile has a depth: a listing, a summary, or a position among its
-  peers, as described under "Profiles deepen over time" in
-  [daemon.md](daemon.md).
+  peers, as daemon.md describes under "Profiles deepen over time."
 - A recipe records the reader, prompt, and model that produced a
   profile, so we can redo profiles when any of them changes. GNOME's
   indexer records its extractor the same way
@@ -99,59 +112,64 @@ and does no reading, writing, or network work.
 ### Settings
 
 Settings answers one question: what applies to this tree right now? It
-combines three sources.
+combines two sources.
 
 - Defaults built into the application.
-- The person's settings for this machine: which folders the daemon may
-  look in, which model providers exist, their credentials, and limits on
-  battery and spending.
-- The tree's `.catalog.toml`, which is committed and shared: which files
-  to include, and what the tree's owners prefer.
+- The person's settings for this machine: which folders to catalog,
+  which files to include in each, which model providers exist, their
+  credentials, and limits on battery and spending.
 
-We propose one rule about trust. A `.catalog.toml` arrives with a clone,
-written by someone else. It can narrow what gets indexed and state
-preferences, such as "on-device models only" or extra guidance for the
-prompt. It can't name a server to send files to. Only the person's own
-settings connect a preference to a real provider and its credentials.
+Nobody marks a folder as cataloged by putting a file in it. A tool that
+runs inside one repository knows where to look for a marker file. A
+daemon serving a whole machine would have to search for marker files,
+and a knowledge worker would add folders through a menu bar app, not by
+committing a file. So the person keeps one list on the machine. We
+expect people to change the shape of these settings once they use them,
+so we keep every component except Settings independent of it.
+
+If we later let a team share a committed file that says what to index,
+the daemon should trust it less than the person's own settings. The file
+could narrow what gets indexed or state preferences, but it could never
+name a server to send files to.
 
 ### Trees
 
-Trees finds the trees inside the folders the person authorized, and
-decides which tree a path belongs to and whether the path is a file we
-index. It applies the nesting rule and the include and ignore patterns.
-It knows nothing about profiles.
+Trees takes the folders the person listed. It decides which tree a path
+belongs to and whether the path is a file we index, applying the nesting
+rule and the include and ignore patterns. It knows nothing about
+profiles, and it doesn't assume a folder is a Git repository.
 
 ### Watcher
 
 The Watcher reports that paths may have changed. On macOS it listens to
-FSEvents, treats the events as hints, and crawls when macOS says events
-were dropped, as Apple advises
+FSEvents, treats the events as hints, and crawls when macOS says it
+dropped events, as Apple advises
 ([research/spotlight.md](../research/spotlight.md)). On Linux it would
 use inotify. It may have to poll a folder that a Mac shares into a
-container, because file events don't always cross that boundary. A
+container, because file events don't always reach the container. A
 Rancher Desktop issue titled "MacOS file system events don't pass
 through to containers" has been open since 2022
 ([issue 1979](https://github.com/rancher-sandbox/rancher-desktop/issues/1979)),
-and in a 2025 test on Docker Desktop a container saw a file's new lines
+and in a 2025 test on Docker Desktop, a container saw a file's new lines
 only after someone ran `sync` or `ls`
 ([Docker forum](https://forums.docker.com/t/long-lived-tail-f-on-volume-mounts/148436)).
-It doesn't know what a tree or a profile is, and it doesn't decide when
-to act on a change.
+The Watcher doesn't know what a tree or a profile is, and it doesn't
+decide when to act on a change.
 
 ### Store
 
 The Store keeps the daemon's state outside every tree; on a Mac, under
-`~/Library/Application Support`. It holds two kinds of state with
-different costs.
+`~/Library/Application Support`. It holds two kinds of state that cost
+different amounts to rebuild.
 
 - What we last saw of each file. A crawl can rebuild this.
 - Profiles, keyed by content hash and recipe. Each one cost a model
-  call, so these are kept durably.
+  call, so the Store keeps them durably.
 
-Keying by content means a moved file keeps its summary. It also means a
-Git worktree, which is a second copy of mostly identical files, costs
-almost nothing to catalog. No other component knows how the Store keeps
-its data.
+The Store keys profiles by content, so a moved file keeps its summary. A
+Git worktree, which is a second copy of mostly identical files, also
+costs almost nothing to catalog. No other component knows how the Store
+keeps its data.
 
 ### Planner
 
@@ -159,14 +177,14 @@ The Planner compares what we've seen with what we've profiled and
 returns the work to do, in order. It takes the state, the time, and
 conditions such as battery power as inputs and touches nothing else, so
 its tests need no files, network, or real clock. Dropbox's engineers
-store observations and derive the work for the same reason
+store observations and derive the work from them for the same reason
 ([research/dropbox.md](../research/dropbox.md)).
 
-The Planner is where most of the open questions in daemon.md get
-answered: which files come first, how long a file must sit unchanged
-before we profile it, how hard to work on battery, and when to give up
-on a file that keeps failing. Keeping those answers in one component
-lets us change them without touching the others.
+We answer most of the open questions in daemon.md in the Planner: which
+files come first, how long a file must sit unchanged before we profile
+it, how hard to work on battery, and when to give up on a file that
+keeps failing. With those answers in one component, we can change them
+without touching the others.
 
 ### Reader
 
@@ -174,15 +192,15 @@ The Reader turns a file into something a model can take: text, pages, or
 an image, along with cheap facts such as its type, its size, and its
 first lines. Each kind of file gets its own reader, the way Spotlight
 has one importer per file type. Prose, data files such as CSV, source
-code, and images all go through the same interface. A file that no
-reader understands still gets a listing.
+code, and images all go through the same interface. If no reader
+understands a file, the file still gets a listing.
 
 Reading is the step most likely to crash on a bad file, which is why
 Spotlight and GNOME's indexer run it in a separate process
 ([research/spotlight.md](../research/spotlight.md),
 [research/localsearch.md](../research/localsearch.md)). The Reader takes
-a file and returns content, and depends on nothing else, so we can move
-it into its own process later without changing the components around it.
+a file, returns content, and depends on nothing else, so we can move it
+into its own process later without changing the components around it.
 
 ### Profiler
 
@@ -190,18 +208,19 @@ The Profiler turns what the Reader produced, plus context about
 neighboring files, into a profile at a requested depth. It owns the
 prompts. A listing needs no model at all.
 
-The Profiler also returns notes on how the profiling went: whether the
-file was cut short, how much of it the model needed, and whether the
-model could tell what the file was for. Those notes go to the Journal.
+The Profiler also returns notes on how the profiling went: whether it
+cut the file short, how much of the file the model needed, and whether
+the model could tell what the file was for. Those notes go to the
+Journal.
 
 ### Models
 
 Models is a small interface with several providers behind it: hosted
-services and models running on the same machine. A provider accepts
+services, and models running on the same machine. A provider accepts
 content and returns text. It also declares what it can take (text,
-images, PDFs), how much it can take at once, and whether the file leaves
-the machine. The person switches providers in Settings, and the Profiler
-works the same way with any of them.
+images, PDFs), how much it can take at once, and whether the content
+leaves the machine. The person switches providers in Settings, and the
+Profiler works the same way with any of them.
 
 ### Renderer
 
@@ -214,34 +233,34 @@ nothing, so anything that delivers a catalog can use it.
 
 The Publisher writes what the Renderer produced to a tree's
 `.catalog.md`, replacing the file in one step. It's the only component
-that writes inside a person's tree, which keeps the promise in daemon.md
-checkable in one place.
+that writes inside a person's tree, so we can check the promise in
+daemon.md in one place.
 
 ### Journal
 
 The Journal is a record, kept on the machine, of what the daemon did:
 each profiling with its recipe, how long it took, how many tokens it
-used, and the Profiler's notes; each failure; each time the daemon
-caught up after falling behind. Statistics are questions asked of that
-record.
+used, and the Profiler's notes; each failure; and each time the daemon
+caught up after falling behind. When we want statistics, we'll ask
+questions of that record.
 
 We don't plan to build statistics first. We do want every component to
 report through the Journal from the start, so the record exists when we
 want it. We see three uses.
 
 - `catalog status` and a menu bar item can show what the daemon is doing
-  and how far behind it is. Cursor's users objected when that view was
-  taken away ([research/cursor.md](../research/cursor.md)).
+  and how far behind it is. Cursor's users objected when Cursor took
+  that view away ([research/cursor.md](../research/cursor.md)).
 - A person can compare models and prompts by time, cost, and failures.
 - A Claude skill can read the statistics and recommend changes to the
   content itself. If the Profiler's notes show that many files only
   become clear after thousands of lines, the skill can suggest a
   five-line comment at the top of each one.
 
-With the file contract, the Journal can't see which files agents go on
-to open, because agents never talk to the daemon. The Journal should
-still accept reports from outside the daemon, so that a client such as
-an MCP server can pass along what an agent tells it.
+Under the file contract, agents never talk to the daemon, so the Journal
+can't see which files agents go on to open. The Journal should still
+accept reports from outside the daemon, so that a client such as an MCP
+server can pass along what an agent tells it.
 
 ### Control
 
@@ -251,35 +270,37 @@ or change settings, read statistics, fetch the catalog for a path, and
 record a report in the Journal.
 
 Control's messages travel over a Unix socket on every platform, because
-XPC exists only on Apple's systems and the core is shared with Linux.
+XPC exists only on Apple's systems, and the Linux daemon uses the same
+core.
 
 ### Daemon
 
 The Daemon starts the other components, connects them, and shuts them
-down. It holds no logic of its own. It serializes changes to state, as
-Dropbox's engineers did with a single control thread.
+down. It holds no logic of its own. It makes changes to state one at a
+time, as Dropbox's engineers did with a single control thread.
 
 ### Clients
 
-The CLI, a menu bar item, a settings window, an MCP server, and a skill
-that reads statistics are all clients. Each one talks to the Daemon
-through Control, and none of them reads the Store or the Journal
-directly. Adding an interface then means writing a client, not changing
-the daemon.
+Several programs act as clients: the CLI, a menu bar item, a settings
+window, an MCP server, and a skill that reads statistics. Each one talks
+to the Daemon through Control, and none of them reads the Store or the
+Journal directly. To add an interface, we write a client instead of
+changing the daemon.
 
 Whatever shows status should make it easy to see which folders are
-cataloged and which aren't, since a tree that never gets indexed looks
-the same to its owner as one that's merely behind.
+cataloged and which aren't. To its owner, a tree that never gets indexed
+looks the same as one that's merely behind.
 
 ## Rules between components
 
-- Every component may depend on the Model. Trees, Watcher, Store,
-  Planner, Reader, Profiler, Models, Publisher, and Journal don't depend
-  on each other; the Publisher depends on the Renderer. Only the Daemon
-  knows all of them.
+- Every component may depend on the Model.
+- These components don't depend on each other: Trees, Watcher, Store,
+  Planner, Reader, Profiler, Models, Publisher, and Journal. The
+  Publisher does depend on the Renderer. Only the Daemon knows all of
+  them.
 - Clients depend on Control and the Model, and on nothing in the daemon.
-- The file system, the clock, the model, and the machine's power state
-  sit behind interfaces that tests can replace.
+- Tests can replace the file system, the clock, the model, and the
+  machine's power state, because each one sits behind an interface.
 - Each component is its own module with declared dependencies, so the
   compiler refuses a dependency we didn't declare. Apple's `container`
   tool splits its Swift package into many targets, and its CLI doesn't
@@ -292,10 +313,15 @@ the same to its owner as one that's merely behind.
 
 The daemon runs on a Mac, on a headless Linux server, and in a Linux
 container on a Mac or Windows laptop. The Mac comes first, because
-everyone who uses the catalog today is on one.
+everyone who uses the catalog today is on one. We also want to keep
+Windows open as a native platform, because knowledge workers on Windows
+could become our largest audience. We hope the shared core carries over
+to Windows. If it can't, we'd write a separate implementation that
+honors the same contract with agents.
 
-The parts tied to an operating system are the same parts the rules above
-already put behind interfaces for testing, so the split costs little.
+Following the rules above, we already put the parts tied to an operating
+system behind interfaces for testing, so splitting them out costs
+little.
 
 | Shared core                                                         | Tied to the operating system                                      |
 | ------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -308,34 +334,35 @@ already put behind interfaces for testing, so the split costs little.
 
 We think sharing the core beats writing each platform separately. The
 core holds the prompts, the depths, the scheduling, and the catalog's
-format, which together decide how good a catalog is. Two implementations
-would drift apart there first, and the contract with agents wouldn't
-catch it, because it fixes the file's format and not its quality.
+format, and those determine how good a catalog is. Two separate
+implementations would drift apart there first. Holding both to the
+contract with agents wouldn't prevent that, because the contract covers
+the file's format, not its quality.
 
 We'll write the shared core and the CLI in Go, and the Mac's native
 parts in Swift. This follows the shape of Tailscale's client, whose Mac
 app is the same Go code as everywhere else plus a small GUI wrapper
-([research/tailscale.md](../research/tailscale.md)). On the Mac, Swift
-is for the parts of the table's right-hand column that Go can't reach
-well: the menu bar item and settings window, the app bundle that macOS's
-permissions may require (see "Processes and macOS" below), and readers
-and model providers built on Apple's frameworks. We believe the Watcher
-and the launchd agent need no Swift, since FSEvents is a C interface and
-launchd needs only a property list, but we haven't built anything to
-check.
+([research/tailscale.md](../research/tailscale.md)). On the Mac, we'd
+use Swift for the parts of the table's right-hand column that Go can't
+reach well: the menu bar item and settings window, the app bundle that
+macOS's permissions may require (see "Processes and macOS" below), and
+readers and model providers built on Apple's frameworks. We believe the
+Watcher and the launchd agent need no Swift, since FSEvents is a C
+interface and launchd needs only a property list, but we haven't built
+anything to check.
 
-We considered two other options. Swift throughout would build for Linux
-too, with fully static binaries
-([Static Linux SDK](https://swift.org/documentation/articles/static-linux-getting-started.html)),
-but one person reported in 2024 that importing Foundation failed to
+We considered two other options. We could write everything in Swift,
+since Swift builds for Linux too, with fully static binaries
+([Static Linux SDK](https://swift.org/documentation/articles/static-linux-getting-started.html)).
+But one person reported in 2024 that importing Foundation failed to
 build with that SDK, and the thread ends without a confirmed fix
 ([Swift forums](https://forums.swift.org/t/using-swift-foundation-with-linux-static-sdk/74642)).
-Rust for the core is the other, and we didn't look into it.
+We didn't look into the other option, Rust for the core.
 
-How the Swift parts talk to the Go core is left for implementation. A
-menu bar item is a client, so it goes through Control like any other. A
-reader or model provider that needs an Apple framework would run as a
-helper process, which the Reader's design already allows.
+We'll decide during implementation how the Swift parts talk to the Go
+core. A menu bar item is a client, so it goes through Control like any
+other. A reader or model provider that needs an Apple framework would
+run as a helper process, which the Reader's design already allows.
 
 ## Processes and macOS
 
@@ -344,8 +371,8 @@ Apple's `container` tool has the same shape, a CLI and a launch agent,
 though it connects them with XPC
 ([research/container.md](../research/container.md)).
 
-macOS permissions may affect how we package it. Howard Oakley lists
-Desktop, Documents, Downloads, iCloud Drive, and third-party cloud
+macOS permissions may affect how we package the daemon. Howard Oakley
+lists Desktop, Documents, Downloads, iCloud Drive, and third-party cloud
 storage among the locations macOS protects from apps reading them, and
 says he couldn't find an official list
 ([Oakley, 2026](https://eclecticlight.co/2026/04/07/privacy-protected-folders/)).
@@ -362,22 +389,22 @@ Apple's documentation says the property list for an `SMAppService` agent
 must be in the calling app's `Contents/Library/LaunchAgents` directory
 ([SMAppService](<https://developer.apple.com/documentation/servicemanagement/smappservice/agent(plistname:)>)).
 
-Both routes tie the agent to an app. Our inference is that the daemon
-will need an app bundle before it can read those folders without
-trouble, even while the CLI is its only interface. We haven't tested
-what a bare launch agent can read.
+Either way, the agent is tied to an app. We infer that the daemon will
+need an app bundle before it can read those folders without trouble,
+even while the CLI is its only interface. We haven't tested what a bare
+launch agent can read.
 
 ## Delivering the catalog over MCP
 
-An MCP server could give agents the catalog without any file: an agent
-asks for the catalog for its current path and gets what `.catalog.md`
-would have held.
+An MCP server could give agents the catalog without any file. An agent
+would ask for the catalog for its current path and get what
+`.catalog.md` would have held.
 
 ### What the documentation says
 
 These points come from Claude Code's
-[MCP documentation](https://code.claude.com/docs/en/mcp) unless another
-source is given.
+[MCP documentation](https://code.claude.com/docs/en/mcp) unless we give
+another source.
 
 - Claude Code loads a server's instructions at the start of a session,
   cut off at 4,096 characters. It defers the server's tools by default
@@ -393,8 +420,8 @@ source is given.
   ([plugin platform support](https://claude.com/docs/plugins/platform-support)).
   The documentation we read doesn't say whether that server runs on the
   Mac itself or inside Cowork's virtual machine.
-- A custom remote connector is called from Anthropic's servers, not from
-  the person's machine, and has to be "reachable over the public
+- Anthropic's servers, not the person's machine, call a custom remote
+  connector, so the connector has to be "reachable over the public
   internet from Anthropic's IP ranges"
   ([custom connectors](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)).
 
@@ -402,49 +429,49 @@ source is given.
 
 This is our reasoning, and we haven't built anything to test it.
 
-- A server's instructions reach the agent unasked, but 4,096 characters
-  is too small for a catalog; twenty entries took about 2,400 tokens in
+- An agent gets a server's instructions without asking, but 4,096
+  characters is too small for a catalog; twenty entries took about 2,400
+  tokens in
   [FUTURE.md](https://github.com/westarete/catalog/blob/d9a8d1b3a9dd6826224bda2068a5422b37f8bce9/FUTURE.md).
   The instructions can tell the agent to fetch the catalog, and the
-  agent then has to do it. The file is in front of the agent with no
-  step in between.
-- Setup isn't much heavier than the file's. A committed `.mcp.json` does
-  for MCP what the import line does for the file, and it removes the
-  need for the import line and the Git ignore rule. It works only in
-  agent tools that read that file, and the agent now knows the catalog
-  is a tool.
-- MCP fits content that has no folder to write a file into. When an
-  agent reaches a data source through MCP, the catalog for that source
-  can come the same way.
+  agent then has to do it. With the file, the agent has the catalog with
+  no step in between.
+- Setting up MCP isn't much harder than setting up the file. A committed
+  `.mcp.json` does for MCP what the import line does for the file, and
+  with it nobody needs the import line or the Git ignore rule. It works
+  only in agent tools that read `.mcp.json`, and the agent now knows the
+  catalog is a tool.
+- MCP suits content that has no folder to write a file into. When an
+  agent reaches a data source through MCP, it can get the catalog for
+  that source the same way.
 - MCP gives agents a way to tell the daemon something, such as which
-  file they opened for a task or that a profile misled them. That could
-  answer the open question about measuring profiles, if agents report
-  reliably.
-- A catalog served on request can be cut to the folder the agent asks
-  about, which a single flat file can't do. That may matter for large
-  source trees.
+  file they opened for a task or that a profile misled them. If agents
+  report reliably, that could answer the open question about measuring
+  profiles.
+- A server can cut a catalog down to the folder the agent asks about,
+  which a single flat file can't do. That may matter for large source
+  trees.
 
-We'd keep the file as the first way to deliver and treat MCP as a second
-one. We hold that loosely: the comparison turns on how reliably agents
-fetch the catalog when instructions tell them to, and we haven't
-measured it.
+We'd keep the file as the main way to deliver the catalog and treat MCP
+as a second way. We hold that view loosely. The choice depends on how
+reliably agents fetch the catalog when instructions tell them to, and we
+haven't measured that.
 
 The components barely change. An MCP server is a client: it asks the
 Daemon, through Control, for the catalog for a path, and the Daemon
-answers with the Renderer's output. Anything an agent reports goes to
+answers with the Renderer's output. Anything an agent reports reaches
 the Journal the same way.
 
-A headless Linux server depends on this. No agent reads a central
-server's disk, so the server has nothing to deliver unless it serves the
-catalog over the network. For Cowork, that means a server reachable from
-the public internet, as quoted above. A daemon in a container on a
-laptop doesn't need MCP, because it writes `.catalog.md` into the
-mounted folder.
+A headless Linux server needs MCP. No agent reads a central server's
+disk, so the server can deliver catalogs only over the network. For
+Cowork, that means a server reachable from the public internet, as
+quoted above. A daemon in a container on a laptop doesn't need MCP,
+because it writes `.catalog.md` into the mounted folder.
 
 ## Left for implementation
 
-These are unknown, and the components above don't change whichever way
-they turn out.
+We don't know these yet, and the components above stay the same
+whichever way they turn out.
 
 - What the Store uses: SQLite, or a file per profile.
 - How the Watcher saves its place in the FSEvents history and recovers.
@@ -457,18 +484,19 @@ they turn out.
 - We don't know how we'll learn whether profiles lead agents to the
   right files, since agents never talk to the daemon. People could tell
   us what they see. An agent could also review past chat sessions with
-  the person's permission, though reading those sessions is invasive and
+  the person's permission, but reading those sessions is invasive, and
   we aren't comfortable calling it the answer.
-- We haven't designed how the three things under "What a tree needs" get
-  put in place, or how a team overrides a global ignore rule.
-- A source tree may have too many files for one flat `.catalog.md`.
-  Entries for folders, or one file per folder, are possible shapes.
-- We don't know how much the Linux cases matter, and the choice of
-  language waits on that.
+- We haven't designed how people put the things under "What a tree
+  needs" in place, or how a team overrides a global ignore rule.
+- We don't know where catalogs should go so that agents find them where
+  people start work. See "Where agents start" in [daemon.md](daemon.md).
+- A source tree may have too many files for one flat `.catalog.md`. We
+  could write entries for folders, or one catalog file per folder.
+- We don't know how much the Linux cases matter.
 - We don't know whether an MCP server is worth building, or what an
   agent would usefully report through one.
 - A central server could hold profiles that other machines fetch by
-  content hash, so a fresh clone or a cloud agent wouldn't start empty.
-  Cursor shortened its first index that way
-  ([research/cursor.md](../research/cursor.md)). It would mean profiles
-  leave the machine, with the privacy questions Cursor faced.
+  content hash, so that a fresh clone or a cloud agent wouldn't start
+  empty. Cursor shortened its first index that way
+  ([research/cursor.md](../research/cursor.md)). Profiles would then
+  leave the machine, which raises the privacy questions Cursor faced.
