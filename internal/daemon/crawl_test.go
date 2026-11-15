@@ -266,3 +266,31 @@ func TestNestedPaths(t *testing.T) {
 		}
 	}
 }
+
+// A problem whose journal line couldn't be written is journaled on the next
+// crawl, and status still knows about it meanwhile.
+func TestFailedJournalWriteIsRetried(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	d, _ := newDaemon(t, root)
+	journalDir := filepath.Join(t.TempDir(), "missing")
+	d.JournalPath = filepath.Join(journalDir, "journal.jsonl")
+
+	if err := d.Crawl(start); err == nil {
+		t.Fatal("Crawl returned nil though the journal could not be written")
+	}
+	if _, ok := d.ConfigErrors()[root]; !ok {
+		t.Errorf("ConfigErrors = %v, want the catalog's error", d.ConfigErrors())
+	}
+
+	if err := os.Mkdir(journalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	crawl(t, d, start.Add(time.Minute))
+	crawl(t, d, start.Add(2*time.Minute))
+
+	if n := len(eventsOfKind(t, d, journal.KindConfigError)); n != 1 {
+		t.Errorf("config errors journaled = %d, want 1", n)
+	}
+}

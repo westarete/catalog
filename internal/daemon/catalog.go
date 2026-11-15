@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"io"
 	"io/fs"
 	"time"
 
@@ -49,16 +50,35 @@ func (d *Daemon) entries(dir string) ([]render.Entry, error) {
 	return entries, nil
 }
 
-// listing describes f from its bytes. If the file can't be read now, the
-// listing gives only its type and the size the crawl recorded.
+// listingPrefix is how much of a file a listing reads. A listing shows at
+// most 10 lines and 512 bytes, so this is plenty, and publishing a catalog
+// doesn't read whole files again.
+const listingPrefix = 4096
+
+// listing describes f with the size the crawl recorded. It reads the start of
+// the file for its first lines; for a PDF, which shows none, it reads
+// nothing. If the file can't be read now, the listing has no first lines.
 func listing(folder fs.FS, f model.FileState) reader.Listing {
-	data, err := fs.ReadFile(folder, f.Rel)
-	if err != nil {
-		l := reader.List(f.Rel, nil)
-		l.Size = f.Size
-		return l
+	var start []byte
+	// reader decides what counts as a PDF; reading no bytes costs nothing.
+	if !reader.Read(f.Rel, nil).PDF {
+		start = readPrefix(folder, f.Rel)
 	}
-	return reader.List(f.Rel, data)
+	l := reader.List(f.Rel, start)
+	l.Size = f.Size
+	return l
+}
+
+// readPrefix returns up to listingPrefix bytes from the start of the file at
+// rel, or as much as it could read before an error.
+func readPrefix(folder fs.FS, rel string) []byte {
+	file, err := folder.Open(rel)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = file.Close() }()
+	data, _ := io.ReadAll(io.LimitReader(file, listingPrefix))
+	return data
 }
 
 // neighbors returns the summaries of files, for the profiler to tell a

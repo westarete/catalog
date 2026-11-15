@@ -34,10 +34,10 @@ type Daemon struct {
 	// changed holds the files that changed after the last crawl recorded
 	// them; Work leaves them for the next crawl.
 	changed map[fileKey]bool
-	// reported holds the problems journaled since the last crawl began, and
+	// reported holds the problems found since the last crawl began, and
 	// carried the ones from the crawl before, while a crawl runs. A problem
 	// that persists from one crawl to the next is journaled only once.
-	reported, carried map[problemKey]string
+	reported, carried map[problemKey]problem
 }
 
 type globs struct{ enumerate, ignore []string }
@@ -45,6 +45,13 @@ type globs struct{ enumerate, ignore []string }
 type fileKey struct{ dir, rel string }
 
 type problemKey struct{ kind, dir, rel string }
+
+// problem is the latest error text for a problem, and whether it has been
+// journaled.
+type problem struct {
+	msg       string
+	journaled bool
+}
 
 // Once crawls, then summarizes every file waiting in the crawled catalogs,
 // without waiting for files to stay unchanged. It stops at the first service
@@ -65,9 +72,9 @@ func (d *Daemon) Once(ctx context.Context, clock func() time.Time) error {
 // last crawl, with the error for each.
 func (d *Daemon) ConfigErrors() map[string]string {
 	errs := map[string]string{}
-	for k, msg := range d.reported {
+	for k, p := range d.reported {
 		if k.kind == journal.KindConfigError {
-			errs[k.dir] = msg
+			errs[k.dir] = p.msg
 		}
 	}
 	return errs
@@ -80,16 +87,18 @@ func (d *Daemon) recipe() model.Recipe {
 // report journals a problem unless the same kind of problem with the same
 // file or folder was already journaled since the crawl before this one. It
 // compares no error text, since some errors name a new temporary file each
-// time; it keeps the latest text for status.
+// time; it keeps the latest text for status. If the journal can't be
+// written, the next report of the problem tries again.
 func (d *Daemon) report(e journal.Event) error {
 	k := problemKey{e.Kind, e.Dir, e.Rel}
-	_, known := d.reported[k]
-	_, wasCarried := d.carried[k]
-	d.reported[k] = e.Error
-	if known || wasCarried {
-		return nil
+	p := problem{msg: e.Error, journaled: d.reported[k].journaled || d.carried[k].journaled}
+	var err error
+	if !p.journaled {
+		err = journal.Append(d.JournalPath, e)
+		p.journaled = err == nil
 	}
-	return journal.Append(d.JournalPath, e)
+	d.reported[k] = p
+	return err
 }
 
 // resolve forgets a problem, so it is journaled again if it comes back.
@@ -100,7 +109,7 @@ func (d *Daemon) resolve(kind, dir, rel string) {
 // startCrawl moves the problems reported so far aside, so the crawl reports
 // afresh and journals only the problems that are new or have changed.
 func (d *Daemon) startCrawl() {
-	d.carried, d.reported = d.reported, map[problemKey]string{}
+	d.carried, d.reported = d.reported, map[problemKey]problem{}
 	d.crawled = nil
 	d.changed = map[fileKey]bool{}
 	if d.lastGood == nil {
