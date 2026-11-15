@@ -503,3 +503,117 @@ func TestRunWithoutLogDropsErrors(t *testing.T) {
 
 	step(t, d, start)
 }
+
+// Fixing the API key ends a pause at once, however long the backoff had
+// grown, but changing nothing doesn't.
+func TestRunNewKeyEndsPause(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	useGlobal(t, d, p, root, "")
+	p.fail["a"] = apiError(401)
+	step(t, d, start)
+	failedAt := start.Add(quiet)
+	step(t, d, failedAt)
+	delete(p.fail, "a")
+
+	step(t, d, failedAt.Add(10*time.Second))
+	if p.calls() != 1 {
+		t.Fatalf("calls with the same key = %d, want 1", p.calls())
+	}
+
+	text := strings.Replace(mustRead(t, d.GlobalPath), "key-1", "key-2", 1)
+	if err := os.WriteFile(d.GlobalPath, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	step(t, d, failedAt.Add(20*time.Second))
+
+	if p.calls() != 2 {
+		t.Errorf("calls after the new key = %d, want 2", p.calls())
+	}
+	if got := kinds(t, d, journal.KindPause, journal.KindResume); fmt.Sprint(got) != "[pause resume]" {
+		t.Errorf("journal = %v, want [pause resume]", got)
+	}
+}
+
+// fakeTime is a clock that moves only when the test moves it.
+type fakeTime struct{ now time.Time }
+
+func (f *fakeTime) clock() time.Time { return f.now }
+
+// A long backlog doesn't hold up crawling: when a tick arrives while Run is
+// summarizing, Run crawls before it summarizes the next file.
+func TestRunCrawlsDuringBacklog(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "proj")
+	makeCatalog(t, proj)
+	for _, name := range []string{"a", "b", "c", "d", "e"} {
+		writeFile(t, proj, name+".md", body(name))
+	}
+	d, p := newDaemon(t, root)
+	step(t, d, start)
+	crawls := 0
+	d.FS = func(dir string) fs.FS {
+		if dir == root {
+			crawls++
+		}
+		return os.DirFS(dir)
+	}
+	clock := &fakeTime{now: start.Add(quiet)}
+	tick := make(chan time.Time, 1)
+	var crawlsSeen []int
+	d.Provider = providerFunc(func(ctx context.Context, req models.Request) (models.Response, error) {
+		crawlsSeen = append(crawlsSeen, crawls)
+		clock.now = clock.now.Add(20 * time.Second)
+		if len(crawlsSeen) == 2 {
+			tick <- clock.now
+			close(tick)
+		}
+		return p.Complete(ctx, req)
+	})
+
+	if err := d.Run(context.Background(), clock.clock, tick); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+
+	if got := fmt.Sprint(crawlsSeen); got != "[1 1 2 2 2]" {
+		t.Errorf("crawls before each call = %s, want [1 1 2 2 2]", got)
+	}
+}
+
+// A pause counts from the tick that started the step, not from the moment
+// the service failed, so a one-minute pause ends on the next tick.
+func TestRunPauseCountsFromTick(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	writeFile(t, root, "b.md", body("b"))
+	d, p := newDaemon(t, root)
+	step(t, d, start)
+	stepAt := start.Add(quiet)
+	clock := &fakeTime{now: stepAt}
+	calls := 0
+	tick := make(chan time.Time, 1)
+	d.Provider = providerFunc(func(ctx context.Context, req models.Request) (models.Response, error) {
+		calls++
+		clock.now = clock.now.Add(30 * time.Second)
+		if calls == 2 {
+			tick <- stepAt.Add(time.Minute)
+			close(tick)
+			return models.Response{}, apiError(529)
+		}
+		return p.Complete(ctx, req)
+	})
+
+	if err := d.Run(context.Background(), clock.clock, tick); err != nil {
+		t.Fatalf("Run = %v", err)
+	}
+
+	if calls != 3 {
+		t.Errorf("calls = %d, want 3: one, a failure 30s into the step, and one on the next tick", calls)
+	}
+	if got := kinds(t, d, journal.KindPause, journal.KindResume); fmt.Sprint(got) != "[pause resume]" {
+		t.Errorf("journal = %v, want [pause resume]", got)
+	}
+}

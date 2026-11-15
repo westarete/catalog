@@ -13,7 +13,7 @@ import (
 // reloadGlobal rereads global.toml from GlobalPath, if it's set. If the file
 // can't be read, doesn't parse, or has no API key, it journals the error and
 // keeps the settings from the last file that loaded. When the key or the
-// model changes, it builds a new Provider.
+// model changes, it builds a new Provider and ends any pause.
 func (d *Daemon) reloadGlobal(now time.Time) error {
 	if d.GlobalPath == "" {
 		return nil
@@ -28,6 +28,9 @@ func (d *Daemon) reloadGlobal(now time.Time) error {
 	}
 	if g.APIKey != d.Global.APIKey || g.Model != d.Global.Model {
 		d.Provider = d.NewProvider(g.APIKey, g.Model)
+		// The pause was for the old provider; a fixed key shouldn't wait out
+		// a backoff of up to 6 hours. A success still journals the resume.
+		d.pausedUntil = time.Time{}
 	}
 	d.Global = g
 	return nil
