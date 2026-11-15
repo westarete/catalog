@@ -1,0 +1,268 @@
+package daemon
+
+import (
+	"context"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"westarete.com/catalog/internal/journal"
+)
+
+func TestEmptyWatchEntryIsSkipped(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "alpha.md", body("alpha"))
+	d, _ := newDaemon(t, "", root)
+	var opened []string
+	d.FS = func(dir string) fs.FS {
+		opened = append(opened, dir)
+		return os.DirFS(dir)
+	}
+
+	once(t, d, start)
+
+	for _, dir := range opened {
+		if !strings.HasPrefix(dir, root) {
+			t.Errorf("daemon opened %q, outside the watched folder", dir)
+		}
+	}
+	entry(t, catalogText(t, root), "alpha.md")
+}
+
+func TestRelativeWatchFolderBecomesAbsolute(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "alpha.md", body("alpha"))
+	t.Chdir(filepath.Dir(root))
+	d, _ := newDaemon(t, filepath.Base(root)+"/.")
+
+	once(t, d, start)
+
+	files, err := d.Store.Files(root)
+	if err != nil || len(files) != 1 {
+		t.Errorf("Files(%q) = %v, %v; want alpha.md under the absolute path", root, files, err)
+	}
+}
+
+func TestUnreadableDirectoryDoesNotStopCrawl(t *testing.T) {
+	root := t.TempDir()
+	one := filepath.Join(root, "one")
+	two := filepath.Join(root, "two")
+	makeCatalog(t, one)
+	makeCatalog(t, two)
+	writeFile(t, one, "a.md", body("a"))
+	writeFile(t, one, "locked/x.md", body("x"))
+	writeFile(t, two, "b.md", body("b"))
+	d, _ := newDaemon(t, root)
+	crawl(t, d, start)
+
+	writeFile(t, one, "new.md", body("new"))
+	writeFile(t, two, "new.md", body("new"))
+	chmod(t, filepath.Join(one, "locked"), 0o000)
+	crawl(t, d, start.Add(time.Minute))
+	crawl(t, d, start.Add(2*time.Minute))
+
+	oneText := catalogText(t, one)
+	entry(t, oneText, "new.md")
+	if strings.Contains(oneText, "locked/x.md") {
+		t.Errorf("catalog one lists a file it can no longer read:\n%s", oneText)
+	}
+	entry(t, catalogText(t, two), "new.md")
+	failures := eventsOfKind(t, d, journal.KindFailure)
+	if len(failures) != 1 || failures[0].Dir != root || failures[0].Rel != "one/locked" ||
+		failures[0].Error == "" || !failures[0].Time.Equal(start.Add(time.Minute)) {
+		t.Errorf("failure events = %+v, want one for one/locked", failures)
+	}
+}
+
+func TestUnreadableWatchedFolder(t *testing.T) {
+	bad := t.TempDir()
+	good := t.TempDir()
+	makeCatalog(t, bad)
+	writeFile(t, bad, "a.md", body("a"))
+	chmod(t, bad, 0o000)
+	makeCatalog(t, good)
+	writeFile(t, good, "b.md", body("b"))
+	d, _ := newDaemon(t, bad, good)
+
+	crawl(t, d, start)
+
+	entry(t, catalogText(t, good), "b.md")
+	failures := eventsOfKind(t, d, journal.KindFailure)
+	if len(failures) != 1 || failures[0].Dir != bad || failures[0].Rel != "" || failures[0].Error == "" {
+		t.Errorf("failure events = %+v, want one for %s", failures, bad)
+	}
+}
+
+// unlistableFS opens files but can't list any directory.
+type unlistableFS struct{ fs.FS }
+
+func (unlistableFS) ReadDir(string) ([]fs.DirEntry, error) { return nil, fs.ErrPermission }
+
+func TestFailedMemberWalkKeepsLastCatalog(t *testing.T) {
+	root := t.TempDir()
+	one := filepath.Join(root, "one")
+	two := filepath.Join(root, "two")
+	makeCatalog(t, one)
+	makeCatalog(t, two)
+	writeFile(t, one, "a.md", body("a"))
+	writeFile(t, two, "b.md", body("b"))
+	d, p := newDaemon(t, root)
+	crawl(t, d, start)
+	before := catalogText(t, one)
+
+	d.FS = func(dir string) fs.FS {
+		if dir == one {
+			return unlistableFS{os.DirFS(dir)}
+		}
+		return os.DirFS(dir)
+	}
+	writeFile(t, one, "new.md", body("new"))
+	writeFile(t, two, "new.md", body("new"))
+	later := start.Add(time.Minute)
+	crawl(t, d, later)
+
+	if got := catalogText(t, one); got != before {
+		t.Errorf("catalog one changed though its walk failed:\n%s", got)
+	}
+	entry(t, catalogText(t, two), "new.md")
+	failures := eventsOfKind(t, d, journal.KindFailure)
+	if len(failures) != 1 || failures[0].Dir != one || failures[0].Rel != "" || failures[0].Error == "" ||
+		!failures[0].Time.Equal(later) {
+		t.Errorf("failure events = %+v", failures)
+	}
+	for work(t, d, later, true) {
+	}
+	for _, req := range p.requests {
+		if documentName(req) == "a" {
+			t.Error("Work summarized a file in a catalog this crawl skipped")
+		}
+	}
+}
+
+func TestMissingWatchedFolder(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "gone")
+	good := t.TempDir()
+	makeCatalog(t, good)
+	writeFile(t, good, "b.md", body("b"))
+	d, _ := newDaemon(t, missing, good)
+
+	once(t, d, start)
+
+	entry(t, catalogText(t, good), "b.md")
+	if failures := eventsOfKind(t, d, journal.KindFailure); len(failures) != 1 || failures[0].Dir != missing {
+		t.Errorf("failure events = %+v", failures)
+	}
+}
+
+func TestCrawlForgetsVanishedCatalog(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	crawl(t, d, start)
+	if err := os.RemoveAll(filepath.Join(root, ".catalog")); err != nil {
+		t.Fatal(err)
+	}
+	crawl(t, d, start.Add(time.Minute))
+
+	if work(t, d, start.Add(time.Minute), true) || p.calls() != 0 {
+		t.Error("Work summarized a file whose catalog is gone")
+	}
+}
+
+func TestCrawlDoesNotMutateGlobalLists(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, ".catalog/config.toml", "ignore = [\"skip.md\"]\n")
+	writeFile(t, root, "a.md", body("a"))
+	d, _ := newDaemon(t, root)
+	enumerate := slices.Clone(d.Global.Enumerate)
+	ignore := slices.Clone(d.Global.Ignore)
+
+	once(t, d, start)
+
+	if !slices.Equal(d.Global.Enumerate, enumerate) || !slices.Equal(d.Global.Ignore, ignore) {
+		t.Errorf("global lists changed: %v %v", d.Global.Enumerate, d.Global.Ignore)
+	}
+}
+
+func TestCrawlReturnsStoreError(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, _ := newDaemon(t, root)
+	_ = d.Store.Close()
+
+	if err := d.Crawl(start); err == nil {
+		t.Error("Crawl with a closed store returned nil")
+	}
+}
+
+func TestWorkReturnsStoreError(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, _ := newDaemon(t, root)
+	crawl(t, d, start)
+	_ = d.Store.Close()
+
+	if _, err := d.Work(context.Background(), start, true); err == nil {
+		t.Error("Work with a closed store returned nil")
+	}
+}
+
+func TestCrawlReturnsJournalErrorButKeepsGoing(t *testing.T) {
+	root := t.TempDir()
+	one := filepath.Join(root, "one")
+	two := filepath.Join(root, "two")
+	makeCatalog(t, one)
+	makeCatalog(t, two)
+	writeFile(t, one, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, two, "b.md", body("b"))
+	d, _ := newDaemon(t, root)
+	d.JournalPath = filepath.Join(t.TempDir(), "missing", "journal.jsonl")
+
+	if err := d.Crawl(start); err == nil {
+		t.Error("Crawl returned nil though the journal could not be written")
+	}
+	entry(t, catalogText(t, two), "b.md")
+}
+
+func TestOnceStopsOnCrawlError(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	_ = d.Store.Close()
+
+	if err := d.Once(context.Background(), fixedClock(start)); err == nil {
+		t.Error("Once returned nil")
+	}
+	if p.calls() != 0 {
+		t.Errorf("provider calls = %d", p.calls())
+	}
+}
+
+func TestNestedPaths(t *testing.T) {
+	found := []string{".", "a", "a/b", "a/b/c", "ab"}
+	tests := []struct {
+		catalog string
+		want    []string
+	}{
+		{".", []string{"a", "a/b", "a/b/c", "ab"}},
+		{"a", []string{"b", "b/c"}},
+		{"a/b", []string{"c"}},
+		{"ab", nil},
+	}
+	for _, tt := range tests {
+		if got := nestedUnder(tt.catalog, found); !slices.Equal(got, tt.want) {
+			t.Errorf("nestedUnder(%q) = %v, want %v", tt.catalog, got, tt.want)
+		}
+	}
+}

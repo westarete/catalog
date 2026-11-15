@@ -1,0 +1,102 @@
+package daemon
+
+import (
+	"io/fs"
+	"time"
+
+	"westarete.com/catalog/internal/journal"
+	"westarete.com/catalog/internal/model"
+	"westarete.com/catalog/internal/profiler"
+	"westarete.com/catalog/internal/publish"
+	"westarete.com/catalog/internal/reader"
+	"westarete.com/catalog/internal/render"
+)
+
+// publishCatalog renders the catalog in dir from the Store and writes its
+// catalog.md. A write that fails is journaled, and the old file stays.
+func (d *Daemon) publishCatalog(now time.Time, dir string) error {
+	entries, err := d.entries(dir)
+	if err != nil {
+		return err
+	}
+	if _, err := publish.Publish(dir, render.Render(entries)); err != nil {
+		return d.report(journal.Event{Time: now, Kind: journal.KindPublishError, Dir: dir, Error: err.Error()})
+	}
+	d.resolve(journal.KindPublishError, dir, "")
+	return nil
+}
+
+// entries returns one entry for each file recorded for dir: its summary if
+// it has one, else a listing.
+func (d *Daemon) entries(dir string) ([]render.Entry, error) {
+	files, err := d.Store.Files(dir)
+	if err != nil {
+		return nil, err
+	}
+	summaries, err := d.summaries(files)
+	if err != nil {
+		return nil, err
+	}
+	folder := d.FS(dir)
+	entries := make([]render.Entry, 0, len(files))
+	for rel, f := range files {
+		e := render.Entry{Rel: rel, Summary: summaries[rel]}
+		if e.Summary == "" {
+			e.Listing = listing(folder, f)
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// listing describes f from its bytes. If the file can't be read now, the
+// listing gives only its type and the size the crawl recorded.
+func listing(folder fs.FS, f model.FileState) reader.Listing {
+	data, err := fs.ReadFile(folder, f.Rel)
+	if err != nil {
+		l := reader.List(f.Rel, nil)
+		l.Size = f.Size
+		return l
+	}
+	return reader.List(f.Rel, data)
+}
+
+// neighbors returns the summaries of files, for the profiler to tell a
+// document apart from the others in its catalog.
+func (d *Daemon) neighbors(files map[string]model.FileState) ([]profiler.Neighbor, error) {
+	summaries, err := d.summaries(files)
+	if err != nil {
+		return nil, err
+	}
+	neighbors := make([]profiler.Neighbor, 0, len(summaries))
+	for rel, text := range summaries {
+		neighbors = append(neighbors, profiler.Neighbor{Rel: rel, Summary: text})
+	}
+	return neighbors, nil
+}
+
+// summaries returns the summary of each file that has one, keyed by path.
+func (d *Daemon) summaries(files map[string]model.FileState) (map[string]string, error) {
+	out := make(map[string]string, len(files))
+	for rel, f := range files {
+		text, ok, err := d.summary(f.Hash)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			out[rel] = text
+		}
+	}
+	return out, nil
+}
+
+// summary returns the summary for content h under the current recipe, or
+// under an older one if that's all there is.
+func (d *Daemon) summary(h model.Hash) (string, bool, error) {
+	text, ok, err := d.Store.Summary(h, d.recipe())
+	if err != nil || ok {
+		return text, ok, err
+	}
+	text, _, ok, err = d.Store.AnySummary(h)
+	return text, ok, err
+}
