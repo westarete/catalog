@@ -11,10 +11,10 @@ parts that need Apple's frameworks in Swift.
 
 ## The contract with agents
 
-An agent's only contact with the catalog is a `.catalog.md` file that
-its instructions already load. An agent never talks to the daemon, never
-runs a command, and doesn't need to know the daemon exists. Four things
-follow from that.
+An agent's only contact with the catalog is a `.catalog/catalog.md` file
+that its instructions already load. An agent never talks to the daemon,
+never runs a command, and doesn't need to know the daemon exists. Four
+things follow from that.
 
 - A missing catalog does no harm. Most people use no catalog today, and
   their agents explore a folder with the search tools they have. Where
@@ -46,31 +46,38 @@ folder.
 
 Someone has to put these things in place before an agent can read a
 tree's catalog. The daemon creates none of them, since its Publisher
-writes only `.catalog.md`.
+writes only `.catalog/catalog.md`.
 
-- The person adds an entry for the folder to their settings, so the
-  daemon indexes it. Nobody puts a marker file inside the folder.
+- The folder sits inside a tree the person chose to profile in their
+  settings.
+- A `.catalog/` folder marks where the catalog goes. A person or an
+  agent creates it, even empty, and the daemon writes `catalog.md`
+  inside it. It can also hold a `config.toml` with settings for that
+  catalog.
 - An instruction file the agent loads has a line that imports
-  `.catalog.md`. We use `AGENTS.md` as the convention, since most agents
-  read it. By default, Claude Code reads `AGENTS.md` only when there's
-  no `CLAUDE.md` in the folder or above it, so a person who has both
-  imports `@AGENTS.md` from `CLAUDE.md`
+  `.catalog/catalog.md`. We use `AGENTS.md` as the convention, since
+  most agents read it. By default, Claude Code reads `AGENTS.md` only
+  when there's no `CLAUDE.md` in the folder or above it, so a person who
+  has both imports `@AGENTS.md` from `CLAUDE.md`
   ([research/agent-instruction-files.md](../research/agent-instruction-files.md)).
-- In a Git repository, the person tells Git not to track `.catalog.md`.
-  They could set that once for every repository on their Mac in Git's
-  global ignore file, and a team that wants something different can
-  override it in the repository's own `.gitignore`
-  ([gitignore documentation](https://git-scm.com/docs/gitignore)).
 
-A client, such as a setup command or a button in the menu bar item,
-would put these in place. We haven't designed it. We also don't know
-which folders should get a catalog at all. Agents start wherever people
-start them, and an instruction file has to load the catalog there.
-"Where agents start" in [daemon.md](daemon.md) describes the problem.
+People who keep a catalog's folder in Git will probably want Git to
+ignore `.catalog/catalog.md`, since that's the file that used to
+conflict. They could set that once for every repository on their Mac in
+Git's global ignore file
+([gitignore documentation](https://git-scm.com/docs/gitignore)).
 
-The daemon doesn't write `.catalog.md` into a folder that a cloud drive
-syncs, because two machines would keep rewriting the same file.
-daemon.md explains why under "A side challenge: cloud drives."
+The catalog skill puts these in place, with the person's approval; an
+agent can see the folders and where the person works, so it's well
+placed to suggest where catalogs go. A menu bar item could do the same
+later. We also don't know which folders should get a catalog at all.
+Agents start wherever people start them, and an instruction file has to
+load the catalog there. "Where agents start" in [daemon.md](daemon.md)
+describes the problem.
+
+The daemon doesn't write `.catalog/catalog.md` into a folder that a
+cloud drive syncs, because two machines would keep rewriting the same
+file. daemon.md explains why under "A side challenge: cloud drives."
 
 ## How work moves
 
@@ -82,7 +89,7 @@ profiles it, renders the catalog, and publishes it.
 Trees ──► Watcher ──► Store ◄──► Planner ──► Reader ──► Profiler
 (scope)   (hints)    (state)    (decides)   (content)   (models)
 
-Store ──► Renderer ──► Publisher (.catalog.md)
+Store ──► Renderer ──► Publisher (.catalog/catalog.md)
 
 Settings feeds every step.      Every step reports to the Journal.
 
@@ -96,8 +103,10 @@ Daemon connects the steps.      CLI, menu bar ──► Control ──► Daemon
 The Model is the vocabulary the other components share. It holds values
 and does no reading, writing, or network work.
 
-- A tree is a folder the person listed in their settings, along with
-  everything under it that no nested tree claims.
+- A tree is a folder that gets its own catalog, along with everything
+  under it that no nested tree claims. Trees sit inside the folders a
+  person chose to profile, as daemon.md describes under "Where agents
+  start."
 - An entry describes a file. Source trees hold thousands of files, so we
   may later need entries that describe folders, and the vocabulary
   should allow either.
@@ -112,32 +121,37 @@ and does no reading, writing, or network work.
 ### Settings
 
 Settings answers one question: what applies to this tree right now? It
-combines two sources.
+combines three sources, and each overrides the one before.
 
 - Defaults built into the application.
-- The person's settings for this machine: which folders to catalog,
-  which files to include in each, which model providers exist, their
-  credentials, and limits on battery and spending.
+- The person's global settings for this machine: which folders to
+  profile and which parts to leave out, which model providers exist,
+  their credentials, and limits on battery and spending.
+- The catalog's own `.catalog/config.toml`, if it has one: which files
+  to include, and what the catalog's owners prefer.
 
-Nobody marks a folder as cataloged by putting a file in it. A tool that
-runs inside one repository knows where to look for a marker file. A
-daemon serving a whole machine would have to search for marker files,
-and a knowledge worker would add folders through a menu bar app, not by
-committing a file. So the person keeps one list on the machine. We
-expect people to change the shape of these settings once they use them,
-so we keep every component except Settings independent of it.
+A tool that runs inside one repository knows where to look for its
+configuration. A daemon serving a whole machine would have to search the
+machine for it, and a knowledge worker would add folders through a menu
+bar app, not by committing a file. So the person keeps one list of
+folders to profile on the machine. Inside those folders, the daemon
+already crawls every file, so a `.catalog/` folder there is enough to
+mark where a catalog goes. We expect people to change the shape of these
+settings once they use them, so we keep every component except Settings
+independent of it.
 
-If we later let a team share a committed file that says what to index,
-the daemon should trust it less than the person's own settings. The file
-could narrow what gets indexed or state preferences, but it could never
-name a server to send files to.
+A catalog's `config.toml` may come from someone else, for example with a
+clone, so the daemon trusts it less than the person's global settings.
+It can narrow what gets indexed or state preferences, but it can never
+name a server to send files to or hold a credential.
 
 ### Trees
 
-Trees takes the folders the person listed. It decides which tree a path
-belongs to and whether the path is a file we index, applying the nesting
-rule and the include and ignore patterns. It knows nothing about
-profiles, and it doesn't assume a folder is a Git repository.
+Trees takes the folders the person chose to profile and finds the trees
+inside them: each folder that has a `.catalog/` folder. It decides which
+tree a path belongs to and whether the path is a file we index, applying
+the nesting rule and the include and ignore patterns. It knows nothing
+about profiles, and nothing about Git.
 
 ### Watcher
 
@@ -232,9 +246,9 @@ nothing, so anything that delivers a catalog can use it.
 ### Publisher
 
 The Publisher writes what the Renderer produced to a tree's
-`.catalog.md`, replacing the file in one step. It's the only component
-that writes inside a person's tree, so we can check the promise in
-daemon.md in one place.
+`.catalog/catalog.md`, replacing the file in one step. It's the only
+component that writes inside a person's tree, so we can check the
+promise in daemon.md in one place.
 
 ### Journal
 
@@ -398,7 +412,7 @@ launch agent can read.
 
 An MCP server could give agents the catalog without any file. An agent
 would ask for the catalog for its current path and get what
-`.catalog.md` would have held.
+`.catalog/catalog.md` would have held.
 
 ### What the documentation says
 
@@ -466,7 +480,7 @@ A headless Linux server needs MCP. No agent reads a central server's
 disk, so the server can deliver catalogs only over the network. For
 Cowork, that means a server reachable from the public internet, as
 quoted above. A daemon in a container on a laptop doesn't need MCP,
-because it writes `.catalog.md` into the mounted folder.
+because it writes `.catalog/catalog.md` into the mounted folder.
 
 ## Left for implementation
 
@@ -490,8 +504,9 @@ whichever way they turn out.
   needs" in place, or how a team overrides a global ignore rule.
 - We don't know where catalogs should go so that agents find them where
   people start work. See "Where agents start" in [daemon.md](daemon.md).
-- A source tree may have too many files for one flat `.catalog.md`. We
-  could write entries for folders, or one catalog file per folder.
+- A source tree may have too many files for one flat
+  `.catalog/catalog.md`. We could write entries for folders, or one
+  catalog file per folder.
 - We don't know how much the Linux cases matter.
 - We don't know whether an MCP server is worth building, or what an
   agent would usefully report through one.

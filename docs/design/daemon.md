@@ -20,11 +20,11 @@ That promise has consequences for the people involved.
 
 - Nobody, staff or agent, should have to look at the catalog or maintain
   it. We want it to be as invisible as possible.
-- An agent only ever reads the catalog. It finds a `.catalog.md` that
-  its instructions already load. It never has to update the catalog,
-  talk to the daemon, or know the daemon exists. That keeps setup small,
-  gives the agent no skill to learn, and lets the catalog work wherever
-  the folder is visible.
+- An agent only ever reads the catalog. It finds a `.catalog/catalog.md`
+  that its instructions already load. It never has to update the
+  catalog, talk to the daemon, or know the daemon exists. That keeps
+  setup small, gives the agent no skill to learn, and lets the catalog
+  work wherever the folder is visible.
 - People should get the same experience everywhere: in a plain folder,
   in a Git repository on `main` or on a branch, in Claude Cowork, and on
   GitHub.
@@ -89,20 +89,20 @@ plan.
   That might be a local open-weight model on the laptop, or a trusted
   service that costs close to nothing.
 - One daemon could serve the whole Mac. A person lists the folders they
-  want cataloged in one config on their machine, and later in a menu bar
-  app. The daemon never searches the machine for marker files, so nobody
-  has to put one in a folder. The daemon still writes a `.catalog.md`
-  for an instruction file in the folder to load, so the agent receives
-  the same thing as before. We use `AGENTS.md` as the convention,
-  because most agents read it and nothing about the catalog is specific
-  to Claude. A Claude Code user can import `AGENTS.md` from `CLAUDE.md`.
+  want profiled in one config on their machine, and later in a menu bar
+  app. The daemon never searches the rest of the machine for
+  configuration. It still writes a `.catalog/catalog.md` for an
+  instruction file in the folder to load, so the agent receives the same
+  thing as before. We use `AGENTS.md` as the convention, because most
+  agents read it and nothing about the catalog is specific to Claude. A
+  Claude Code user can import `AGENTS.md` from `CLAUDE.md`.
 - Catalogs can nest. The nearest catalog above a subfolder covers it,
   and any catalog higher up leaves that subfolder alone.
 - `catalog update` becomes a simple way to ask the daemon to give the
   current tree priority. People use it; agents don't need it.
 - Claude Cowork sees the folder tree through a mount, so it sees the
-  same live `.catalog.md` files the daemon writes. We don't know yet
-  what would load the catalog in Cowork, because Anthropic's
+  same live `.catalog/catalog.md` files the daemon writes. We don't know
+  yet what would load the catalog in Cowork, because Anthropic's
   documentation doesn't say whether Cowork reads an instruction file in
   the folder
   ([research/agent-instruction-files.md](../research/agent-instruction-files.md)).
@@ -110,19 +110,19 @@ plan.
 ## No state in Git by default
 
 For people using the catalog, the main difference is that they no longer
-commit `.catalog.md` files to Git. The daemon keeps those files current
-instead. It also keeps its own state outside every folder it serves, in
-`~/Library/Application Support/com.westarete.catalog`. Since none of
-that changing content is in Git, it can't cause merge conflicts. We care
-most about the experience people have, and this improvement is worth
-working hard for.
+commit `.catalog/catalog.md` files to Git. The daemon keeps those files
+current instead. It also keeps its own state outside every folder it
+serves, in `~/Library/Application Support/com.westarete.catalog`. Since
+none of that changing content is in Git, it can't cause merge conflicts.
+We care most about the experience people have, and this improvement is
+worth working hard for.
 
 ## Daemon state
 
 Nobody commits the daemon's state, so we can store it however suits the
 daemon, and it doesn't need to work well with Git. The daemon has only
-two obligations: to keep the `.catalog.md` convention it shares with
-agents, and to keep its state out of the folders it serves.
+two obligations: to keep the `.catalog/catalog.md` convention it shares
+with agents, and to keep its state out of the folders it serves.
 
 With its own folder under
 `~/Library/Application Support/com.westarete.catalog`, the daemon can
@@ -148,17 +148,17 @@ could switch machines without waiting for a second set of profiles.
 
 This is an edge case, though, and it doesn't drive the design.
 
-We can't write `.catalog.md` into a synced folder. Say Alice and Bob
-share a folder through a cloud drive and both run the daemon. Alice's
-daemon writes `.catalog.md`, the drive copies it to Bob, and Bob's
-daemon rewrites it. In a repository, Git's ignore rule keeps
-`.catalog.md` on one machine, but a cloud drive has no such rule. If two
-machines keep writing the same synced file, people get the conflicts the
-daemon exists to end, in a place with no merge tool. So the daemon
-should refuse a synced folder when someone lists it. We could serve
-those folders only by delivering the catalog without a file, for example
-over MCP. For now this leaves out many knowledge workers, who often keep
-their files in cloud drives.
+We can't write `.catalog/catalog.md` into a synced folder. Say Alice and
+Bob share a folder through a cloud drive and both run the daemon.
+Alice's daemon writes `.catalog/catalog.md`, the drive copies it to Bob,
+and Bob's daemon rewrites it. In a repository, Git's ignore rule keeps
+`.catalog/catalog.md` on one machine, but a cloud drive has no such
+rule. If two machines keep writing the same synced file, people get the
+conflicts the daemon exists to end, in a place with no merge tool. So
+the daemon should refuse a synced folder when someone lists it. We could
+serve those folders only by delivering the catalog without a file, for
+example over MCP. For now this leaves out many knowledge workers, who
+often keep their files in cloud drives.
 
 ## Our new struggle is wall-clock time
 
@@ -259,10 +259,10 @@ design shouldn't assume every file is a prose document.
 
 A catalog helps only if an agent has it when it starts work. The agent
 gets it only if an instruction file it already loads, such as
-`AGENTS.md`, imports `.catalog.md`. In a Git repository, both usually
-hold: developers start agents at the root, and they've already put an
-instruction file there. Outside a repository we can't count on either,
-and we designed the first catalog as if we could.
+`AGENTS.md`, imports `.catalog/catalog.md`. In a Git repository, both
+usually hold: developers start agents at the root, and they've already
+put an instruction file there. Outside a repository we can't count on
+either, and we designed the first catalog as if we could.
 
 - People start agents wherever the task is: in a department's folder one
   day, in one project's folder the next, and at the top of everything
@@ -292,9 +292,39 @@ and we designed the first catalog as if we could.
   `~/.claude/CLAUDE.md`, so that line may not need to be in every
   folder.
 
-We haven't designed an answer. When a person lists folders in the
-daemon's config, they tell us what to profile, not where an agent will
-be when it needs the catalog.
+Choosing what to profile and choosing where catalogs go are separate
+decisions, and a person can make both.
+
+- A person picks the folder trees to profile, and the parts of them to
+  leave out.
+- Within those trees, a catalog goes in each folder where people tend to
+  start agents. A person, or an agent working for them, marks such a
+  folder by creating a `.catalog/` folder in it, even an empty one. The
+  daemon already crawls every profiled tree, so it notices the new
+  folder and writes `catalog.md` inside it. The `.catalog/` folder can
+  also hold a `config.toml` with settings for that catalog, which
+  override the global ones. Only the folder has to reach the daemon, so
+  this works from any tool that can write to the folder, including
+  Claude Cowork through its mount.
+- The daemon maintains a catalog in each `.catalog/` folder it finds and
+  creates none itself.
+- An agent suggests where catalogs should go, through the catalog skill.
+  The agent can see the folders and where the person has been working
+  with agents, so it's better placed to judge than any rule we could
+  write into the daemon. It creates a `.catalog/` folder, and the line
+  that loads the catalog, in each place the person accepts.
+
+A developer might ask the daemon to profile everything under `~/src` but
+would never want a catalog there. Their agent would suggest the
+repositories they actually work in, such as `~/src/acme/website`
+and `~/src/home/recipes`. A knowledge worker who chooses
+`~/Documents/Reports` might get one catalog in that folder.
+
+We haven't decided whether or how nested catalogs link to each other,
+whether a person links them by hand or the daemon does. That includes
+how a catalog that grows too large might split; nobody's catalog has
+reached that size yet. We also haven't settled what loads each catalog
+once it's in place.
 
 ## Statistics for tuning
 
@@ -401,9 +431,6 @@ environment.
 - Where should catalogs go, and who adds the line that loads each one?
   See "Where agents start."
 - How can the daemon recognize a synced folder so it can refuse it?
-- In a Git repository, someone has to tell Git to ignore `.catalog.md`.
-  Can a person set that once for every repository and override it now
-  and then?
 
 ## Background
 
