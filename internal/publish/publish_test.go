@@ -68,6 +68,9 @@ func TestPublishLeavesNoTempFiles(t *testing.T) {
 }
 
 func TestPublishUnwritable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
 	dir := catalogDirWithDot(t)
 	dot := filepath.Join(dir, ".catalog")
 	path := filepath.Join(dot, "catalog.md")
@@ -113,5 +116,19 @@ func TestPublishRenameFailureRemovesTemp(t *testing.T) {
 	entries, _ := os.ReadDir(dot)
 	if len(entries) != 1 {
 		t.Errorf("temp file left behind: %v", entries)
+	}
+}
+
+func TestWriteAndCloseReportsWriteError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x")
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path) // read-only: the write fails but Close succeeds
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeAndClose(f, "x"); err == nil {
+		t.Error("want an error writing to a read-only file")
 	}
 }
