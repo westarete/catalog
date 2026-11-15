@@ -30,13 +30,10 @@ the next conversation. Prefer small, verifiable steps; call out
 trade-offs when a choice matters; avoid expanding scope beyond what they
 asked.
 
-Work still to do is tracked in two places: [PLAN.md](PLAN.md), following
-the maintaining-plans skill, and
+Track work still to do in Superpowers plans under
+`docs/superpowers/plans/` and in
 [GitHub issues](https://github.com/westarete/catalog/issues), where new
-bugs and requests go. In the plan, do not check off an item until the
-developer agrees it is done. Bundle the checkbox update in the same
-commit that completes the work, and delete a section once every item in
-it is checked.
+bugs and requests go.
 
 **Don't let existing work decide a choice.** Judge a language, library,
 design, or name by what the finished product needs. Code, branches, or
@@ -92,10 +89,9 @@ larger, ask whether it's worth writing down.
 At the start of every conversation, read README.md and this file before
 doing substantive work.
 
-Before planning or starting a bug fix or feature, read PLAN.md and the
-open GitHub issues, so you don't duplicate or contradict work tracked in
-either place. Use `gh issue list`; where `gh` isn't available, as in
-Cowork, read the
+Before planning or starting a bug fix or feature, read the open GitHub
+issues, so you don't duplicate or contradict work tracked there. Use
+`gh issue list`; where `gh` isn't available, as in Cowork, read the
 [issues page](https://github.com/westarete/catalog/issues) instead.
 
 ## Config files
@@ -108,14 +104,8 @@ exists and are part of the convention — don't strip them.
 
 ## Skills
 
-Load these two at the start of every conversation, before doing any work
-that might touch them:
-
-- `knowledge-work:markdown` — load before editing any `.md` file.
-- `knowledge-work:git-commit` — load before running `git commit` on the
-  developer's behalf.
-
-Both come from the `knowledge-work` plugin in the
+Load `knowledge-work:markdown` before editing any `.md` file. It comes
+from the `knowledge-work` plugin in the
 [claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
 marketplace.
 
@@ -154,31 +144,26 @@ Cowork too; never run `prettier` or `markdownlint-cli2` directly,
 because a different version wraps text differently. The only thing to
 install is Node.
 
+## Building with Superpowers
+
+Build code with the Superpowers plugin's workflow: brainstorming, a spec
+in `docs/superpowers/specs/`, a plan in `docs/superpowers/plans/`, then
+subagent-driven development. Where this file and a Superpowers skill
+disagree about process, follow the skill.
+
 ## Git workflow
 
-The hard rule: **never run `git commit` until the developer has approved
-the exact message you proposed in chat.** "Commit when you're done" is
-not pre-approval of a message.
+Commit freely on a feature branch or worktree. Never commit directly to
+`main`, merge into it, push it, or push a tag without the developer's
+approval in chat.
+
+Run `make markdown` and `make test` before every commit.
 
 Follow the release process in [README.md](README.md).
 
 Tagging a release is a commit-level decision. Before running `git tag`,
 propose the version number and the exact tag message in chat and wait
-for approval, the same as a commit message. "Do the release" is not
-approval of either. Do not push `main` or the tag until that approval is
-given.
-
-For the git-commit skill, the project's CHECK command is `make markdown`
-and `make test` — there is no separate FORMAT command. Run whichever
-applies to what changed, in Phase 2, before proposing a commit message,
-every time.
-
-### When process fails
-
-If a step in the skill is skipped (e.g. commit without `make markdown`,
-or without message approval), treat it as a **process** problem: fix the
-instructions or tooling in-repo, not "try harder next time."
-Willpower-based promises are not fixes.
+for approval. "Do the release" is not approval of either.
 
 ## Code
 
@@ -187,10 +172,12 @@ writing.
 
 ### Tests
 
-Write tests at every layer: unit, integration, and system. Aim for
-maximum sensible coverage — not 100% for its own sake, but enough that a
-regression is caught before it reaches the developer. When adding a
-feature or fixing a bug, tests come with it, not after.
+Judge a test by whether it catches a fault, not by how it was written.
+Run a mutation testing tool over new code from the first package onward,
+and treat a mutant that no test kills as a missing or weak test. Choose
+the tool during design;
+[research/coding-agent-tools.md](docs/research/coding-agent-tools.md)
+covers Gremlins as the candidate for Go.
 
 ### Research the idiomatic way before designing
 
@@ -221,38 +208,6 @@ thing. Names say what they mean. Side effects are explicit. Abstractions
 match the problem domain, not the implementation. When something feels
 awkward to name or test, that is usually a design problem, not a naming
 problem.
-
-### Testing catalog against its own repo
-
-This repo is currently below the catalog skill's own size threshold for
-adopting a catalog (see the skill's SETUP.md). If you run
-`catalog bootstrap` or similar here to verify a change end to end, treat
-`.catalog/` and `.catalog.md` as throwaway output and delete them
-afterward rather than committing them. Don't add them to `.gitignore`
-either — the goal is not to create them for a real reason, not to hide
-them once created. If this repo ever grows enough to clear the threshold
-for real, that's a deliberate decision to make afresh, not something
-that should already be half-done because the files were quietly ignored.
-
-### Changing the default model
-
-Change `defaultModel` in `config.go` and the model, the three price keys
-and `warn_request_tokens` in `config.example.toml` in one commit, then
-release. `catalog init --print` is how the catalog skill learns the
-recommended config, so a stale template means repos upgrade to the wrong
-model or prices. Copy the prices from the
-[pricing page](https://platform.claude.com/docs/en/about-claude/pricing),
-and set `warn_request_tokens` to the model's long-request threshold or
-drop it if there is none. A test keeps the template's model equal to
-`defaultModel`, but nothing checks the prices.
-
-### Work incrementally
-
-Do not generate large amounts of code in one move. Propose a step,
-confirm it makes sense, then write it. A slow developer who ships
-correct code is better than a fast one who ships something to debug.
-When the next step is unclear, say so rather than filling the space with
-plausible-looking code.
 
 ## Principles (short)
 

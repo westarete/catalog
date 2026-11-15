@@ -1,25 +1,17 @@
 # Developer setup
 
-This is for a developer who wants to work on `catalog` itself — the Go
-source and the release infrastructure. Use the `catalog` Claude skill if
-you want to add catalog capabilities to a content repo.
-
-## Prerequisites
-
-Install these once with Homebrew:
+This is for anyone working on `catalog` itself. You need Go,
+golangci-lint, and Node, which runs the pinned Markdown tools through
+`npx`. With Homebrew:
 
 ```sh
-brew install go prettier markdownlint-cli2 golangci-lint
+brew install go golangci-lint node
 ```
 
-Minimum versions: Go 1.25, Prettier 3, markdownlint-cli2 0.17. The
-versions above will satisfy those.
+CI uses the Go and golangci-lint versions pinned in
+[.github/workflows/check.yml](.github/workflows/check.yml).
 
-You also need an Anthropic API key to run the commands that infer
-profiles (`bootstrap`, `update`, `force`). `status`, `diff`, and all
-tests run without one.
-
-## Clone and verify
+Then clone the repository and check that it builds clean:
 
 ```sh
 git clone https://github.com/westarete/catalog.git
@@ -27,17 +19,3 @@ cd catalog
 make test
 make markdown
 ```
-
-Both should exit clean.
-
-## API key
-
-The profile-writing commands read `ANTHROPIC_API_KEY` from the
-environment. Export it in your shell profile, or prefix commands inline:
-
-```sh
-ANTHROPIC_API_KEY=sk-... catalog bootstrap
-```
-
-See [README.md](README.md)'s development workflow for the day-to-day
-commands once you're set up.

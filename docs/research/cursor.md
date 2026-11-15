@@ -113,9 +113,9 @@ These are our own conclusions, not claims from the sources above.
   does. Code is full of names that grep can find. Prose often isn't, so
   the answer may differ for us.
 - Cursor kept semantic search hidden until 80% of a project was indexed.
-  [DAEMON.md](../DAEMON.md) does the opposite, showing every file at
-  once with a shallow profile and deepening it later. If we go that way,
-  agents need to know how deep each profile is.
+  [daemon.md](../design/daemon.md) does the opposite, showing every file
+  at once with a shallow profile and deepening it later. If we go that
+  way, agents need to know how deep each profile is.
 - Keeping catalog state out of Git means every clone starts empty.
   Cursor's numbers show how much a team gains by reusing work instead. A
   shared store of profiles, keyed by content hash, could let a new clone

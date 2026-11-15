@@ -1,10 +1,11 @@
 # A background daemon for the catalog: brief
 
-This is a brief on a design experiment. Nothing here is decided. It
-describes the problems that drive the need for the catalog, one
-architecture we are considering, and what we still don't know. It grows
-from the OPE-54 conversation in Linear.
-[ARCHITECTURE.md](ARCHITECTURE.md) outlines the components that would
+This is a brief on a design experiment. We've decided which platforms
+the daemon runs on and which languages we'll write it in; most of the
+rest is still open. It describes the problems that drive the need for
+the catalog, the architecture we're working toward, and what we still
+don't know. It grows from the OPE-54 conversation in Linear.
+[architecture.md](architecture.md) outlines the components that would
 make up the daemon.
 
 ## What the catalog is for
@@ -44,7 +45,7 @@ without being told why.
 
 ## What hurts today
 
-Scott has used the catalog for about half a year and cannot think of a
+We have used today's catalog for about half a year and cannot think of a
 time it held wrong content. What goes wrong is that it falls behind,
 because nobody ran `update`, or that it conflicts in a merge.
 
@@ -258,18 +259,18 @@ take advantage of FSEvents to detect changes. We may even be able to
 leverage local LLM services that are native to the OS (Apple
 Intelligence?).
 
-100% of our users are on macOS, so the Mac comes first. We can also
-picture the daemon on Linux in two ways: on a headless server that keeps
-a catalog current as a central source, and in a container on a Mac or
-Windows laptop. We aren't sure how much either matters.
+100% of our users are on macOS, so the Mac comes first. The daemon also
+runs on Linux in two ways: on a headless server that keeps a catalog
+current as a central source, and in a container on a Mac or Windows
+laptop.
 
 We have deliberately kept our contract with the agents incredibly
 simple, so independent implementations for each platform would be
 possible. We now think a shared core with a thin layer for each
 operating system is the better way, because the shared part is what
-decides how good a catalog is. "Platforms and language" in
-[ARCHITECTURE.md](ARCHITECTURE.md) gives the reasoning and the languages
-we're weighing.
+decides how good a catalog is. We'll write the shared core in Go and the
+Mac's native parts in Swift; "Platforms and language" in
+[architecture.md](architecture.md) gives the reasoning.
 
 ## Delivering the catalog without a file
 
@@ -287,7 +288,7 @@ tool. We haven't measured how reliably agents do that.
 For now we'd keep the file as the first way to deliver and treat MCP as
 a second one, for content that has no folder and for a central server,
 which has no other way to deliver. "Delivering the catalog over MCP" in
-[ARCHITECTURE.md](ARCHITECTURE.md) has what the documentation says and
+[architecture.md](architecture.md) has what the documentation says and
 our reasoning.
 
 ## User interface
@@ -300,7 +301,7 @@ then via the Mac App Store. Each of these is a client of the same
 daemon, so adding one shouldn't change how the daemon works. macOS's
 rules for protected folders may mean the daemon has to ship inside an
 app bundle sooner than this order suggests; see "Processes and macOS" in
-[ARCHITECTURE.md](ARCHITECTURE.md).
+[architecture.md](architecture.md).
 
 Wherever we show status, a person should easily see which folders are
 cataloged and which aren't. Much later, the menu bar item might notice
@@ -324,8 +325,6 @@ idiomatic for their environment.
 - Do we need to detect and consider which files are "in use"? Or which
   directories have active processes?
 - Which staff are on a Mac? The experiment assumes macOS.
-- Is there a real need for the daemon on Linux, on a central server or
-  in a container?
 - Is an MCP server worth building, and what would an agent usefully
   report through one?
 - Which models, local or hosted, and how good are their profiles

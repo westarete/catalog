@@ -139,10 +139,10 @@ data; Waleed Khan recommends this in his talk on
 
 These are our own conclusions, not claims from the sources above.
 
-- [DAEMON.md](../DAEMON.md) already proposes Watchman's shape: one
-  server per user, finding each tree by walking up to a marker file. The
-  developers' reason for it, that an operating system can only watch so
-  many directories well, applies to us too.
+- [daemon.md](../design/daemon.md) already proposes Watchman's shape:
+  one server per user, finding each tree by walking up to a marker file.
+  The developers' reason for it, that an operating system can only watch
+  so many directories well, applies to us too.
 - When events go missing, a full rescan is the fallback. Ours can be
   cheap if it only compares content hashes with the ones already
   profiled, and calls the model just for files that changed.
@@ -151,7 +151,7 @@ These are our own conclusions, not claims from the sources above.
   call, so we should store them durably and key them by content.
 - Settling, and holding changes while Git is busy, would keep us from
   re-profiling a file on every save, one of the open questions in
-  DAEMON.md. Our delay should be far longer than Watchman's 20
+  daemon.md. Our delay should be far longer than Watchman's 20
   milliseconds.
 - If the catalog falls behind, it could say so on every answer until
   someone fixes it, as Watchman does after a recrawl.

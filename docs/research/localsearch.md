@@ -147,8 +147,8 @@ These are our own conclusions, not claims from the sources above.
 
 - LocalSearch lists a file the moment it sees it and reads the contents
   later. That's the bottom level of the profiles that deepen over time
-  in [DAEMON.md](../DAEMON.md), where an agent learns a file exists
-  before any model has read it.
+  in [daemon.md](../design/daemon.md), where an agent learns a file
+  exists before any model has read it.
 - We could borrow the extractor record directly: store the model and
   prompt behind each profile, and re-profile when either changes.
 - For files the model can't handle, LocalSearch's approach fits well.

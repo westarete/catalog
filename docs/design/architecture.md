@@ -3,10 +3,11 @@
 This outline names the components of the catalog daemon, says what each
 one is for, and says what each one is kept from knowing. Nothing here is
 built, and we expect the outline to change as we work through it.
-[DAEMON.md](DAEMON.md) explains the problem and what we want; this file
-is about how the application is divided. It runs on macOS first, and we
-want most of it to run unchanged on a headless Linux server or in a
-Linux container. We haven't chosen a language.
+[daemon.md](daemon.md) explains the problem and what we want; this file
+is about how the application is divided. It runs on macOS and on Linux,
+both on a headless server and in a container. We'll write the shared
+core and the CLI in Go, and the parts that need Apple's frameworks in
+Swift.
 
 ## The contract with agents
 
@@ -89,11 +90,11 @@ and does no reading, writing, or network work.
 - A content hash identifies what a file contained when we read it.
 - A profile has a depth: a listing, a summary, or a position among its
   peers, as described under "Profiles deepen over time" in
-  [DAEMON.md](DAEMON.md).
+  [daemon.md](daemon.md).
 - A recipe records the reader, prompt, and model that produced a
   profile, so we can redo profiles when any of them changes. GNOME's
   indexer records its extractor the same way
-  ([research/localsearch.md](research/localsearch.md)).
+  ([research/localsearch.md](../research/localsearch.md)).
 
 ### Settings
 
@@ -125,8 +126,8 @@ It knows nothing about profiles.
 The Watcher reports that paths may have changed. On macOS it listens to
 FSEvents, treats the events as hints, and crawls when macOS says events
 were dropped, as Apple advises
-([research/spotlight.md](research/spotlight.md)). On Linux it would use
-inotify. It may have to poll a folder that a Mac shares into a
+([research/spotlight.md](../research/spotlight.md)). On Linux it would
+use inotify. It may have to poll a folder that a Mac shares into a
 container, because file events don't always cross that boundary. A
 Rancher Desktop issue titled "MacOS file system events don't pass
 through to containers" has been open since 2022
@@ -159,9 +160,9 @@ returns the work to do, in order. It takes the state, the time, and
 conditions such as battery power as inputs and touches nothing else, so
 its tests need no files, network, or real clock. Dropbox's engineers
 store observations and derive the work for the same reason
-([research/dropbox.md](research/dropbox.md)).
+([research/dropbox.md](../research/dropbox.md)).
 
-The Planner is where most of the open questions in DAEMON.md get
+The Planner is where most of the open questions in daemon.md get
 answered: which files come first, how long a file must sit unchanged
 before we profile it, how hard to work on battery, and when to give up
 on a file that keeps failing. Keeping those answers in one component
@@ -178,10 +179,10 @@ reader understands still gets a listing.
 
 Reading is the step most likely to crash on a bad file, which is why
 Spotlight and GNOME's indexer run it in a separate process
-([research/spotlight.md](research/spotlight.md),
-[research/localsearch.md](research/localsearch.md)). The Reader takes a
-file and returns content, and depends on nothing else, so we can move it
-into its own process later without changing the components around it.
+([research/spotlight.md](../research/spotlight.md),
+[research/localsearch.md](../research/localsearch.md)). The Reader takes
+a file and returns content, and depends on nothing else, so we can move
+it into its own process later without changing the components around it.
 
 ### Profiler
 
@@ -213,7 +214,7 @@ nothing, so anything that delivers a catalog can use it.
 
 The Publisher writes what the Renderer produced to a tree's
 `.catalog.md`, replacing the file in one step. It's the only component
-that writes inside a person's tree, which keeps the promise in DAEMON.md
+that writes inside a person's tree, which keeps the promise in daemon.md
 checkable in one place.
 
 ### Journal
@@ -230,7 +231,7 @@ want it. We see three uses.
 
 - `catalog status` and a menu bar item can show what the daemon is doing
   and how far behind it is. Cursor's users objected when that view was
-  taken away ([research/cursor.md](research/cursor.md)).
+  taken away ([research/cursor.md](../research/cursor.md)).
 - A person can compare models and prompts by time, cost, and failures.
 - A Claude skill can read the statistics and recommend changes to the
   content itself. If the Profiler's notes show that many files only
@@ -249,9 +250,8 @@ answers it gets: status, prioritize this tree, retry a file, pause, read
 or change settings, read statistics, fetch the catalog for a path, and
 record a report in the Journal.
 
-If the core is shared with Linux, Control's messages travel over a Unix
-socket on every platform, because XPC exists only on Apple's systems. If
-we build for the Mac alone, XPC is still a candidate.
+Control's messages travel over a Unix socket on every platform, because
+XPC exists only on Apple's systems and the core is shared with Linux.
 
 ### Daemon
 
@@ -284,15 +284,15 @@ the same to its owner as one that's merely behind.
   compiler refuses a dependency we didn't declare. Apple's `container`
   tool splits its Swift package into many targets, and its CLI doesn't
   depend directly on the server's target
-  ([research/container.md](research/container.md)).
+  ([research/container.md](../research/container.md)).
 - Nothing in the shared core, described next, uses a facility that
   exists on only one operating system.
 
 ## Platforms and language
 
-We want the daemon on a Mac first, and also on a headless Linux server
-and in a Linux container on a Mac or Windows laptop. We aren't sure yet
-how much the Linux cases matter.
+The daemon runs on a Mac, on a headless Linux server, and in a Linux
+container on a Mac or Windows laptop. The Mac comes first, because
+everyone who uses the catalog today is on one.
 
 The parts tied to an operating system are the same parts the rules above
 already put behind interfaces for testing, so the split costs little.
@@ -312,30 +312,37 @@ format, which together decide how good a catalog is. Two implementations
 would drift apart there first, and the contract with agents wouldn't
 catch it, because it fixes the file's format and not its quality.
 
-We haven't chosen a language. Three options are in view.
+We'll write the shared core and the CLI in Go, and the Mac's native
+parts in Swift. This follows the shape of Tailscale's client, whose Mac
+app is the same Go code as everywhere else plus a small GUI wrapper
+([research/tailscale.md](../research/tailscale.md)). On the Mac, Swift
+is for the parts of the table's right-hand column that Go can't reach
+well: the menu bar item and settings window, the app bundle that macOS's
+permissions may require (see "Processes and macOS" below), and readers
+and model providers built on Apple's frameworks. We believe the Watcher
+and the launchd agent need no Swift, since FSEvents is a C interface and
+launchd needs only a property list, but we haven't built anything to
+check.
 
-- Go for the daemon and CLI, with a small native app around them on the
-  Mac. Tailscale's Mac client is its Go code plus a small GUI wrapper
-  ([research/tailscale.md](research/tailscale.md)). We believe little in
-  our daemon needs Swift, since FSEvents is a C interface and launchd
-  needs only a property list, but we haven't built anything to check.
-  This is our leaning if Linux turns out to matter.
-- Swift throughout, keeping Apple's frameworks out of the core. Swift
-  builds fully static Linux binaries
-  ([Static Linux SDK](https://swift.org/documentation/articles/static-linux-getting-started.html)).
-  One person reported in 2024 that importing Foundation failed to build
-  with that SDK, and the thread ends without a confirmed fix
-  ([Swift forums](https://forums.swift.org/t/using-swift-foundation-with-linux-static-sdk/74642));
-  we haven't tried a current toolchain. This is our leaning if Linux
-  stays a maybe.
-- Rust for the core. We haven't looked into it.
+We considered two other options. Swift throughout would build for Linux
+too, with fully static binaries
+([Static Linux SDK](https://swift.org/documentation/articles/static-linux-getting-started.html)),
+but one person reported in 2024 that importing Foundation failed to
+build with that SDK, and the thread ends without a confirmed fix
+([Swift forums](https://forums.swift.org/t/using-swift-foundation-with-linux-static-sdk/74642)).
+Rust for the core is the other, and we didn't look into it.
+
+How the Swift parts talk to the Go core is left for implementation. A
+menu bar item is a client, so it goes through Control like any other. A
+reader or model provider that needs an Apple framework would run as a
+helper process, which the Reader's design already allows.
 
 ## Processes and macOS
 
 On a Mac, the daemon runs as a launchd agent for the logged-in user.
 Apple's `container` tool has the same shape, a CLI and a launch agent,
 though it connects them with XPC
-([research/container.md](research/container.md)).
+([research/container.md](../research/container.md)).
 
 macOS permissions may affect how we package it. Howard Oakley lists
 Desktop, Documents, Downloads, iCloud Drive, and third-party cloud
@@ -397,9 +404,10 @@ This is our reasoning, and we haven't built anything to test it.
 
 - A server's instructions reach the agent unasked, but 4,096 characters
   is too small for a catalog; twenty entries took about 2,400 tokens in
-  [FUTURE.md](FUTURE.md). The instructions can tell the agent to fetch
-  the catalog, and the agent then has to do it. The file is in front of
-  the agent with no step in between.
+  [FUTURE.md](https://github.com/westarete/catalog/blob/d9a8d1b3a9dd6826224bda2068a5422b37f8bce9/FUTURE.md).
+  The instructions can tell the agent to fetch the catalog, and the
+  agent then has to do it. The file is in front of the agent with no
+  step in between.
 - Setup isn't much heavier than the file's. A committed `.mcp.json` does
   for MCP what the import line does for the file, and it removes the
   need for the import line and the Git ignore rule. It works only in
@@ -462,5 +470,5 @@ they turn out.
 - A central server could hold profiles that other machines fetch by
   content hash, so a fresh clone or a cloud agent wouldn't start empty.
   Cursor shortened its first index that way
-  ([research/cursor.md](research/cursor.md)). It would mean profiles
+  ([research/cursor.md](../research/cursor.md)). It would mean profiles
   leave the machine, with the privacy questions Cursor faced.
