@@ -111,12 +111,19 @@ func (d *Daemon) summarize(ctx context.Context, now time.Time, c planner.Candida
 	text, resp, err := profiler.Profile(ctx, d.Provider, c.Rel, reader.Read(c.Rel, data), neighbors)
 	if err != nil {
 		if models.Classify(err) == models.ServiceProblem {
-			return false, fmt.Errorf("summarize %s: %w", filepath.Join(c.Dir, c.Rel), err)
+			return false, &serviceError{fmt.Errorf("summarize %s: %w", filepath.Join(c.Dir, c.Rel), err)}
 		}
 		return true, d.recordFailure(now, c, err)
 	}
 	return true, d.recordSummary(now, c, text, resp, time.Since(began))
 }
+
+// serviceError is a failure of the model service rather than of a file. Work
+// charges no file for it, and Run pauses summarizing.
+type serviceError struct{ err error }
+
+func (e *serviceError) Error() string { return e.err.Error() }
+func (e *serviceError) Unwrap() error { return e.err }
 
 func (d *Daemon) recordSummary(now time.Time, c planner.Candidate, text string, resp models.Response, took time.Duration) error {
 	if err := d.Store.PutSummary(c.Hash, d.recipe(), text); err != nil {

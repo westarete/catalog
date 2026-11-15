@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,8 +19,12 @@ func stateDir(t *testing.T) string {
 }
 
 func runCatalog(args ...string) (int, string) {
+	return runCatalogIn(context.Background(), args...)
+}
+
+func runCatalogIn(ctx context.Context, args ...string) (int, string) {
 	var stderr bytes.Buffer
-	code := run(args, &stderr)
+	code := run(ctx, args, &stderr)
 	return code, stderr.String()
 }
 
@@ -62,7 +68,7 @@ func TestUsageErrors(t *testing.T) {
 	tests := [][]string{
 		nil,
 		{"status"},
-		{"daemon"},
+		{"daemon", "extra"},
 		{"daemon", "--once"},
 		{"daemon", "--once", "a", "b"},
 		{"daemon", "--bogus"},
@@ -108,5 +114,61 @@ func TestOnceWithUnopenableStore(t *testing.T) {
 
 	if code, out := runCatalog("daemon", "--once", t.TempDir()); code != 1 || out == "" {
 		t.Errorf("code %d, output:\n%s", code, out)
+	}
+}
+
+// stopped returns a context that has already ended, as if the daemon got
+// SIGTERM during its first step.
+func stopped() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
+}
+
+func TestDaemonWithoutGlobalConfig(t *testing.T) {
+	dir := stateDir(t)
+
+	code, out := runCatalogIn(stopped(), "daemon")
+
+	if code != 1 || !strings.Contains(out, filepath.Join(dir, "global.toml")) {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+}
+
+func TestDaemonWithUnopenableStore(t *testing.T) {
+	dir := stateDir(t)
+	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	if err := os.Mkdir(filepath.Join(dir, "store.db"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if code, out := runCatalogIn(stopped(), "daemon"); code != 1 || out == "" {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+}
+
+// The daemon crawls the folders global.toml watches at once, before the
+// first tick, and stops when its context ends.
+func TestDaemonCrawlsWatchedFolders(t *testing.T) {
+	dir := stateDir(t)
+	watched := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(watched, ".catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(watched, "a.md"), []byte("first line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeGlobal(t, dir, fmt.Sprintf("api_key = \"test-key\"\n[[watch]]\nfolder = %q\n", watched))
+
+	if code, out := runCatalogIn(stopped(), "daemon"); code != 0 {
+		t.Fatalf("code %d, output:\n%s", code, out)
+	}
+
+	data, err := os.ReadFile(filepath.Join(watched, ".catalog", "catalog.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "first line") {
+		t.Errorf("catalog.md:\n%s", data)
 	}
 }

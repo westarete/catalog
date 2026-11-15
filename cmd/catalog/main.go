@@ -3,6 +3,7 @@
 //
 // Usage:
 //
+//	catalog daemon
 //	catalog daemon --once <folder>
 package main
 
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -25,7 +27,7 @@ import (
 	"westarete.com/catalog/internal/store"
 )
 
-const usage = "usage: catalog daemon --once <folder>"
+const usage = "usage: catalog daemon [--once <folder>]"
 
 // Exit codes: 1 for a failed run, 2 for a command line we don't understand.
 const (
@@ -33,11 +35,18 @@ const (
 	exitUsage  = 2
 )
 
+// crawlEvery is how often the daemon crawls the watched folders.
+const crawlEvery = time.Minute
+
 func main() {
-	os.Exit(run(os.Args[1:], os.Stderr))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	code := run(ctx, os.Args[1:], os.Stderr)
+	stop()
+	os.Exit(code)
 }
 
-func run(args []string, stderr io.Writer) int {
+// run carries out the command line in args until it's done or ctx ends.
+func run(ctx context.Context, args []string, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "daemon" {
 		_, _ = fmt.Fprintln(stderr, usage)
 		return exitUsage
@@ -48,11 +57,17 @@ func run(args []string, stderr io.Writer) int {
 	if err := flags.Parse(args[1:]); err != nil {
 		return exitUsage
 	}
-	if !*once || flags.NArg() != 1 {
+	var err error
+	switch {
+	case *once && flags.NArg() == 1:
+		err = runOnce(ctx, flags.Arg(0))
+	case !*once && flags.NArg() == 0:
+		err = runLoop(ctx, stderr)
+	default:
 		_, _ = fmt.Fprintln(stderr, usage)
 		return exitUsage
 	}
-	if err := runOnce(flags.Arg(0)); err != nil {
+	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "catalog: %v\n", err)
 		return exitFailed
 	}
@@ -61,33 +76,65 @@ func run(args []string, stderr io.Writer) int {
 
 // runOnce crawls folder as the only watched folder and summarizes every file
 // waiting in its catalogs.
-func runOnce(folder string) error {
-	stateDir, err := settings.StateDir()
-	if err != nil {
-		return err
-	}
-	g, err := loadGlobal(stateDir)
+func runOnce(ctx context.Context, folder string) error {
+	stateDir, g, err := setup()
 	if err != nil {
 		return err
 	}
 	g.Watch = []string{folder}
-
-	s, err := store.Open(filepath.Join(stateDir, "store.db"))
+	d, err := newDaemon(stateDir, g)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = s.Close() }()
+	defer func() { _ = d.Store.Close() }()
+	return d.Once(ctx, time.Now)
+}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	d := &daemon.Daemon{
+// runLoop keeps the catalogs in the folders global.toml watches current,
+// rereading global.toml on each crawl, until ctx ends. It writes the errors
+// it can't journal to stderr.
+func runLoop(ctx context.Context, stderr io.Writer) error {
+	stateDir, g, err := setup()
+	if err != nil {
+		return err
+	}
+	d, err := newDaemon(stateDir, g)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = d.Store.Close() }()
+	d.GlobalPath = filepath.Join(stateDir, settings.GlobalFile)
+	d.Log = log.New(stderr, "catalog: ", log.LstdFlags)
+	ticker := time.NewTicker(crawlEvery)
+	defer ticker.Stop()
+	return d.Run(ctx, time.Now, ticker.C)
+}
+
+// setup finds the state folder and loads global.toml from it.
+func setup() (stateDir string, g settings.Global, err error) {
+	stateDir, err = settings.StateDir()
+	if err != nil {
+		return "", g, err
+	}
+	g, err = loadGlobal(stateDir)
+	return stateDir, g, err
+}
+
+// newDaemon opens the Store in stateDir and builds a daemon on it with the
+// settings in g. The caller closes the Store.
+func newDaemon(stateDir string, g settings.Global) (*daemon.Daemon, error) {
+	s, err := store.Open(filepath.Join(stateDir, "store.db"))
+	if err != nil {
+		return nil, err
+	}
+	return &daemon.Daemon{
 		Global:      g,
 		Store:       s,
 		Provider:    models.NewAnthropic(g.APIKey, g.Model),
+		NewProvider: models.NewAnthropic,
 		JournalPath: filepath.Join(stateDir, "journal.jsonl"),
 		FS:          os.DirFS,
-	}
-	return d.Once(ctx, time.Now)
+	}, nil
 }
 
 // loadGlobal reads global.toml, which must exist and hold an API key.

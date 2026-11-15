@@ -6,6 +6,8 @@ package daemon
 import (
 	"context"
 	"io/fs"
+	"log"
+	"path/filepath"
 	"time"
 
 	"westarete.com/catalog/internal/journal"
@@ -25,6 +27,15 @@ type Daemon struct {
 	JournalPath string
 	// FS opens a folder for reading, given its absolute path.
 	FS func(dir string) fs.FS
+	// GlobalPath, if set, names the global.toml that each crawl rereads
+	// first, so edits take effect without a restart.
+	GlobalPath string
+	// NewProvider builds a new Provider when a reread global.toml changes the
+	// API key or the model. It must be set if GlobalPath is.
+	NewProvider func(apiKey, model string) models.Provider
+	// Log receives the errors Run can't journal or act on, such as a failed
+	// Store. If it's nil, Run drops them.
+	Log *log.Logger
 
 	// crawled lists the catalogs the last crawl recorded, which are the
 	// catalogs Work summarizes files in.
@@ -38,6 +49,11 @@ type Daemon struct {
 	// carried the ones from the crawl before, while a crawl runs. A problem
 	// that persists from one crawl to the next is journaled only once.
 	reported, carried map[problemKey]problem
+
+	// serviceFailures counts the service problems in a row; Run doesn't
+	// summarize until pausedUntil.
+	serviceFailures int
+	pausedUntil     time.Time
 }
 
 type globs struct{ enumerate, ignore []string }
@@ -68,13 +84,14 @@ func (d *Daemon) Once(ctx context.Context, clock func() time.Time) error {
 	}
 }
 
-// ConfigErrors returns the catalogs whose config.toml failed to load on the
-// last crawl, with the error for each.
+// ConfigErrors returns the config files that failed to load on the last
+// crawl, with the error for each. A catalog's config is named by the catalog's
+// folder, and global.toml by its path.
 func (d *Daemon) ConfigErrors() map[string]string {
 	errs := map[string]string{}
 	for k, p := range d.reported {
 		if k.kind == journal.KindConfigError {
-			errs[k.dir] = p.msg
+			errs[filepath.Join(k.dir, k.rel)] = p.msg
 		}
 	}
 	return errs

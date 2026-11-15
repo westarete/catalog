@@ -20,14 +20,15 @@ const catalogConfig = ".catalog/config.toml"
 // unreadable is the journal error for a member file the crawl couldn't read.
 const unreadable = "unreadable"
 
-// Crawl finds the catalogs in every watched folder, records each catalog's
-// files in the Store, and publishes each catalog. A problem in one folder or
-// catalog is journaled and doesn't stop the others. Crawl returns an error
-// only when the Store or the journal fails.
+// Crawl rereads global.toml if GlobalPath is set, then finds the catalogs in
+// every watched folder, records each catalog's files in the Store, and
+// publishes each catalog. A problem in one folder or catalog is journaled and
+// doesn't stop the others. Crawl returns an error only when the Store or the
+// journal fails.
 func (d *Daemon) Crawl(now time.Time) error {
 	d.startCrawl()
 	defer d.endCrawl()
-	var errs []error
+	errs := []error{d.reloadGlobal(now)}
 	for _, folder := range d.Global.Watch {
 		if folder == "" {
 			continue
