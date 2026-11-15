@@ -8,6 +8,14 @@ golangci-lint, and Node, which runs the pinned Markdown tools through
 brew install go golangci-lint node
 ```
 
+Mutation testing uses Gremlins, which Go installs. Run
+`make mutate PKG=./some/package` to check how well a package's tests
+catch faults. Install it with:
+
+```sh
+go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+```
+
 CI uses the Go and golangci-lint versions pinned in
 [.github/workflows/check.yml](.github/workflows/check.yml).
 

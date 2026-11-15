@@ -11,9 +11,10 @@ We're rewriting the catalog as a background daemon that keeps
 conflict. Nothing in the rewrite is built yet.
 [daemon.md](docs/design/daemon.md) explains why we're doing it,
 [architecture.md](docs/design/architecture.md) outlines the components,
-and [mvp.md](docs/design/mvp.md) proposes the first version. The
-released versions are the earlier command-line tool, whose source and
-documentation are in Git history.
+and the
+[first version's spec](docs/superpowers/specs/2026-11-15-daemon-mvp-design.md)
+describes it. The released versions are the earlier command-line tool,
+whose source and documentation are in Git history.
 
 ## How it works
 
