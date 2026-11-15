@@ -29,6 +29,7 @@ func TestMatch(t *testing.T) {
 		{"a/b", "a/b/c", false},
 		{"a/b/c", "a/b", false},
 		{"[", "a", false},
+		{"a/**/**", "a", true},
 		{"**/*.md", "x.txt", false},
 	}
 	for _, c := range cases {

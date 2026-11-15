@@ -18,4 +18,4 @@ lint:
 # Mutation-test one package, for example: make mutate PKG=./internal/planner
 mutate:
 	$(if $(PKG),,$(error PKG is required, e.g. make mutate PKG=./internal/planner))
-	$(shell go env GOPATH)/bin/gremlins unleash $(PKG)
+	$(shell go env GOPATH)/bin/gremlins unleash --timeout-coefficient 50 $(PKG)
