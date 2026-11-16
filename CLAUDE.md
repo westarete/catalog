@@ -158,6 +158,14 @@ in `docs/superpowers/specs/`, a plan in `docs/superpowers/plans/`, then
 subagent-driven development. Where this file and a Superpowers skill
 disagree about process, follow the skill.
 
+## Balance quality, size, and cost
+
+These compete in this project. Quality is how often an agent finds the
+right files. Size is how many words a catalog adds to every request and
+every agent's context. Cost is model calls and money, and time is a good
+proxy for it. When you propose a change that improves one of them, say
+what it does to the other two.
+
 ## Security in every design and review
 
 The daemon reads private documents and stores what it learns about them.
