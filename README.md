@@ -8,7 +8,8 @@ file, so it can load what the task needs and leave the rest.
 
 We're rewriting the catalog as a background daemon that keeps
 `.catalog.md` current on its own, with no catalog state in Git to
-conflict. Nothing in the rewrite is built yet.
+conflict. The daemon is built but not released; to try it, build it from
+source as described under "Running the daemon" below.
 [daemon.md](docs/design/daemon.md) explains why we're doing it,
 [architecture.md](docs/design/architecture.md) outlines the components,
 and the
@@ -24,6 +25,87 @@ description field, which tells the harness when to load the skill. A
 profile says "open this file when the task involves X," not "this file
 is about X." That distinction is what makes routing work: a wrong
 summary is ugly, but a wrong profile sends the agent to the wrong file.
+
+## Running the daemon
+
+We haven't released the daemon through Homebrew yet, so you build it
+from source. You need Go and a Mac. Run these from a checkout of this
+repository. The first two commands put the binary in `~/bin` and the
+launchd property list in your agents folder:
+
+```sh
+go build -o ~/bin/catalog ./cmd/catalog
+cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
+```
+
+launchd doesn't expand `~` or `$HOME`, so open the copy in
+`~/Library/LaunchAgents/` and replace each `YOUR_NAME` with your macOS
+user name. The daemon logs to `~/Library/Logs/catalog.log`.
+
+Next, create
+`~/Library/Application Support/com.westarete.catalog/global.toml` with
+your API key and the folders to watch, and make it readable only by you.
+The daemon reads the key only from this file, not from
+`ANTHROPIC_API_KEY`, because launchd doesn't start it from your shell.
+
+```toml
+api_key = "sk-ant-..."
+model = "claude-haiku-5-5"
+
+[[watch]]
+folder = "~/src"
+```
+
+The daemon keeps a catalog wherever a `.catalog/` folder exists inside a
+watched folder. It never creates one, so make an empty `.catalog/`
+folder at the root of each repository you want cataloged. The daemon
+writes `.catalog/catalog.md` there. An optional `.catalog/config.toml`
+can set `enumerate` and `ignore` for that catalog; the same two keys in
+`global.toml` set the defaults for your machine. Have your `AGENTS.md`
+or `CLAUDE.md` load `@.catalog/catalog.md`.
+
+Load the agent into your login session, and check on it:
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.plist
+catalog status
+```
+
+To stop it, run `launchctl bootout gui/$(id -u)/com.westarete.catalog`.
+
+`catalog status` shows when the daemon last crawled, each catalog's file
+counts, and any files that are failing. On the first day the daemon
+summarizes every file one at a time, so expect catalogs to fill in
+gradually. Edits to `global.toml` and to each `config.toml` take effect
+within a minute, with no restart.
+
+### Which folders to watch
+
+Watch only folders that no cloud drive syncs, such as `~/src`. The
+daemon can't yet tell a synced folder from any other, and it must never
+write into one. This version also doesn't watch folders that macOS
+protects: Desktop, Documents, Downloads, and iCloud Drive.
+
+### Moving a repository from the earlier tool
+
+Move all your repositories in one sitting. Both tools are called
+`catalog`, and `catalog status` means something different in each. Your
+agents also need the updated `knowledge-work:catalog` skill first, so
+none of them runs `catalog update` in a repository you've moved.
+
+1. Remove the Homebrew `catalog` and install the new build in its place.
+2. In each repository, delete `.catalog/catalog.db` and the old
+   `.catalog.md` at the root. Keep `.catalog/config.toml`; the daemon
+   reads its `enumerate` and `ignore`. Change the line that loads the
+   catalog from `@.catalog.md` to `@.catalog/catalog.md`.
+3. Add the folders that hold your repositories to the watch list in
+   `global.toml`.
+4. Load the launchd agent and check `catalog status`.
+
+If your repository used to commit its catalog, you will probably want
+Git to ignore `.catalog/catalog.md` now, since that's the file that used
+to conflict. In a shared repository, these steps change files everyone
+sees, so tell the others when you move it.
 
 ## Development
 
