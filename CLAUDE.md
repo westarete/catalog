@@ -158,6 +158,42 @@ in `docs/superpowers/specs/`, a plan in `docs/superpowers/plans/`, then
 subagent-driven development. Where this file and a Superpowers skill
 disagree about process, follow the skill.
 
+## Security in every design and review
+
+The daemon reads private documents and stores what it learns about them.
+The first build left its journal and store readable by every account on
+the Mac ([issue #6](https://github.com/westarete/catalog/issues/6)),
+because no spec asked who could read them and no reviewer was asked to
+check.
+
+- In every spec, add a section on the sensitive data the change reads,
+  stores, or sends: each place a copy ends up (files, logs, sockets,
+  requests to a service) and who can read it there.
+- In every plan's Review Focus, include at least one security line, and
+  copy it into each task reviewer's brief.
+- Before finishing a branch, run Claude Code's `/security-review` as
+  well as the whole-branch review.
+- Keep `gosec` enabled in `.golangci.yml`. When it flags a line on
+  purpose, suppress that line with `//nolint:gosec` and a comment saying
+  why; don't turn off a rule for the whole repository without a comment
+  in the config saying why.
+
+## Own everything the program does
+
+Security, quality, and robustness are your responsibility, including
+what a library, the OS, or a tool does on the program's behalf. A file
+the program creates, a socket it opens, or a request it sends has the
+mode, scope, and limits we choose, or failed to choose. Never explain a
+problem away with another package's defaults.
+
+When the developer reports a problem, fix all of it before you move on.
+If any part stays unfixed, say so in the first lines of your reply, with
+the reason. Never leave part of a reported problem only in an issue, a
+commit message, or a list of follow-ups. When the developer reported the
+journal and store readable by every account, an agent fixed only the
+journal, which the linter flagged, filed the store in an issue, and
+reported "the journal" as if that were all of it.
+
 ## Git workflow
 
 Commit freely on a feature branch or worktree. Never commit directly to
