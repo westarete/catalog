@@ -21,6 +21,8 @@ const catalogConfig = ".catalog/config.toml"
 // unreadable is the journal error for a member file the crawl couldn't read.
 const unreadable = "unreadable"
 
+var errRelativeWatch = errors.New("watch folder must be an absolute path or start with ~/; skipped")
+
 // Crawl rereads global.toml if GlobalPath is set, then finds the catalogs in
 // every watched folder, records each catalog's files in the Store, and
 // publishes each catalog. A problem in one folder or catalog is journaled and
@@ -40,11 +42,13 @@ func (d *Daemon) Crawl(now time.Time) error {
 	return errors.Join(errs...)
 }
 
+// crawlFolder crawls the catalogs in folder. A relative folder is a config
+// error: under launchd it would resolve against /, which no one means.
 func (d *Daemon) crawlFolder(now time.Time, folder string) error {
-	abs, err := filepath.Abs(folder)
-	if err != nil {
-		return d.report(failureEvent(now, folder, "", err.Error()))
+	if !filepath.IsAbs(folder) {
+		return d.report(journal.Event{Time: now, Kind: journal.KindConfigError, Dir: folder, Error: errRelativeWatch.Error()})
 	}
+	abs := filepath.Clean(folder)
 	walk := &tolerantFS{FS: d.FS(abs)}
 	found, err := trees.FindCatalogs(walk)
 	if err != nil {

@@ -60,11 +60,17 @@ folder = "~/notes"
 
 [[watch]]
 folder = "/abs/path"
+
+[[watch]]
+folder = "~"
+
+[[watch]]
+folder = "~other/x"
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{filepath.Join(home, "notes"), "/abs/path"}
+	want := []string{filepath.Join(home, "notes"), "/abs/path", home, "~other/x"}
 	if !reflect.DeepEqual(g.Watch, want) {
 		t.Errorf("Watch = %v, want %v", g.Watch, want)
 	}

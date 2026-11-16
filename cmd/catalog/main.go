@@ -125,7 +125,11 @@ func runOnce(ctx context.Context, folder string) error {
 	if err != nil {
 		return err
 	}
-	g.Watch = []string{folder}
+	abs, err := filepath.Abs(folder)
+	if err != nil {
+		return err
+	}
+	g.Watch = []string{abs}
 	d, err := openDaemon(stateDir)
 	if err != nil {
 		return err

@@ -96,7 +96,12 @@ func ApplyCatalog(g Global, data []byte) (enumerate, ignore []string, err error)
 	return enumerate, ignore, nil
 }
 
+// expandHome replaces a leading ~/ in path, or a path that is only ~, with
+// the home folder.
 func expandHome(path string) (string, error) {
+	if path == "~" {
+		path = "~/"
+	}
 	rest, ok := strings.CutPrefix(path, "~/")
 	if !ok {
 		return path, nil

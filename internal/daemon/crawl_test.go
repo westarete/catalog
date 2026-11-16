@@ -34,18 +34,30 @@ func TestEmptyWatchEntryIsSkipped(t *testing.T) {
 	entry(t, catalogText(t, root), "alpha.md")
 }
 
-func TestRelativeWatchFolderBecomesAbsolute(t *testing.T) {
+// Under launchd the working folder is /, so a relative watch folder would
+// mean a folder no one intended. The daemon reports it and skips it.
+func TestRelativeWatchFolderIsConfigError(t *testing.T) {
 	root := t.TempDir()
-	makeCatalog(t, root)
-	writeFile(t, root, "alpha.md", body("alpha"))
+	other := t.TempDir()
+	for _, dir := range []string{root, other} {
+		makeCatalog(t, dir)
+		writeFile(t, dir, "alpha.md", body("alpha"))
+	}
 	t.Chdir(filepath.Dir(root))
-	d, _ := newDaemon(t, filepath.Base(root)+"/.")
+	rel := filepath.Base(root)
+	d, _ := newDaemon(t, rel, other)
 
-	once(t, d, start)
+	crawl(t, d, start)
+	crawl(t, d, start.Add(time.Minute))
 
-	files, err := d.Store.Files(root)
-	if err != nil || len(files) != 1 {
-		t.Errorf("Files(%q) = %v, %v; want alpha.md under the absolute path", root, files, err)
+	assertNoCatalog(t, root)
+	entry(t, catalogText(t, other), "alpha.md")
+	if msg := d.ConfigErrors()[rel]; !strings.Contains(msg, "absolute") {
+		t.Errorf("ConfigErrors = %v, want one for %s", d.ConfigErrors(), rel)
+	}
+	events := eventsOfKind(t, d, journal.KindConfigError)
+	if len(events) != 1 || events[0].Dir != rel {
+		t.Errorf("config_error events = %+v, want one for %s", events, rel)
 	}
 }
 

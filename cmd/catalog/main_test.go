@@ -122,6 +122,24 @@ func TestOnceWithNothingToDo(t *testing.T) {
 	}
 }
 
+// The folder may be relative to where the command runs. The catalog here has
+// no files, so this run makes no model call.
+func TestOnceWithRelativeFolder(t *testing.T) {
+	writeGlobal(t, stateDir(t), "api_key = \"test-key\"\n")
+	folder := t.TempDir()
+	if err := os.Mkdir(filepath.Join(folder, ".catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(folder)
+
+	if code, out := runCatalog("daemon", "--once", "."); code != 0 {
+		t.Fatalf("code %d, output:\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(folder, ".catalog", "catalog.md")); err != nil {
+		t.Errorf("catalog.md: %v", err)
+	}
+}
+
 func TestOnceWithUnopenableStore(t *testing.T) {
 	dir := stateDir(t)
 	writeGlobal(t, dir, "api_key = \"test-key\"\n")
