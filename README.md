@@ -30,23 +30,32 @@ summary is ugly, but a wrong profile sends the agent to the wrong file.
 
 We haven't released the daemon through Homebrew yet, so you build it
 from source. You need Go and a Mac. Run these from a checkout of this
-repository. The first two commands put the binary in `~/bin` and the
-launchd property list in your agents folder:
+repository. They put the binary in `~/bin`, put it on your `PATH` for
+zsh, and copy the launchd property list into your agents folder:
 
 ```sh
+mkdir -p ~/bin
 go build -o ~/bin/catalog ./cmd/catalog
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
 cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
 ```
 
-launchd doesn't expand `~` or `$HOME`, so open the copy in
-`~/Library/LaunchAgents/` and replace each `YOUR_NAME` with your macOS
-user name. The daemon logs to `~/Library/Logs/catalog.log`.
+Open a new terminal so the `PATH` change takes effect. The property list
+needs absolute paths, so fill in your user name:
 
-Next, create
-`~/Library/Application Support/com.westarete.catalog/global.toml` with
-your API key and the folders to watch, and make it readable only by you.
-The daemon reads the key only from this file, not from
-`ANTHROPIC_API_KEY`, because launchd doesn't start it from your shell.
+```sh
+sed -i '' "s/YOUR_NAME/$(whoami)/g" ~/Library/LaunchAgents/com.westarete.catalog.plist
+```
+
+The daemon logs to `~/Library/Logs/catalog.log`.
+
+Next, create the settings folder and a `global.toml` in it with your API
+key and the folders to watch. The daemon reads the key only from this
+file, not from `ANTHROPIC_API_KEY`.
+
+```sh
+mkdir -p "$HOME/Library/Application Support/com.westarete.catalog"
+```
 
 ```toml
 api_key = "sk-ant-..."
@@ -54,6 +63,14 @@ model = "claude-haiku-5-5"
 
 [[watch]]
 folder = "~/src"
+```
+
+Choose the watched folders with care; see "Which folders to watch"
+below. Because the file holds your API key, make it readable only by
+you:
+
+```sh
+chmod 600 "$HOME/Library/Application Support/com.westarete.catalog/global.toml"
 ```
 
 The daemon keeps a catalog wherever a `.catalog/` folder exists inside a
@@ -71,13 +88,15 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.pl
 catalog status
 ```
 
-To stop it, run `launchctl bootout gui/$(id -u)/com.westarete.catalog`.
+If `catalog status` says the daemon isn't running,
+`tail ~/Library/Logs/catalog.log` shows why. To stop it, run
+`launchctl bootout gui/$(id -u)/com.westarete.catalog`.
 
 `catalog status` shows when the daemon last crawled, each catalog's file
 counts, and any files that are failing. On the first day the daemon
-summarizes every file one at a time, so expect catalogs to fill in
-gradually. Edits to `global.toml` and to each `config.toml` take effect
-within a minute, with no restart.
+summarizes one file at a time, so expect catalogs to fill in gradually.
+Edits to `global.toml` and to each `config.toml` take effect within a
+minute, with no restart.
 
 ### Which folders to watch
 
