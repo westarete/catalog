@@ -3,13 +3,13 @@
 Once a repository holds more than a few dozen files, agents do a poor
 job of deciding which ones to load into context. They load files they
 don't need and miss the ones they do. The catalog fixes that by keeping
-a `.catalog.md` in the folder that tells an agent when to open each
-file, so it can load what the task needs and leave the rest.
+a `.catalog/catalog.md` in the folder that tells an agent when to open
+each file, so it can load what the task needs and leave the rest.
 
 We're rewriting the catalog as a background daemon that keeps
-`.catalog.md` current on its own, with no catalog state in Git to
-conflict. The daemon is built but not released; to try it, build it from
-source as described under "Running the daemon" below.
+`.catalog/catalog.md` current on its own, with no catalog state in Git
+to conflict. The daemon is built but not released; to try it, build it
+from source as described under "Running the daemon" below.
 [daemon.md](docs/design/daemon.md) explains why we're doing it,
 [architecture.md](docs/design/architecture.md) outlines the components,
 and the
@@ -19,7 +19,7 @@ whose source and documentation are in Git history.
 
 ## How it works
 
-Each entry in `.catalog.md` is a profile: a description of the
+Each entry in `.catalog/catalog.md` is a profile: a description of the
 conditions under which a file is relevant, the same idea as a skill's
 description field, which tells the harness when to load the skill. A
 profile says "open this file when the task involves X," not "this file
