@@ -26,6 +26,7 @@ const unreadable = "unreadable"
 // doesn't stop the others. Crawl returns an error only when the Store or the
 // journal fails.
 func (d *Daemon) Crawl(now time.Time) error {
+	d.lastCrawl = now
 	d.startCrawl()
 	defer d.endCrawl()
 	errs := []error{d.reloadGlobal(now)}

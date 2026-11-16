@@ -8,12 +8,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
-// stateDir points the state folder at a temp home and returns it.
+// stateDir points the state folder at a temp home and returns it. The home
+// is under /tmp because macOS limits a socket's path to 103 bytes, and the
+// socket's path under the default temporary folder would be longer.
 func stateDir(t *testing.T) string {
 	t.Helper()
-	home := t.TempDir()
+	home, err := os.MkdirTemp("/tmp", "cat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
 	t.Setenv("HOME", home)
 	return filepath.Join(home, "Library", "Application Support", "com.westarete.catalog")
 }
@@ -22,10 +29,17 @@ func runCatalog(args ...string) (int, string) {
 	return runCatalogIn(context.Background(), args...)
 }
 
+// runCatalogIn runs the command and returns its exit code and what it wrote
+// to stderr.
 func runCatalogIn(ctx context.Context, args ...string) (int, string) {
-	var stderr bytes.Buffer
-	code := run(ctx, args, &stderr)
-	return code, stderr.String()
+	code, _, stderr := runCatalogOut(ctx, args...)
+	return code, stderr
+}
+
+func runCatalogOut(ctx context.Context, args ...string) (code int, stdout, stderr string) {
+	var out, errOut bytes.Buffer
+	code = run(ctx, args, &out, &errOut)
+	return code, out.String(), errOut.String()
 }
 
 func TestOnceWithoutGlobalConfig(t *testing.T) {
@@ -67,14 +81,17 @@ func TestUsageErrors(t *testing.T) {
 	stateDir(t)
 	tests := [][]string{
 		nil,
-		{"status"},
+		{"bogus"},
+		{"status", "extra"},
 		{"daemon", "extra"},
 		{"daemon", "--once"},
 		{"daemon", "--once", "a", "b"},
 		{"daemon", "--bogus"},
 	}
+	// A stopped context makes a mistake that runs the daemon fail fast
+	// instead of running until the test times out.
 	for _, args := range tests {
-		code, out := runCatalog(args...)
+		code, out := runCatalogIn(stopped(), args...)
 		if code != 2 || out == "" {
 			t.Errorf("run(%q) = %d, %q; want 2 and a message", args, code, out)
 		}
@@ -125,13 +142,98 @@ func stopped() context.Context {
 	return ctx
 }
 
+// With no global.toml, the daemon keeps running, so launchd doesn't restart
+// it over and over, and it journals the problem for status to report.
 func TestDaemonWithoutGlobalConfig(t *testing.T) {
 	dir := stateDir(t)
 
 	code, out := runCatalogIn(stopped(), "daemon")
 
-	if code != 1 || !strings.Contains(out, filepath.Join(dir, "global.toml")) {
+	if code != 0 {
 		t.Errorf("code %d, output:\n%s", code, out)
+	}
+	journal, err := os.ReadFile(filepath.Join(dir, "journal.jsonl"))
+	if err != nil || !strings.Contains(string(journal), "config_error") {
+		t.Errorf("journal = %q, %v; want a config error", journal, err)
+	}
+}
+
+// If the daemon can't listen for status, it says so and goes on working.
+func TestDaemonWithoutSocket(t *testing.T) {
+	dir := stateDir(t)
+	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	if err := os.WriteFile(filepath.Join(dir, "control.sock"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, out := runCatalogIn(stopped(), "daemon")
+
+	if code != 0 || !strings.Contains(out, "control.sock") {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+}
+
+func TestStatusWhenDaemonIsNotRunning(t *testing.T) {
+	stateDir(t)
+
+	code, stdout, _ := runCatalogOut(context.Background(), "status")
+
+	if code == 0 || stdout != "The catalog daemon isn't running.\n" {
+		t.Errorf("code %d, stdout %q", code, stdout)
+	}
+}
+
+// Something at the socket's path that isn't a daemon is an error, not a
+// daemon that isn't running.
+func TestStatusWithBrokenSocket(t *testing.T) {
+	dir := stateDir(t)
+	writeGlobal(t, dir, "")
+	if err := os.WriteFile(filepath.Join(dir, "control.sock"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := runCatalogOut(context.Background(), "status")
+
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "control.sock") {
+		t.Errorf("code %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+}
+
+// A daemon started without global.toml answers status with the problem, and
+// removes its socket when it stops.
+func TestStatusOfRunningDaemon(t *testing.T) {
+	dir := stateDir(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	exited := make(chan int, 1)
+	go func() {
+		code, _ := runCatalogIn(ctx, "daemon")
+		exited <- code
+	}()
+
+	var stdout string
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var code int
+		code, stdout, _ = runCatalogOut(context.Background(), "status")
+		if code == 0 && strings.Contains(stdout, "global.toml") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status never reported global.toml; last: code %d\n%s", code, stdout)
+		}
+	}
+	cancel()
+
+	for _, want := range []string{"Config error: " + filepath.Join(dir, "global.toml") + ": not found", "Not summarizing:"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("status doesn't contain %q:\n%s", want, stdout)
+		}
+	}
+	if code := <-exited; code != 0 {
+		t.Errorf("daemon exited %d", code)
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "control.sock")); !os.IsNotExist(err) {
+		t.Errorf("socket after exit: %v", err)
 	}
 }
 

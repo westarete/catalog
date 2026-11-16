@@ -35,6 +35,7 @@ linters:
             - "!**/internal/publish/*.go"
             - "!**/internal/render/*.go"
             - "!**/internal/profiler/*.go"
+            - "!**/internal/control/*.go"
           allow:
             - westarete.com/catalog/internal/model$
           deny:
@@ -71,6 +72,13 @@ linters:
           deny:
             - pkg: westarete.com/catalog/internal
               desc: profiler may use only internal/model, internal/reader, and internal/models
+        control:
+          list-mode: lax
+          files:
+            - "**/internal/control/*.go"
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: control is shared by the daemon and the command, so it imports nothing internal
         command:
           list-mode: lax
           files:

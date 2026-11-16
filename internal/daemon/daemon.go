@@ -8,8 +8,10 @@ import (
 	"io/fs"
 	"log"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
+	"westarete.com/catalog/internal/control"
 	"westarete.com/catalog/internal/journal"
 	"westarete.com/catalog/internal/model"
 	"westarete.com/catalog/internal/models"
@@ -19,10 +21,12 @@ import (
 )
 
 // Daemon keeps the catalogs in the watched folders current. Only one
-// goroutine may use a Daemon at a time.
+// goroutine may use a Daemon at a time, except that any goroutine may call
+// Snapshot.
 type Daemon struct {
-	Global      settings.Global
-	Store       *store.Store
+	Global settings.Global
+	Store  *store.Store
+	// Provider summarizes files. While it's nil, Run doesn't summarize.
 	Provider    models.Provider
 	JournalPath string
 	// FS opens a folder for reading, given its absolute path.
@@ -51,9 +55,16 @@ type Daemon struct {
 	reported, carried map[problemKey]problem
 
 	// serviceFailures counts the service problems in a row; Run doesn't
-	// summarize until pausedUntil.
+	// summarize until pausedUntil. pauseReason is the latest problem's
+	// error, until the service answers again or the provider changes.
 	serviceFailures int
 	pausedUntil     time.Time
+	pauseReason     string
+
+	// started is when Run started, and lastCrawl when the last crawl began.
+	started, lastCrawl time.Time
+	// snapshot is the status Run published last, for Snapshot.
+	snapshot atomic.Pointer[control.Snapshot]
 }
 
 type globs struct{ enumerate, ignore []string }

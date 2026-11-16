@@ -260,50 +260,44 @@ func TestRunFollowsNewWatchFolder(t *testing.T) {
 	entry(t, catalogText(t, second), "a.md")
 }
 
+// An unparsable global.toml leaves the daemon on the last settings that
+// loaded. (One with no api_key is used: see TestRunWithoutAPIKey.)
 func TestRunKeepsLastGoodGlobal(t *testing.T) {
-	bad := map[string]string{
-		"garbage":    "enumerate = [[[",
-		"no api_key": "model = \"x\"\n",
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	writeFile(t, root, "b.txt", body("b"))
+	d, p := newDaemon(t, root)
+	useGlobal(t, d, p, root, `enumerate = ["**/*.md"]`)
+	step(t, d, start)
+	if err := os.WriteFile(d.GlobalPath, []byte("enumerate = [[["), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	for name, text := range bad {
-		t.Run(name, func(t *testing.T) {
-			root := t.TempDir()
-			makeCatalog(t, root)
-			writeFile(t, root, "a.md", body("a"))
-			writeFile(t, root, "b.txt", body("b"))
-			d, p := newDaemon(t, root)
-			useGlobal(t, d, p, root, `enumerate = ["**/*.md"]`)
-			step(t, d, start)
-			if err := os.WriteFile(d.GlobalPath, []byte(text), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			writeFile(t, root, "c.md", body("c"))
+	writeFile(t, root, "c.md", body("c"))
 
-			step(t, d, start.Add(time.Minute))
-			step(t, d, start.Add(2*time.Minute))
+	step(t, d, start.Add(time.Minute))
+	step(t, d, start.Add(2*time.Minute))
 
-			catalog := catalogText(t, root)
-			entry(t, catalog, "c.md")
-			if strings.Contains(catalog, "b.txt") {
-				t.Errorf("fell back to the defaults:\n%s", catalog)
-			}
-			if d.Global.APIKey != "key-1" || d.Global.Model != "claude-haiku-5-5" {
-				t.Errorf("global = %+v, want the last good one", d.Global)
-			}
-			events := eventsOfKind(t, d, journal.KindConfigError)
-			if len(events) != 1 || events[0].Dir != filepath.Dir(d.GlobalPath) || events[0].Rel != "global.toml" {
-				t.Fatalf("config errors = %+v, want one for global.toml", events)
-			}
-			if _, ok := d.ConfigErrors()[d.GlobalPath]; !ok {
-				t.Errorf("ConfigErrors = %v, want global.toml", d.ConfigErrors())
-			}
+	catalog := catalogText(t, root)
+	entry(t, catalog, "c.md")
+	if strings.Contains(catalog, "b.txt") {
+		t.Errorf("fell back to the defaults:\n%s", catalog)
+	}
+	if d.Global.APIKey != "key-1" || d.Global.Model != "claude-haiku-5-5" {
+		t.Errorf("global = %+v, want the last good one", d.Global)
+	}
+	events := eventsOfKind(t, d, journal.KindConfigError)
+	if len(events) != 1 || events[0].Dir != filepath.Dir(d.GlobalPath) || events[0].Rel != "global.toml" {
+		t.Fatalf("config errors = %+v, want one for global.toml", events)
+	}
+	if _, ok := d.ConfigErrors()[d.GlobalPath]; !ok {
+		t.Errorf("ConfigErrors = %v, want global.toml", d.ConfigErrors())
+	}
 
-			writeGlobal(t, d, root, `enumerate = ["**/*.md"]`)
-			step(t, d, start.Add(3*time.Minute))
-			if errs := d.ConfigErrors(); len(errs) != 0 {
-				t.Errorf("ConfigErrors after the fix = %v", errs)
-			}
-		})
+	writeGlobal(t, d, root, `enumerate = ["**/*.md"]`)
+	step(t, d, start.Add(3*time.Minute))
+	if errs := d.ConfigErrors(); len(errs) != 0 {
+		t.Errorf("ConfigErrors after the fix = %v", errs)
 	}
 }
 
