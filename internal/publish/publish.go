@@ -66,10 +66,14 @@ const privateMode = 0o600
 // removeLeftovers removes the temporary files in dir that an earlier
 // Publish left when its process was killed before the rename. If one can't
 // be removed, the next Publish tries again.
+// It matches only the names in dir against tempPattern, so characters such as
+// "[" or "*" in the catalog's own path aren't read as part of the pattern.
 func removeLeftovers(dir string) {
-	leftovers, _ := filepath.Glob(filepath.Join(dir, tempPattern))
-	for _, path := range leftovers {
-		_ = os.Remove(path)
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if ok, _ := filepath.Match(tempPattern, e.Name()); ok {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
 	}
 }
 

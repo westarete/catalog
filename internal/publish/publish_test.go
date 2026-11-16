@@ -137,7 +137,21 @@ func TestWriteAndCloseReportsWriteError(t *testing.T) {
 // A process killed between writing its temporary file and renaming it
 // leaves the file behind; the next publish removes it and nothing else.
 func TestPublishRemovesLeftoverTempFiles(t *testing.T) {
-	dir := catalogDirWithDot(t)
+	for _, folder := range []string{"plain", "drafts [old] *?"} {
+		t.Run(folder, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), folder)
+			if err := os.MkdirAll(filepath.Join(dir, ".catalog"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			assertLeftoversRemoved(t, dir)
+		})
+	}
+}
+
+// assertLeftoversRemoved checks that publishing in dir removes temporary
+// files an earlier publish left behind, and nothing else.
+func assertLeftoversRemoved(t *testing.T, dir string) {
+	t.Helper()
 	dot := filepath.Join(dir, ".catalog")
 	for _, name := range []string{"catalog-123.tmp", "catalog-456.tmp", "config.toml", "notes.tmp"} {
 		if err := os.WriteFile(filepath.Join(dot, name), []byte("x"), 0o644); err != nil {
