@@ -611,3 +611,22 @@ func TestRunPauseCountsFromTick(t *testing.T) {
 		t.Errorf("journal = %v, want [pause resume]", got)
 	}
 }
+
+func TestRunPausesOnThirdRejectionInARow(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	d, p := newDaemon(t, root)
+	for _, name := range []string{"a", "b", "c"} {
+		writeFile(t, root, name+".md", body(name))
+		p.fail[name] = apiError(400)
+	}
+	step(t, d, start)
+	step(t, d, start.Add(quiet))
+
+	if got := kinds(t, d, journal.KindPause, journal.KindFailure); fmt.Sprint(got) != "[failure failure pause]" {
+		t.Errorf("journal = %v, want [failure failure pause]", got)
+	}
+	if s := d.Snapshot(); !s.PausedUntil.Equal(start.Add(quiet+time.Minute)) {
+		t.Errorf("paused until %v, want %v", s.PausedUntil, start.Add(quiet+time.Minute))
+	}
+}

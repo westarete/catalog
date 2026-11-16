@@ -82,6 +82,9 @@ func (d *Daemon) crawlCatalog(now time.Time, dir string, nested []string) error 
 	if err := d.Store.SetFiles(dir, states); err != nil {
 		return errors.Join(configErr, unreadableErr, err)
 	}
+	if err := d.forgetOldFailures(dir, prev, states); err != nil {
+		return errors.Join(configErr, unreadableErr, err)
+	}
 	d.crawled = append(d.crawled, dir)
 	return errors.Join(configErr, unreadableErr, d.publishCatalog(now, dir))
 }
@@ -119,6 +122,21 @@ func (d *Daemon) reportUnreadable(now time.Time, dir string, members []string, s
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// forgetOldFailures clears the failure of each file whose content is new
+// since the last crawl. The failure belonged to the old content, so the new
+// content waits only for the quiet period.
+func (d *Daemon) forgetOldFailures(dir string, prev map[string]model.FileState, states []model.FileState) error {
+	for _, s := range states {
+		if prev[s.Rel].Hash == s.Hash {
+			continue
+		}
+		if err := d.Store.ClearFailure(dir, s.Rel); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // nestedUnder returns the catalogs in found that sit below catalog, as paths

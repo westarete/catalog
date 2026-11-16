@@ -14,6 +14,7 @@ import (
 	"westarete.com/catalog/internal/journal"
 	"westarete.com/catalog/internal/models"
 	"westarete.com/catalog/internal/profiler"
+	"westarete.com/catalog/internal/store"
 )
 
 func TestOnceProducesCatalog(t *testing.T) {
@@ -691,5 +692,147 @@ func TestFailedFileWaitsForRetry(t *testing.T) {
 	}
 	if f, _, _ := d.Store.Failure(root, "alpha.md"); f.Count != 1 {
 		t.Errorf("failure count = %d, want 1", f.Count)
+	}
+}
+
+// A failure belongs to the content that failed. When a file changes, the
+// new content waits only for the quiet period, not for the old backoff; a
+// file that didn't change keeps its failure.
+func TestChangedFileForgetsFailure(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		writeFile(t, root, name+".md", body(name))
+	}
+	d, p := newDaemon(t, root)
+	crawl(t, d, start)
+	for _, rel := range []string{"alpha.md", "beta.md", "gamma.md"} {
+		err := d.Store.RecordFailure(root, rel, store.Failure{Count: 9, LastError: "bad", RetryAt: start.Add(6 * time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	changed := start.Add(time.Minute)
+	writeFile(t, root, "alpha.md", body("alpha")+"more\n")
+	writeFile(t, root, "beta.md", body("beta")+"more\n")
+	crawl(t, d, changed)
+
+	later := changed.Add(3 * time.Minute)
+	for work(t, d, later, false) {
+	}
+	if p.calls() != 2 {
+		t.Errorf("provider calls = %d, want 2", p.calls())
+	}
+	for _, rel := range []string{"alpha.md", "beta.md"} {
+		if _, ok, _ := d.Store.Failure(root, rel); ok {
+			t.Errorf("failure still recorded for changed %s", rel)
+		}
+	}
+	if _, ok, _ := d.Store.Failure(root, "gamma.md"); !ok {
+		t.Error("crawl forgot the failure of unchanged gamma.md")
+	}
+}
+
+func isServiceError(err error) bool {
+	_, ok := errors.AsType[*serviceError](err)
+	return ok
+}
+
+// workErr runs Work with ignoreQuiet and returns its error.
+func workErr(t *testing.T, d *Daemon, now time.Time) (bool, error) {
+	t.Helper()
+	return d.Work(context.Background(), now, true)
+}
+
+// The API answers 400 when the account reaches a spend limit, which looks
+// like a bad file. Three different files rejected in a row look like that, so
+// the third is treated as a service problem and charged nothing.
+func TestThirdRejectionInARowIsAServiceProblem(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	d, p := newDaemon(t, root)
+	for _, name := range []string{"a", "b", "c"} {
+		writeFile(t, root, name+".md", body(name))
+		p.fail[name] = apiError(400)
+	}
+	crawl(t, d, start)
+
+	for _, rel := range []string{"a.md", "b.md"} {
+		if did, err := workErr(t, d, start); !did || err != nil {
+			t.Fatalf("Work on %s = %v, %v; want a file failure", rel, did, err)
+		}
+	}
+	did, err := workErr(t, d, start)
+	if did || !isServiceError(err) {
+		t.Fatalf("third Work = %v, %v; want a service error", did, err)
+	}
+	for rel, want := range map[string]bool{"a.md": true, "b.md": true, "c.md": false} {
+		if _, ok, _ := d.Store.Failure(root, rel); ok != want {
+			t.Errorf("failure for %s recorded = %v, want %v", rel, ok, want)
+		}
+	}
+	if n := len(eventsOfKind(t, d, journal.KindFailure)); n != 2 {
+		t.Errorf("failure events = %d, want 2", n)
+	}
+
+	// The pause starts the count again, so a file the model keeps rejecting
+	// is charged and can't hold up the others for good.
+	if did, err := workErr(t, d, start); !did || err != nil {
+		t.Errorf("Work after the pause = %v, %v; want a file failure", did, err)
+	}
+	if _, ok, _ := d.Store.Failure(root, "c.md"); !ok {
+		t.Error("c.md not charged after the pause")
+	}
+}
+
+func TestSuccessEndsARunOfRejections(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	d, p := newDaemon(t, root)
+	for _, name := range []string{"a", "b", "c", "d"} {
+		writeFile(t, root, name+".md", body(name))
+		if name != "b" {
+			p.fail[name] = apiError(400)
+		}
+	}
+	crawl(t, d, start)
+
+	for range 4 {
+		if did, err := workErr(t, d, start); !did || err != nil {
+			t.Fatalf("Work = %v, %v; want it to go on", did, err)
+		}
+	}
+}
+
+// A file rejected twice is one file, not two.
+func TestRejectionsInARowCountDifferentFiles(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	d, p := newDaemon(t, root)
+	for _, name := range []string{"a", "b", "c"} {
+		p.fail[name] = apiError(400)
+	}
+	writeFile(t, root, "a.md", body("a"))
+	crawl(t, d, start)
+	if did, err := workErr(t, d, start); !did || err != nil {
+		t.Fatalf("first Work = %v, %v", did, err)
+	}
+	retry := start.Add(time.Minute)
+	writeFile(t, root, "b.md", body("b"))
+	crawl(t, d, retry)
+	for range 2 {
+		if did, err := workErr(t, d, retry); !did || err != nil {
+			t.Fatalf("Work = %v, %v; want a file failure", did, err)
+		}
+	}
+	if f, _, _ := d.Store.Failure(root, "a.md"); f.Count != 2 {
+		t.Fatalf("a.md failure count = %d, want 2", f.Count)
+	}
+
+	writeFile(t, root, "c.md", body("c"))
+	crawl(t, d, retry)
+	if _, err := workErr(t, d, retry); !isServiceError(err) {
+		t.Errorf("Work on the third file = %v, want a service error", err)
 	}
 }

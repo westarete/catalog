@@ -25,7 +25,9 @@ import (
 //
 // When the model rejects the file, Work records a failure, so the file waits
 // before it's tried again, and journals it. When the service fails, Work
-// returns the error and charges no file. With ignoreQuiet, files that changed
+// returns the error and charges no file; the model rejecting several
+// different files in a row counts as the service failing (see
+// suspectService). With ignoreQuiet, files that changed
 // recently are summarized without waiting for them to settle.
 func (d *Daemon) Work(ctx context.Context, now time.Time, ignoreQuiet bool) (did bool, err error) {
 	cs, err := d.candidates(ignoreQuiet)
@@ -109,13 +111,40 @@ func (d *Daemon) summarize(ctx context.Context, now time.Time, c planner.Candida
 	}
 	began := time.Now()
 	text, resp, err := profiler.Profile(ctx, d.Provider, c.Rel, reader.Read(c.Rel, data), neighbors)
+	path := filepath.Join(c.Dir, c.Rel)
 	if err != nil {
 		if models.Classify(err) == models.ServiceProblem {
-			return false, &serviceError{fmt.Errorf("summarize %s: %w", filepath.Join(c.Dir, c.Rel), err)}
+			return false, &serviceError{fmt.Errorf("summarize %s: %w", path, err)}
+		}
+		if d.suspectService(c) {
+			return false, &serviceError{fmt.Errorf("summarize %s: %d files rejected in a row, as when the account reaches a spend limit: %w", path, rejectionsInARow, err)}
 		}
 		return true, d.recordFailure(now, c, err)
 	}
+	d.rejected = nil
 	return true, d.recordSummary(now, c, text, resp, time.Since(began))
+}
+
+// rejectionsInARow is how many different files the model may reject in a
+// row before the daemon blames the service instead.
+const rejectionsInARow = 3
+
+// suspectService notes that the model rejected c's file and reports whether
+// that makes rejectionsInARow different files with no summary between them.
+// The API rejects every request with a 400 once the account reaches a spend
+// limit, just as it rejects a bad file, so a run of rejections more likely
+// means the service. The count then starts again, so a file the model keeps
+// rejecting is charged after the pause and can't hold up the others for good.
+func (d *Daemon) suspectService(c planner.Candidate) bool {
+	if d.rejected == nil {
+		d.rejected = map[fileKey]bool{}
+	}
+	d.rejected[fileKey{c.Dir, c.Rel}] = true
+	if len(d.rejected) < rejectionsInARow {
+		return false
+	}
+	d.rejected = nil
+	return true
 }
 
 // serviceError is a failure of the model service rather than of a file. Work

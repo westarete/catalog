@@ -54,6 +54,10 @@ type Daemon struct {
 	// that persists from one crawl to the next is journaled only once.
 	reported, carried map[problemKey]problem
 
+	// rejected holds the different files the model has rejected since it
+	// last wrote a summary; see suspectService.
+	rejected map[fileKey]bool
+
 	// serviceFailures counts the service problems in a row; Run doesn't
 	// summarize until pausedUntil. pauseReason is the latest problem's
 	// error, until the service answers again or the provider changes.
