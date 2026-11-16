@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -130,5 +131,30 @@ func TestWriteAndCloseReportsWriteError(t *testing.T) {
 	}
 	if err := writeAndClose(f, "x"); err == nil {
 		t.Error("want an error writing to a read-only file")
+	}
+}
+
+// A process killed between writing its temporary file and renaming it
+// leaves the file behind; the next publish removes it and nothing else.
+func TestPublishRemovesLeftoverTempFiles(t *testing.T) {
+	dir := catalogDirWithDot(t)
+	dot := filepath.Join(dir, ".catalog")
+	for _, name := range []string{"catalog-123.tmp", "catalog-456.tmp", "config.toml", "notes.tmp"} {
+		if err := os.WriteFile(filepath.Join(dot, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := Publish(dir, "text\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	var names []string
+	entries, _ := os.ReadDir(dot)
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	if fmt.Sprint(names) != "[catalog.md config.toml notes.tmp]" {
+		t.Errorf("entries = %v, want [catalog.md config.toml notes.tmp]", names)
 	}
 }

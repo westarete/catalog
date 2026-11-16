@@ -10,7 +10,8 @@ import (
 // Publish writes text to <catalogDir>/.catalog/catalog.md and reports whether
 // the file changed. It writes through a temporary file in .catalog/ and
 // renames it into place, so readers never see a partial file. If the file
-// already holds text, Publish writes nothing. It never creates .catalog/.
+// already holds text, Publish writes nothing. Before writing, it removes any
+// temporary file an earlier Publish left behind. It never creates .catalog/.
 func Publish(catalogDir, text string) (changed bool, err error) {
 	dir := filepath.Join(catalogDir, ".catalog")
 	target := filepath.Join(dir, "catalog.md")
@@ -19,7 +20,8 @@ func Publish(catalogDir, text string) (changed bool, err error) {
 		return false, nil
 	}
 
-	tmp, err := os.CreateTemp(dir, "catalog-*.tmp")
+	removeLeftovers(dir)
+	tmp, err := os.CreateTemp(dir, tempPattern)
 	if err != nil {
 		return false, err
 	}
@@ -37,6 +39,19 @@ func Publish(catalogDir, text string) (changed bool, err error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// tempPattern names the temporary files Publish writes in .catalog/.
+const tempPattern = "catalog-*.tmp"
+
+// removeLeftovers removes the temporary files in dir that an earlier
+// Publish left when its process was killed before the rename. If one can't
+// be removed, the next Publish tries again.
+func removeLeftovers(dir string) {
+	leftovers, _ := filepath.Glob(filepath.Join(dir, tempPattern))
+	for _, path := range leftovers {
+		_ = os.Remove(path)
+	}
 }
 
 func writeAndClose(f *os.File, text string) error {
