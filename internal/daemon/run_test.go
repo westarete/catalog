@@ -626,7 +626,7 @@ func TestRunPausesOnThirdRejectionInARow(t *testing.T) {
 	if got := kinds(t, d, journal.KindPause, journal.KindFailure); fmt.Sprint(got) != "[failure failure pause]" {
 		t.Errorf("journal = %v, want [failure failure pause]", got)
 	}
-	if s := d.Snapshot(); !s.PausedUntil.Equal(start.Add(quiet+time.Minute)) {
+	if s := d.Snapshot(); !s.PausedUntil.Equal(start.Add(quiet + time.Minute)) {
 		t.Errorf("paused until %v, want %v", s.PausedUntil, start.Add(quiet+time.Minute))
 	}
 }

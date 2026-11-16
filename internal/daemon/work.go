@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/fs"
 	"path/filepath"
 	"time"
@@ -52,6 +53,9 @@ func (d *Daemon) candidates(ignoreQuiet bool) ([]planner.Candidate, error) {
 			return nil, err
 		}
 		for _, f := range files {
+			if !sendable(f) {
+				continue
+			}
 			c, err := d.candidate(dir, f)
 			if err != nil {
 				return nil, err
@@ -63,6 +67,19 @@ func (d *Daemon) candidates(ignoreQuiet bool) ([]planner.Candidate, error) {
 		}
 	}
 	return cs, nil
+}
+
+// maxPDFBytes is the largest PDF the daemon sends. The API takes a request
+// of at most 128 MB, and base64 makes a PDF a third bigger
+// (https://platform.claude.com/docs/en/build-with-claude/pdf-support). The
+// API checks the page count itself.
+const maxPDFBytes = 95_000_000
+
+// sendable reports whether the model can read the file the crawl recorded as
+// f. An empty PDF has nothing to read, and a PDF over maxPDFBytes is too big
+// to send; both stay listings until the file changes.
+func sendable(f model.FileState) bool {
+	return !isPDF(f.Rel) || (f.Size > 0 && f.Size <= maxPDFBytes)
 }
 
 func (d *Daemon) candidate(dir string, f model.FileState) (planner.Candidate, error) {
@@ -79,24 +96,52 @@ func (d *Daemon) candidate(dir string, f model.FileState) (planner.Candidate, er
 	return c, err
 }
 
-// readUnchanged returns the file's bytes if they still have the hash the
-// crawl recorded. If not, it marks the file to wait for the next crawl.
+// readUnchanged returns what the model reads of the file, if the file still
+// has the hash the crawl recorded. If not, it marks the file to wait for the
+// next crawl.
 func (d *Daemon) readUnchanged(c planner.Candidate) ([]byte, bool) {
 	k := fileKey{c.Dir, c.Rel}
 	if d.changed[k] {
 		return nil, false
 	}
-	data, err := fs.ReadFile(d.FS(c.Dir), c.Rel)
-	if err != nil || hashOf(data) != c.Hash {
+	data, hash, err := readAndHash(d.FS(c.Dir), c.Rel, bytesSent(c.Rel))
+	if err != nil || hash != c.Hash {
 		d.changed[k] = true
 		return nil, false
 	}
 	return data, true
 }
 
-func hashOf(data []byte) model.Hash {
-	sum := sha256.Sum256(data)
-	return model.Hash(hex.EncodeToString(sum[:]))
+// textBytesSent is how much of a text file the model reads: the reader cuts
+// text at 400,000 bytes, and one byte more tells it the text was longer.
+const textBytesSent = 400_000 + 1
+
+// bytesSent is how much of the file at rel the model reads.
+func bytesSent(rel string) int64 {
+	if isPDF(rel) {
+		return maxPDFBytes
+	}
+	return textBytesSent
+}
+
+// readAndHash returns up to keep bytes from the start of the file at rel and
+// the hash of the whole file, reading it once, so a large file never sits in
+// memory whole.
+func readAndHash(folder fs.FS, rel string, keep int64) ([]byte, model.Hash, error) {
+	f, err := folder.Open(rel)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	data, err := io.ReadAll(io.TeeReader(io.LimitReader(f, keep), h))
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := io.Copy(h, f); err != nil {
+		return nil, "", err
+	}
+	return data, model.Hash(hex.EncodeToString(h.Sum(nil))), nil
 }
 
 // summarize profiles one file and stores, journals, and publishes the result.

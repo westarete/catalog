@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -85,8 +86,9 @@ func (d *Daemon) crawlCatalog(now time.Time, dir string, nested []string) error 
 	if err := d.forgetOldFailures(dir, prev, states); err != nil {
 		return errors.Join(configErr, unreadableErr, err)
 	}
+	tooLargeErr := d.reportTooLarge(now, dir, states)
 	d.crawled = append(d.crawled, dir)
-	return errors.Join(configErr, unreadableErr, d.publishCatalog(now, dir))
+	return errors.Join(configErr, unreadableErr, tooLargeErr, d.publishCatalog(now, dir))
 }
 
 // catalogGlobs returns the globs for the catalog in dir. If its config.toml
@@ -119,6 +121,19 @@ func (d *Daemon) reportUnreadable(now time.Time, dir string, members []string, s
 	for _, rel := range members {
 		if !scanned[rel] {
 			errs = append(errs, d.report(failureEvent(now, dir, rel, unreadable)))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// reportTooLarge journals each PDF too big to send to the model. Work never
+// sends it, so it stays a listing until the file changes.
+func (d *Daemon) reportTooLarge(now time.Time, dir string, states []model.FileState) error {
+	var errs []error
+	for _, s := range states {
+		if isPDF(s.Rel) && s.Size > maxPDFBytes {
+			msg := fmt.Sprintf("PDF is %d bytes, more than the %d the daemon sends to the model; it stays listed without a summary", s.Size, maxPDFBytes)
+			errs = append(errs, d.report(failureEvent(now, dir, s.Rel, msg)))
 		}
 	}
 	return errors.Join(errs...)

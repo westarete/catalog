@@ -1,9 +1,13 @@
 package watcher
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"io"
 	"io/fs"
 	"reflect"
+	"runtime"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -176,4 +180,62 @@ func rels(states []model.FileState) []string {
 		out[i] = s.Rel
 	}
 	return out
+}
+
+// Scan hashes a file as it reads it, so even a large file costs little
+// memory.
+func TestScanStreamsLargeFile(t *testing.T) {
+	const size = 64 << 20
+	catalog := zerosFS{size: size}
+	want := sha256.New()
+	if _, err := io.Copy(want, io.LimitReader(zeros{}, size)); err != nil {
+		t.Fatal(err)
+	}
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	got := Scan(catalog, []string{"big.csv"}, nil, now)
+	runtime.ReadMemStats(&after)
+
+	if len(got) != 1 || got[0].Hash != model.Hash(hex.EncodeToString(want.Sum(nil))) || got[0].Size != size {
+		t.Fatalf("Scan() = %+v", got)
+	}
+	if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 1<<20 {
+		t.Errorf("Scan allocated %d bytes for a %d-byte file", alloc, size)
+	}
+}
+
+// zerosFS holds one file, big.csv, of size zero bytes, made up as it's read.
+type zerosFS struct{ size int64 }
+
+func (z zerosFS) Open(name string) (fs.File, error) {
+	if name != "big.csv" {
+		return nil, fs.ErrNotExist
+	}
+	return &zerosFile{size: z.size, r: io.LimitReader(zeros{}, z.size)}, nil
+}
+
+type zerosFile struct {
+	size int64
+	r    io.Reader
+}
+
+func (f *zerosFile) Read(p []byte) (int, error) { return f.r.Read(p) }
+func (f *zerosFile) Close() error               { return nil }
+func (f *zerosFile) Stat() (fs.FileInfo, error) { return zerosInfo{f.size}, nil }
+
+type zerosInfo struct{ size int64 }
+
+func (zerosInfo) Name() string       { return "big.csv" }
+func (i zerosInfo) Size() int64      { return i.size }
+func (zerosInfo) Mode() fs.FileMode  { return 0o644 }
+func (zerosInfo) ModTime() time.Time { return modTime }
+func (zerosInfo) IsDir() bool        { return false }
+func (zerosInfo) Sys() any           { return nil }
+
+type zeros struct{}
+
+func (zeros) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
 }

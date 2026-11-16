@@ -50,10 +50,11 @@ func (p *anthropicProvider) Complete(ctx context.Context, req Request) (Response
 	}, nil
 }
 
-// contentBlocks puts the PDF, if any, before the text, as today's tool did.
+// contentBlocks puts the PDF, if it has any bytes, before the text, as
+// today's tool did.
 func contentBlocks(req Request) []anthropic.ContentBlockParamUnion {
 	var blocks []anthropic.ContentBlockParamUnion
-	if req.PDF != nil {
+	if len(req.PDF) > 0 {
 		blocks = append(blocks, anthropic.NewDocumentBlock(anthropic.Base64PDFSourceParam{
 			Data: base64.StdEncoding.EncodeToString(req.PDF),
 		}))

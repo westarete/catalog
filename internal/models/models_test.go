@@ -30,3 +30,14 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+// An empty PDF would be a document block the API rejects, so none is sent.
+func TestContentBlocksSkipEmptyPDF(t *testing.T) {
+	blocks := contentBlocks(Request{PDF: []byte{}, Text: "hello"})
+	if len(blocks) != 1 || blocks[0].OfText == nil {
+		t.Errorf("blocks = %+v, want only the text", blocks)
+	}
+	if blocks := contentBlocks(Request{PDF: []byte("%PDF"), Text: "hello"}); len(blocks) != 2 || blocks[0].OfDocument == nil {
+		t.Errorf("blocks = %+v, want the document, then the text", blocks)
+	}
+}

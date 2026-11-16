@@ -60,13 +60,18 @@ const listingPrefix = 4096
 // nothing. If the file can't be read now, the listing has no first lines.
 func listing(folder fs.FS, f model.FileState) reader.Listing {
 	var start []byte
-	// reader decides what counts as a PDF; reading no bytes costs nothing.
-	if !reader.Read(f.Rel, nil).PDF {
+	if !isPDF(f.Rel) {
 		start = readPrefix(folder, f.Rel)
 	}
 	l := reader.List(f.Rel, start)
 	l.Size = f.Size
 	return l
+}
+
+// isPDF reports whether the file at rel is a PDF. reader decides what counts
+// as one; reading no bytes costs nothing.
+func isPDF(rel string) bool {
+	return reader.Read(rel, nil).PDF
 }
 
 // readPrefix returns up to listingPrefix bytes from the start of the file at

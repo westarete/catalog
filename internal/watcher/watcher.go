@@ -5,6 +5,7 @@ package watcher
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"io/fs"
 	"time"
 
@@ -35,18 +36,32 @@ func scanFile(catalog fs.FS, rel string, prev map[string]model.FileState, now ti
 	if old, ok := prev[rel]; ok && unchanged(old, info) {
 		return old, true
 	}
-	data, err := fs.ReadFile(catalog, rel)
+	hash, err := hashFile(catalog, rel)
 	if err != nil {
 		return model.FileState{}, false
 	}
-	sum := sha256.Sum256(data)
 	return model.FileState{
 		Rel:       rel,
 		Size:      info.Size(),
 		ModTime:   info.ModTime(),
-		Hash:      model.Hash(hex.EncodeToString(sum[:])),
+		Hash:      hash,
 		ChangedAt: now,
 	}, true
+}
+
+// hashFile hashes the file at rel as it reads it, so a large file never sits
+// in memory whole.
+func hashFile(catalog fs.FS, rel string) (model.Hash, error) {
+	f, err := catalog.Open(rel)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return model.Hash(hex.EncodeToString(h.Sum(nil))), nil
 }
 
 func unchanged(old model.FileState, info fs.FileInfo) bool {
