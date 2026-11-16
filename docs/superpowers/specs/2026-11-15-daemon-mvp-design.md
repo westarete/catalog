@@ -306,8 +306,8 @@ of every other file in the same catalog as neighbors.
 A summary is meant to tell a file apart from its neighbors, but the
 model can only see neighbors that already have summaries. On a catalog's
 first run, the files summarized first see few or none. Today's
-`bootstrap` command solves this with a second pass over every file. The
-daemon does it without a command. If another file in the catalog was
+`bootstrap` command addresses this with a second pass over every file.
+The daemon does it without a command. If another file in the catalog was
 still waiting for its first summary when the daemon summarized a file's
 content for the first time, the daemon marks that summary as partial in
 its recipe. A changed file counts the same as a new one, since the model
@@ -340,6 +340,21 @@ daemon doesn't send, or a file with a failure on record. Otherwise, once
 the model rejects one file, every new file in that catalog would cost
 two calls. A file summarized earlier still won't point to a
 near-duplicate that arrives later, as with today's `update`. (Our call.)
+
+A second pass gives the model a chance to tell a file apart from
+neighbors it couldn't see; it doesn't guarantee it will. In the first
+run with it, one entry gained a pointer to a related file it had missed,
+and another still didn't mention a related file it had seen. Whether
+that is worth about twice the calls and more than twice the tokens for a
+new catalog is open; we'll judge it by whether agents find the right
+files.
+
+How much an entry should say about related documents is also open. A
+pointer adds words to every request and to every agent's context, and
+keeping pointers current would mean redoing older entries when new files
+arrive. Documents, file names, and Git already record some of these
+relationships, but not all of them. For now the prompt allows a pointer
+only between near-duplicates an agent could confuse.
 
 The Profiler starts with today's `profileInstruction`, unchanged
 ([generate.go](https://github.com/westarete/catalog/blob/d9a8d1b3a9dd6826224bda2068a5422b37f8bce9/generate.go)).
