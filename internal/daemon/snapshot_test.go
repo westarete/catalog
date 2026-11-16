@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"westarete.com/catalog/internal/control"
+	"westarete.com/catalog/internal/journal"
 	"westarete.com/catalog/internal/models"
 	"westarete.com/catalog/internal/settings"
 )
@@ -204,6 +205,35 @@ func TestSnapshotShowsPause(t *testing.T) {
 	}
 }
 
+// Once a pause has passed, status stops showing it, even if no file is ready
+// to summarize. The next success still journals the resume.
+func TestSnapshotClearsPauseWhenItEnds(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	p.fail["a"] = apiError(529)
+	step(t, d, start)
+	at := start.Add(quiet)
+	step(t, d, at)
+	delete(p.fail, "a")
+	if err := os.Remove(filepath.Join(root, "a.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	step(t, d, at.Add(time.Minute))
+
+	if s := d.Snapshot(); s.PauseReason != "" || !s.PausedUntil.IsZero() {
+		t.Errorf("after the pause: paused until %v for %q, want no pause", s.PausedUntil, s.PauseReason)
+	}
+	writeFile(t, root, "b.md", body("b"))
+	step(t, d, at.Add(2*time.Minute))
+	step(t, d, at.Add(2*time.Minute+quiet))
+	if got := kinds(t, d, journal.KindPause, journal.KindResume); fmt.Sprint(got) != "[pause resume]" {
+		t.Errorf("journal = %v, want [pause resume]", got)
+	}
+}
+
 // A new API key ends a pause, so status stops showing it before the daemon
 // tries the new key.
 func TestSnapshotClearsPauseOnNewKey(t *testing.T) {
@@ -339,9 +369,12 @@ func TestSnapshotBeforeRun(t *testing.T) {
 }
 
 // Run publishes a snapshot as soon as it starts, before its first crawl ends.
+// That snapshot doesn't blame a missing API key, since global.toml hasn't
+// been read yet.
 func TestRunPublishesStartAtOnce(t *testing.T) {
 	root := t.TempDir()
 	d, _ := newDaemon(t, root)
+	d.Provider = nil
 	var seen control.Snapshot
 	fsys := d.FS
 	d.FS = func(dir string) fs.FS {
@@ -351,8 +384,11 @@ func TestRunPublishesStartAtOnce(t *testing.T) {
 
 	step(t, d, start)
 
-	if !seen.Started.Equal(start) || !seen.LastCrawl.IsZero() {
-		t.Errorf("snapshot during the first crawl = %+v, want started at %v and no crawl", seen, start)
+	if !seen.Started.Equal(start) || !seen.LastCrawl.IsZero() || seen.PauseReason != "" {
+		t.Errorf("snapshot during the first crawl = %+v, want started at %v, no crawl, and no pause", seen, start)
+	}
+	if s := d.Snapshot(); s.PauseReason == "" {
+		t.Errorf("snapshot after the first crawl = %+v, want the missing key", s)
 	}
 }
 

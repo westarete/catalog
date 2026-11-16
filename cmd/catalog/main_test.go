@@ -194,7 +194,7 @@ func TestStatusWithBrokenSocket(t *testing.T) {
 
 	code, stdout, stderr := runCatalogOut(context.Background(), "status")
 
-	if code != 1 || stdout != "" || !strings.Contains(stderr, "control.sock") {
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "control.sock is not a socket") {
 		t.Errorf("code %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
 }

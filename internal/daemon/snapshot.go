@@ -42,7 +42,9 @@ func (d *Daemon) status() (control.Snapshot, error) {
 		PauseReason:  d.pauseReason,
 		Failing:      d.reportedFailures(),
 	}
-	if d.Provider == nil {
+	// Before the first crawl, global.toml hasn't been read, so the missing
+	// Provider says nothing yet.
+	if d.Provider == nil && !d.lastCrawl.IsZero() {
 		s.PauseReason = noProvider
 	}
 	for _, dir := range d.crawled {

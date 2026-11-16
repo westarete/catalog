@@ -13,11 +13,12 @@ const timeLayout = "Jan 2 15:04"
 // Format describes s in plain lines for a person to read.
 func Format(s Snapshot) string {
 	var b strings.Builder
-	crawled := "hasn't crawled yet"
-	if !s.LastCrawl.IsZero() {
-		crawled = "last crawled " + when(s.LastCrawl)
+	if s.LastCrawl.IsZero() {
+		// Until the first crawl ends, the daemon knows nothing to report.
+		fmt.Fprintf(&b, "%s; the first crawl is under way.\n", startLine(s.Started))
+		return b.String()
 	}
-	fmt.Fprintf(&b, "Started %s; %s.\n", when(s.Started), crawled)
+	fmt.Fprintf(&b, "%s; last crawled %s.\n", startLine(s.Started), when(s.LastCrawl))
 	for _, e := range s.ConfigErrors {
 		fmt.Fprintf(&b, "Config error: %s\n", e)
 	}
@@ -27,6 +28,15 @@ func Format(s Snapshot) string {
 	writeCatalogs(&b, s.Catalogs)
 	writeFailing(&b, s.Failing)
 	return b.String()
+}
+
+// startLine says when the daemon started, or that it's starting if it
+// hasn't published a start time yet.
+func startLine(started time.Time) string {
+	if started.IsZero() {
+		return "Starting"
+	}
+	return "Started " + when(started)
 }
 
 // pauseLine says why summarizing is paused, and until when if it will

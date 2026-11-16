@@ -147,9 +147,9 @@ func TestAskRefused(t *testing.T) {
 	}
 }
 
-// A socket that isn't a daemon's, such as a regular file, is an error but
-// not "isn't running".
-func TestAskOtherError(t *testing.T) {
+// A file at the socket's path that isn't a socket is ErrNotSocket, not a
+// daemon that isn't running, on every OS.
+func TestAskNotASocket(t *testing.T) {
 	path := socketPath(t)
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
 		t.Fatal(err)
@@ -157,8 +157,26 @@ func TestAskOtherError(t *testing.T) {
 
 	_, err := Ask(path)
 
-	if err == nil || errors.Is(err, ErrNotRunning) {
-		t.Errorf("Ask = %v, want an error other than ErrNotRunning", err)
+	if !errors.Is(err, ErrNotSocket) || errors.Is(err, ErrNotRunning) {
+		t.Errorf("Ask = %v, want ErrNotSocket", err)
+	}
+}
+
+// Ask can't tell whether a daemon is running if it can't look at the path.
+func TestAskCantCheckSocket(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permission tests don't work as root")
+	}
+	locked := filepath.Join(filepath.Dir(socketPath(t)), "locked")
+	if err := os.Mkdir(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	_, err := Ask(filepath.Join(locked, "control.sock"))
+
+	if err == nil || errors.Is(err, ErrNotRunning) || errors.Is(err, ErrNotSocket) {
+		t.Errorf("Ask = %v, want a permission error", err)
 	}
 }
 
@@ -202,8 +220,8 @@ func TestServeKeepsRegularFile(t *testing.T) {
 
 	err := Serve(context.Background(), path, fixed(sample()))
 
-	if err == nil {
-		t.Fatal("Serve = nil, want an error")
+	if !errors.Is(err, ErrNotSocket) {
+		t.Fatalf("Serve = %v, want ErrNotSocket", err)
 	}
 	if data, _ := os.ReadFile(path); string(data) != "keep" {
 		t.Errorf("file now holds %q", data)
@@ -303,12 +321,31 @@ func TestFormat(t *testing.T) {
 	}
 }
 
-func TestFormatQuietDaemon(t *testing.T) {
+// Until the first crawl ends, status says only that the daemon is starting,
+// not that it found no catalogs.
+func TestFormatBeforeFirstCrawl(t *testing.T) {
+	useLocal(t, time.UTC)
+	tests := map[string]struct {
+		s    Snapshot
+		want string
+	}{
+		"started":        {Snapshot{Started: started}, "Started Nov 15 09:00; the first crawl is under way.\n"},
+		"not yet":        {Snapshot{}, "Starting; the first crawl is under way.\n"},
+		"with a problem": {Snapshot{PauseReason: "x", ConfigErrors: []string{"y"}}, "Starting; the first crawl is under way.\n"},
+	}
+	for name, tt := range tests {
+		if got := Format(tt.s); got != tt.want {
+			t.Errorf("%s: Format =\n%q\nwant\n%q", name, got, tt.want)
+		}
+	}
+}
+
+func TestFormatNoCatalogs(t *testing.T) {
 	useLocal(t, time.UTC)
 
-	got := Format(Snapshot{Started: started})
+	got := Format(Snapshot{Started: started, LastCrawl: started})
 
-	want := "Started Nov 15 09:00; hasn't crawled yet.\n\nNo catalogs found.\n"
+	want := "Started Nov 15 09:00; last crawled Nov 15 09:00.\n\nNo catalogs found.\n"
 	if got != want {
 		t.Errorf("Format =\n%q\nwant\n%q", got, want)
 	}
@@ -355,4 +392,85 @@ func useLocal(t *testing.T, loc *time.Location) {
 	old := time.Local
 	time.Local = loc
 	t.Cleanup(func() { time.Local = old })
+}
+
+// failingListener fails its first few Accepts, as a listener does when the
+// process runs out of file descriptors.
+type failingListener struct {
+	net.Listener
+	failures atomic.Int64
+}
+
+var errTooManyFiles = errors.New("accept: too many open files")
+
+func (l *failingListener) Accept() (net.Conn, error) {
+	if l.failures.Add(-1) >= 0 {
+		return nil, errTooManyFiles
+	}
+	return l.Listener.Accept()
+}
+
+// An Accept error doesn't stop status for good: serveOn waits and tries
+// again.
+func TestServeRetriesAccept(t *testing.T) {
+	path := socketPath(t)
+	inner, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := &failingListener{Listener: inner}
+	l.failures.Store(3)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		serveOn(ctx, l, fixed(sample()))
+		close(done)
+	}()
+
+	got, err := Ask(path)
+
+	cancel()
+	<-done
+	if err != nil || !reflect.DeepEqual(got, sample()) {
+		t.Errorf("Ask after failed Accepts = %+v, %v", got, err)
+	}
+}
+
+// A listener that keeps failing doesn't keep serveOn from stopping.
+func TestServeStopsWhileRetrying(t *testing.T) {
+	inner, err := net.Listen("unix", socketPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := &failingListener{Listener: inner}
+	l.failures.Store(1 << 40)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		serveOn(ctx, l, fixed(sample()))
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("serveOn didn't stop within a second of cancel")
+	}
+}
+
+func TestAcceptDelay(t *testing.T) {
+	tests := []struct{ prev, want time.Duration }{
+		{0, 5 * time.Millisecond},
+		{5 * time.Millisecond, 10 * time.Millisecond},
+		{640 * time.Millisecond, time.Second},
+		{time.Second, time.Second},
+	}
+	for _, tt := range tests {
+		if got := nextAcceptDelay(tt.prev); got != tt.want {
+			t.Errorf("nextAcceptDelay(%v) = %v, want %v", tt.prev, got, tt.want)
+		}
+	}
 }

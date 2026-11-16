@@ -59,8 +59,9 @@ func nextTick(ctx context.Context, tick <-chan time.Time) (time.Time, bool) {
 // returns that tick's time and true.
 func (d *Daemon) step(ctx context.Context, clock func() time.Time, at time.Time, tick <-chan time.Time) (time.Time, bool) {
 	d.logError(d.Crawl(clock()))
+	ready := d.readyToSummarize(at)
 	d.logError(d.publishStatus())
-	if d.Provider == nil || at.Before(d.pausedUntil) {
+	if !ready {
 		return time.Time{}, false
 	}
 	for ctx.Err() == nil && d.summarizeNext(ctx, clock(), at) {
@@ -75,6 +76,19 @@ func (d *Daemon) step(ctx context.Context, clock func() time.Time, at time.Time,
 		}
 	}
 	return time.Time{}, false
+}
+
+// readyToSummarize reports whether a step at at may summarize: there's a
+// Provider and no pause in force. A pause that has passed is ended here, so
+// status stops showing it even if no file is waiting. serviceFailures stays,
+// so the backoff keeps growing if the service fails again, and the next
+// success journals the resume.
+func (d *Daemon) readyToSummarize(at time.Time) bool {
+	if d.Provider == nil || at.Before(d.pausedUntil) {
+		return false
+	}
+	d.pausedUntil, d.pauseReason = time.Time{}, ""
+	return true
 }
 
 // summarizeNext summarizes the next waiting file, then pauses, resumes, or
