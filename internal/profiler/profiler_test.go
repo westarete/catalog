@@ -135,3 +135,9 @@ func TestRecipe(t *testing.T) {
 		t.Errorf("Recipe = %q, want %q", got, want)
 	}
 }
+
+func TestPartialRecipe(t *testing.T) {
+	if got, want := PartialRecipe("claude-haiku-5-5"), "reader=1;prompt=1;model=claude-haiku-5-5;neighbors=partial"; string(got) != want {
+		t.Errorf("PartialRecipe = %q, want %q", got, want)
+	}
+}

@@ -38,7 +38,7 @@ func (d *Daemon) Work(ctx context.Context, now time.Time, ignoreQuiet bool) (did
 	for _, c := range planner.Plan(cs, now) {
 		data, ok := d.readUnchanged(c)
 		if ok {
-			return d.summarize(ctx, now, c, data)
+			return d.summarize(ctx, now, c, d.recipeFor(cs, c), data)
 		}
 	}
 	return false, nil
@@ -89,6 +89,9 @@ func (d *Daemon) candidate(dir string, f model.FileState) (planner.Candidate, er
 		return c, err
 	}
 	if _, _, c.HasOlder, err = d.Store.AnySummary(f.Hash); err != nil {
+		return c, err
+	}
+	if _, c.HasPartial, err = d.Store.Summary(f.Hash, profiler.PartialRecipe(d.Global.Model)); err != nil {
 		return c, err
 	}
 	failure, _, err := d.Store.Failure(dir, f.Rel)
@@ -145,17 +148,17 @@ func readAndHash(folder fs.FS, rel string, keep int64) ([]byte, model.Hash, erro
 }
 
 // summarize profiles one file and stores, journals, and publishes the result.
-func (d *Daemon) summarize(ctx context.Context, now time.Time, c planner.Candidate, data []byte) (bool, error) {
+func (d *Daemon) summarize(ctx context.Context, now time.Time, c planner.Candidate, recipe model.Recipe, data []byte) (bool, error) {
 	files, err := d.Store.Files(c.Dir)
 	if err != nil {
 		return false, err
 	}
-	neighbors, err := d.neighbors(files)
+	summaries, err := d.summaries(files)
 	if err != nil {
 		return false, err
 	}
 	began := time.Now()
-	text, resp, err := profiler.Profile(ctx, d.Provider, c.Rel, reader.Read(c.Rel, data), neighbors)
+	text, resp, err := profiler.Profile(ctx, d.Provider, c.Rel, reader.Read(c.Rel, data), neighbors(summaries))
 	path := filepath.Join(c.Dir, c.Rel)
 	if err != nil {
 		if models.Classify(err) == models.ServiceProblem {
@@ -167,7 +170,19 @@ func (d *Daemon) summarize(ctx context.Context, now time.Time, c planner.Candida
 		return true, d.recordFailure(now, c, err)
 	}
 	d.rejected = nil
-	return true, d.recordSummary(now, c, text, resp, time.Since(began))
+	return true, d.recordSummary(now, c, recipe, text, resp, time.Since(began))
+}
+
+// recipeFor returns the recipe to store c's new summary under: the partial
+// recipe when the planner says the model would miss a neighbor's summary,
+// so the file is summarized again once that neighbor has one. cs holds every
+// candidate; a PDF the daemon doesn't send is never one, so it never counts
+// as a missing neighbor.
+func (d *Daemon) recipeFor(cs []planner.Candidate, c planner.Candidate) model.Recipe {
+	if planner.WouldBePartial(cs, c) {
+		return profiler.PartialRecipe(d.Global.Model)
+	}
+	return d.recipe()
 }
 
 // rejectionsInARow is how many different files the model may reject in a
@@ -199,8 +214,8 @@ type serviceError struct{ err error }
 func (e *serviceError) Error() string { return e.err.Error() }
 func (e *serviceError) Unwrap() error { return e.err }
 
-func (d *Daemon) recordSummary(now time.Time, c planner.Candidate, text string, resp models.Response, took time.Duration) error {
-	if err := d.Store.PutSummary(c.Hash, d.recipe(), text); err != nil {
+func (d *Daemon) recordSummary(now time.Time, c planner.Candidate, recipe model.Recipe, text string, resp models.Response, took time.Duration) error {
+	if err := d.Store.PutSummary(c.Hash, recipe, text); err != nil {
 		return err
 	}
 	if err := d.Store.ClearFailure(c.Dir, c.Rel); err != nil {
@@ -208,7 +223,7 @@ func (d *Daemon) recordSummary(now time.Time, c planner.Candidate, text string, 
 	}
 	err := journal.Append(d.JournalPath, journal.Event{
 		Time: now, Kind: journal.KindSummary, Dir: c.Dir, Rel: c.Rel,
-		Recipe:       string(d.recipe()),
+		Recipe:       string(recipe),
 		InputTokens:  resp.InputTokens,
 		OutputTokens: resp.OutputTokens,
 		Millis:       took.Milliseconds(),

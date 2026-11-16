@@ -241,7 +241,9 @@ three kinds of records.
 - Failures for each file: how many in a row, the last error, and when to
   try again.
 
-A recipe names the reader, the prompt version, and the model.
+A recipe names the reader, the prompt version, and the model. It also
+marks a summary written while another file in its catalog was still
+waiting for its first summary (see Profiler and Models).
 
 The Store keys summaries by content, so every copy of a file shares one
 summary. A summary may point to a near-duplicate with "see X.md," and
@@ -262,12 +264,17 @@ call.)
 
 The Planner is a pure function. Given what the Store holds, the current
 recipe, and the time, it returns the files to summarize, in order. A
-file needs a summary if all three of these hold:
+file needs a summary if all of these hold:
 
 - The Store has no summary for its content hash under the current
   recipe.
 - The file hasn't changed for three minutes.
 - The file isn't waiting to retry after a failure.
+- If its summary is partial, no catalog with a copy of it has a file
+  waiting for its first summary.
+
+The Planner also decides whether a new summary is partial (see Profiler
+and Models).
 
 The Planner puts the files that changed longest ago first. If a file has
 a summary only under an older recipe, the catalog still shows that
@@ -293,8 +300,46 @@ about not profiling a file on every auto-save.
 ### Profiler and Models
 
 The Profiler sends one file's content to the model, with the summaries
-of every other file in the same catalog as neighbors, in a single pass.
-It starts with today's `profileInstruction`, unchanged
+of every other file in the same catalog as neighbors.
+
+A summary is meant to tell a file apart from its neighbors, but the
+model can only see neighbors that already have summaries. On a catalog's first run, the files summarized first see few or none. Today's `bootstrap` command solves this with a second pass
+over every file. The daemon does it without a command. If another file
+in the catalog was still waiting for its first summary when the daemon
+summarized a file's content for the first time, the daemon marks that
+summary as partial in its recipe. A changed file counts the same as a
+new one, since the model can't see any summary of its new content. The
+Planner holds the redo until no other file in that catalog is waiting
+for its first summary, so the model sees the neighbors that were
+missing. When someone saves two files a minute apart, the first is
+redone only after the second has a summary. While someone keeps editing
+a file, the redos in its catalog wait. A file that changes more often
+than every three minutes, such as a log, holds them for as long as it
+keeps changing, and status counts them as waiting. Copies of a file
+share one summary, so a copy in another catalog waits too; otherwise its
+redo would see the wrong neighbors. `catalog daemon --once` sees only
+its own folder, so it can still redo a copy there; we accept that for a
+maintenance tool. An identical copy doesn't count as a missing neighbor,
+since a redo would show the model nothing new. The daemon redoes a file
+only once for the same content: the second summary is never marked
+partial.
+
+- A new catalog of 102 files costs about 101 extra model calls, once, as
+  `bootstrap` did.
+- Ten files added together to a catalog with summaries for every other
+  file cost nine extra calls. The first nine are redone, and the
+  existing files aren't touched.
+- One file added to such a catalog costs nothing extra.
+- Twenty files changed by one `git pull` cost nineteen extra calls, the
+  same as twenty new files.
+
+A file that can't get a summary doesn't count as missing: a PDF the
+daemon doesn't send, or a file with a failure on record. Otherwise, once
+the model rejects one file, every new file in that catalog would cost
+two calls. A file summarized earlier still won't point to a
+near-duplicate that arrives later, as with today's `update`. (Our call.)
+
+The Profiler starts with today's `profileInstruction`, unchanged
 ([generate.go](https://github.com/westarete/catalog/blob/d9a8d1b3a9dd6826224bda2068a5422b37f8bce9/generate.go)).
 People already use that prompt with today's tool, so it's a known
 starting point to tune from. A listing needs no model call.
@@ -350,7 +395,9 @@ connects, asks, and prints:
 - when the daemon started and when it last crawled
 - any config error, and whether summarizing is paused and why
 - for each catalog, its folder, how many files it covers, how many have
-  summaries, and how many are waiting
+  summaries, and how many are waiting. A file whose summary is partial
+  or under an older recipe counts as waiting, since the daemon still has
+  a model call to make for it.
 - each failing file, with its last error and when the daemon will retry
   it
 

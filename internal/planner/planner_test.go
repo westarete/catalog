@@ -2,6 +2,7 @@ package planner
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 )
@@ -152,5 +153,74 @@ func TestBackoff(t *testing.T) {
 		if got := Backoff(tt.failures); got != tt.want {
 			t.Errorf("Backoff(%d) = %v, want %v", tt.failures, got, tt.want)
 		}
+	}
+}
+
+// A partial summary is redone only once no other file in its catalog is
+// waiting for a first summary, so the model sees every neighbor it missed.
+func TestPlanHoldsPartialRedoWhileANeighborWaits(t *testing.T) {
+	old := now.Add(-time.Hour)
+	partial := Candidate{Dir: "a", Rel: "x.md", Hash: "h", ChangedAt: old, HasOlder: true, HasPartial: true}
+	tests := []struct {
+		name   string
+		other  Candidate
+		wantIn bool
+	}{
+		{"neighbor still settling", Candidate{Dir: "a", Rel: "y.md", ChangedAt: now}, false},
+		{"neighbor summarized", Candidate{Dir: "a", Rel: "y.md", ChangedAt: old, HasCurrent: true, HasOlder: true}, true},
+		{"neighbor has an older summary", Candidate{Dir: "a", Rel: "y.md", ChangedAt: now, HasOlder: true}, true},
+		{"neighbor failed", Candidate{Dir: "a", Rel: "y.md", ChangedAt: old, RetryAt: now.Add(time.Hour)}, true},
+		{"waiting file in another catalog", Candidate{Dir: "b", Rel: "y.md", ChangedAt: now}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Plan([]Candidate{partial, tt.other}, now)
+
+			if gotIn := slices.ContainsFunc(got, func(c Candidate) bool { return c.Hash == "h" }); gotIn != tt.wantIn {
+				t.Errorf("Plan() kept the partial redo = %v, want %v", gotIn, tt.wantIn)
+			}
+		})
+	}
+}
+
+// Copies of a file share one summary, so a copy in a catalog with nothing
+// waiting is held too; its redo would see the wrong neighbors.
+func TestPlanHoldsPartialRedoOfEveryCopy(t *testing.T) {
+	old := now.Add(-time.Hour)
+	cs := []Candidate{
+		{Dir: "a", Rel: "x.md", Hash: "h", ChangedAt: old, HasOlder: true, HasPartial: true},
+		{Dir: "a", Rel: "w.md", Hash: "w", ChangedAt: now},
+		{Dir: "b", Rel: "x.md", Hash: "h", ChangedAt: old, HasOlder: true, HasPartial: true},
+	}
+
+	if got := Plan(cs, now); len(got) != 0 {
+		t.Errorf("Plan() = %+v, want nothing ready", got)
+	}
+}
+
+func TestWouldBePartial(t *testing.T) {
+	waiting := Candidate{Dir: "a", Rel: "y.md", Hash: "y", ChangedAt: now}
+	tests := []struct {
+		name string
+		c    Candidate
+		cs   []Candidate
+		want bool
+	}{
+		{"first summary while a neighbor waits", Candidate{Dir: "a", Rel: "x.md", Hash: "x"}, []Candidate{waiting}, true},
+		{"first summary with every neighbor summarized", Candidate{Dir: "a", Rel: "x.md", Hash: "x"},
+			[]Candidate{{Dir: "a", Rel: "y.md", HasCurrent: true, HasOlder: true}}, false},
+		{"the file itself doesn't count", Candidate{Dir: "a", Rel: "y.md", Hash: "y"}, []Candidate{waiting}, false},
+		{"an identical copy doesn't count", Candidate{Dir: "a", Rel: "copy.md", Hash: "y"}, []Candidate{waiting}, false},
+		{"a redo is never partial", Candidate{Dir: "a", Rel: "x.md", Hash: "x", HasOlder: true}, []Candidate{waiting}, false},
+		{"a neighbor with a failure doesn't count", Candidate{Dir: "a", Rel: "x.md", Hash: "x"},
+			[]Candidate{{Dir: "a", Rel: "y.md", RetryAt: now}}, false},
+		{"a waiting file in another catalog doesn't count", Candidate{Dir: "b", Rel: "x.md", Hash: "x"}, []Candidate{waiting}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := WouldBePartial(tt.cs, tt.c); got != tt.want {
+				t.Errorf("WouldBePartial() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

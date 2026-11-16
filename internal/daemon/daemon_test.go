@@ -36,9 +36,8 @@ func TestOnceProducesCatalog(t *testing.T) {
 	if strings.Contains(text, "\nNot summarized yet.") {
 		t.Errorf("catalog still has a listing:\n%s", text)
 	}
-	if p.calls() != 2 {
-		t.Errorf("provider calls = %d, want 2", p.calls())
-	}
+	// alpha is summarized again once beta has a summary.
+	assertNames(t, requestedNames(p), "alpha", "beta", "alpha")
 }
 
 func TestOnceJournalsEachSummary(t *testing.T) {
@@ -721,9 +720,8 @@ func TestChangedFileForgetsFailure(t *testing.T) {
 	later := changed.Add(3 * time.Minute)
 	for work(t, d, later, false) {
 	}
-	if p.calls() != 2 {
-		t.Errorf("provider calls = %d, want 2", p.calls())
-	}
+	// alpha is summarized again once beta has a summary; gamma waits.
+	assertNames(t, requestedNames(p), "alpha", "beta", "alpha")
 	for _, rel := range []string{"alpha.md", "beta.md"} {
 		if _, ok, _ := d.Store.Failure(root, rel); ok {
 			t.Errorf("failure still recorded for changed %s", rel)

@@ -170,9 +170,8 @@ func TestRunSummarizesEveryWaitingFile(t *testing.T) {
 
 	step(t, d, start.Add(quiet))
 
-	if p.calls() != 3 {
-		t.Errorf("calls = %d, want 3", p.calls())
-	}
+	// a and b are summarized again once c has a summary.
+	assertNames(t, requestedNames(p), "a", "b", "c", "a", "b")
 	for _, name := range []string{"a", "b", "c"} {
 		if got := entry(t, catalogText(t, root), name+".md"); !strings.Contains(got, summaryOf(name)) {
 			t.Errorf("%s entry = %q", name, got)
@@ -571,8 +570,9 @@ func TestRunCrawlsDuringBacklog(t *testing.T) {
 		t.Fatalf("Run = %v", err)
 	}
 
-	if got := fmt.Sprint(crawlsSeen); got != "[1 1 2 2 2]" {
-		t.Errorf("crawls before each call = %s, want [1 1 2 2 2]", got)
+	// Five first summaries, then the redos of a through d.
+	if got := fmt.Sprint(crawlsSeen); got != "[1 1 2 2 2 2 2 2 2]" {
+		t.Errorf("crawls before each call = %s, want [1 1 2 2 2 2 2 2 2]", got)
 	}
 }
 
@@ -604,8 +604,8 @@ func TestRunPauseCountsFromTick(t *testing.T) {
 		t.Fatalf("Run = %v", err)
 	}
 
-	if calls != 3 {
-		t.Errorf("calls = %d, want 3: one, a failure 30s into the step, and one on the next tick", calls)
+	if calls != 4 {
+		t.Errorf("calls = %d, want 4: a, b failing 30s into the step, then b and the redo of a on the next tick", calls)
 	}
 	if got := kinds(t, d, journal.KindPause, journal.KindResume); fmt.Sprint(got) != "[pause resume]" {
 		t.Errorf("journal = %v, want [pause resume]", got)

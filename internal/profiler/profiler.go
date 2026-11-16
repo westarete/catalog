@@ -36,6 +36,13 @@ func Recipe(name string) model.Recipe {
 	return model.Recipe("reader=" + reader.Version + ";prompt=" + PromptVersion + ";model=" + name)
 }
 
+// PartialRecipe is the recipe of a profile written while another document in
+// its catalog had no profile, so the model couldn't tell the two apart. Its
+// recipe differs from Recipe's, so the daemon writes the profile again later.
+func PartialRecipe(name string) model.Recipe {
+	return Recipe(name) + ";neighbors=partial"
+}
+
 // Profile asks the provider for the profile of the document at rel. The
 // neighbors are sorted by path, and rel's own entry is left out.
 func Profile(ctx context.Context, p models.Provider, rel string, c reader.Content, neighbors []Neighbor) (string, models.Response, error) {

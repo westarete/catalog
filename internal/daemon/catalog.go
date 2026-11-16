@@ -86,18 +86,14 @@ func readPrefix(folder fs.FS, rel string) []byte {
 	return data
 }
 
-// neighbors returns the summaries of files, for the profiler to tell a
-// document apart from the others in its catalog.
-func (d *Daemon) neighbors(files map[string]model.FileState) ([]profiler.Neighbor, error) {
-	summaries, err := d.summaries(files)
-	if err != nil {
-		return nil, err
-	}
-	neighbors := make([]profiler.Neighbor, 0, len(summaries))
+// neighbors turns summaries, keyed by path, into neighbors for the profiler to
+// tell a document apart from the others in its catalog.
+func neighbors(summaries map[string]string) []profiler.Neighbor {
+	out := make([]profiler.Neighbor, 0, len(summaries))
 	for rel, text := range summaries {
-		neighbors = append(neighbors, profiler.Neighbor{Rel: rel, Summary: text})
+		out = append(out, profiler.Neighbor{Rel: rel, Summary: text})
 	}
-	return neighbors, nil
+	return out
 }
 
 // summaries returns the summary of each file that has one, keyed by path.

@@ -69,7 +69,8 @@ func TestSnapshotCountsEachCatalog(t *testing.T) {
 
 	s := d.Snapshot()
 	want := []control.CatalogStatus{
-		{Dir: filepath.Join(root, "one"), Files: 3, Summarized: 1, Waiting: 2},
+		// a's summary is partial until c has one, so a is still waiting.
+		{Dir: filepath.Join(root, "one"), Files: 3, Summarized: 0, Waiting: 3},
 		{Dir: filepath.Join(root, "two"), Files: 1, Summarized: 1, Waiting: 0},
 	}
 	if fmt.Sprint(s.Catalogs) != fmt.Sprint(want) {
