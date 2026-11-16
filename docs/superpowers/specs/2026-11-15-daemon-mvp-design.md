@@ -35,7 +35,8 @@ We'll judge this version by feel, in daily use by the people trying it.
   that's serviceable.
 - People will go back to today's tool if accuracy falls toward 50%, or
   if the same errors keep coming back and they're always fixing them. If
-  someone says "let's work on the budget" and the agent misses the budget documents, that counts as well below 50%.
+  someone says "let's work on the budget" and the agent misses the
+  budget documents, that counts as well below 50%.
 
 We see reliability as the larger risk, because the daemon is new code
 that runs unattended. Each repository starts fresh: the daemon profiles
@@ -303,26 +304,27 @@ The Profiler sends one file's content to the model, with the summaries
 of every other file in the same catalog as neighbors.
 
 A summary is meant to tell a file apart from its neighbors, but the
-model can only see neighbors that already have summaries. On a catalog's first run, the files summarized first see few or none. Today's `bootstrap` command solves this with a second pass
-over every file. The daemon does it without a command. If another file
-in the catalog was still waiting for its first summary when the daemon
-summarized a file's content for the first time, the daemon marks that
-summary as partial in its recipe. A changed file counts the same as a
-new one, since the model can't see any summary of its new content. The
-Planner holds the redo until no other file in that catalog is waiting
-for its first summary, so the model sees the neighbors that were
-missing. When someone saves two files a minute apart, the first is
-redone only after the second has a summary. While someone keeps editing
-a file, the redos in its catalog wait. A file that changes more often
-than every three minutes, such as a log, holds them for as long as it
-keeps changing, and status counts them as waiting. Copies of a file
-share one summary, so a copy in another catalog waits too; otherwise its
-redo would see the wrong neighbors. `catalog daemon --once` sees only
-its own folder, so it can still redo a copy there; we accept that for a
-maintenance tool. An identical copy doesn't count as a missing neighbor,
-since a redo would show the model nothing new. The daemon redoes a file
-only once for the same content: the second summary is never marked
-partial.
+model can only see neighbors that already have summaries. On a catalog's
+first run, the files summarized first see few or none. Today's
+`bootstrap` command solves this with a second pass over every file. The
+daemon does it without a command. If another file in the catalog was
+still waiting for its first summary when the daemon summarized a file's
+content for the first time, the daemon marks that summary as partial in
+its recipe. A changed file counts the same as a new one, since the model
+can't see any summary of its new content. The Planner holds the redo
+until no other file in that catalog is waiting for its first summary, so
+the model sees the neighbors that were missing. When someone saves two
+files a minute apart, the first is redone only after the second has a
+summary. While someone keeps editing a file, the redos in its catalog
+wait. A file that changes more often than every three minutes, such as a
+log, holds them for as long as it keeps changing, and status counts them
+as waiting. Copies of a file share one summary, so a copy in another
+catalog waits too; otherwise its redo would see the wrong neighbors.
+`catalog daemon --once` sees only its own folder, so it can still redo a
+copy there; we accept that for a maintenance tool. An identical copy
+doesn't count as a missing neighbor, since a redo would show the model
+nothing new. The daemon redoes a file only once for the same content:
+the second summary is never marked partial.
 
 - A new catalog of 102 files costs about 101 extra model calls, once, as
   `bootstrap` did.

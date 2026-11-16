@@ -316,8 +316,8 @@ decisions, and a person can make both.
 
 A developer might ask the daemon to profile everything under `~/src` but
 would never want a catalog there. Their agent would suggest the
-repositories they actually work in, such as `~/src/acme/website`
-and `~/src/home/recipes`. A knowledge worker who chooses
+repositories they actually work in, such as `~/src/acme/website` and
+`~/src/home/recipes`. A knowledge worker who chooses
 `~/Documents/Reports` might get one catalog in that folder.
 
 We haven't decided whether or how nested catalogs link to each other,
