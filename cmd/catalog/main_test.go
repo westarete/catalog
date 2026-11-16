@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"westarete.com/catalog/internal/control"
 )
 
 // stateDir points the state folder at a temp home and returns it. The home
@@ -109,16 +111,30 @@ func writeGlobal(t *testing.T, dir, text string) {
 }
 
 // A folder with no catalog has nothing to summarize, so this run makes no
-// model call.
-func TestOnceWithNothingToDo(t *testing.T) {
+// model call. It's most likely the wrong folder, so the run fails.
+func TestOnceWithoutCatalog(t *testing.T) {
 	dir := stateDir(t)
 	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	folder := t.TempDir()
 
-	if code, out := runCatalog("daemon", "--once", t.TempDir()); code != 0 {
-		t.Fatalf("code %d, output:\n%s", code, out)
+	code, stdout, stderr := runCatalogOut(context.Background(), "daemon", "--once", folder)
+
+	if code != 1 || !strings.Contains(stderr, "no catalog in "+folder) || !strings.Contains(stdout, "No catalogs found.") {
+		t.Errorf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "store.db")); err != nil {
 		t.Errorf("store.db: %v", err)
+	}
+}
+
+func TestOnceReportsUnreadableFolder(t *testing.T) {
+	writeGlobal(t, stateDir(t), "api_key = \"test-key\"\n")
+	folder := filepath.Join(t.TempDir(), "missing")
+
+	code, stdout, stderr := runCatalogOut(context.Background(), "daemon", "--once", folder)
+
+	if code != 1 || !strings.Contains(stdout, "Failing:\n  "+folder+": ") || !strings.Contains(stderr, "no catalog in "+folder) {
+		t.Errorf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 }
 
@@ -132,8 +148,9 @@ func TestOnceWithRelativeFolder(t *testing.T) {
 	}
 	t.Chdir(folder)
 
-	if code, out := runCatalog("daemon", "--once", "."); code != 0 {
-		t.Fatalf("code %d, output:\n%s", code, out)
+	code, stdout, stderr := runCatalogOut(context.Background(), "daemon", "--once", ".")
+	if code != 0 || !strings.Contains(stdout, ": 0 files, 0 summarized, 0 waiting") {
+		t.Fatalf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	if _, err := os.Stat(filepath.Join(folder, ".catalog", "catalog.md")); err != nil {
 		t.Errorf("catalog.md: %v", err)
@@ -290,5 +307,43 @@ func TestDaemonCrawlsWatchedFolders(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "first line") {
 		t.Errorf("catalog.md:\n%s", data)
+	}
+}
+
+// A second daemon would crawl and summarize everything the first one does,
+// so it stops before crawling.
+func TestDaemonWhenAnotherIsRunning(t *testing.T) {
+	dir := stateDir(t)
+	watched := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(watched, ".catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeGlobal(t, dir, fmt.Sprintf("api_key = \"test-key\"\n[[watch]]\nfolder = %q\n", watched))
+	socket := filepath.Join(dir, "control.sock")
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() { served <- control.Serve(ctx, socket, func() control.Snapshot { return control.Snapshot{} }) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-served; err != nil {
+			t.Errorf("stand-in daemon: %v", err)
+		}
+	})
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if _, err := control.Ask(socket); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the stand-in daemon never answered")
+		}
+	}
+
+	code, out := runCatalogIn(stopped(), "daemon")
+
+	if code != 1 || !strings.Contains(out, "already running") {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(watched, ".catalog", "catalog.md")); !os.IsNotExist(err) {
+		t.Errorf("the second daemon crawled: catalog.md err = %v", err)
 	}
 }

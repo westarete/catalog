@@ -5,6 +5,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"log"
 	"path/filepath"
@@ -86,8 +87,11 @@ type problem struct {
 
 // Once crawls, then summarizes every file waiting in the crawled catalogs,
 // without waiting for files to stay unchanged. It stops at the first service
-// problem and returns it.
-func (d *Daemon) Once(ctx context.Context, clock func() time.Time) error {
+// problem and returns it. Either way, it then publishes a Snapshot of what it
+// found.
+func (d *Daemon) Once(ctx context.Context, clock func() time.Time) (err error) {
+	d.started = clock()
+	defer func() { err = errors.Join(err, d.publishStatus()) }()
 	if err := d.Crawl(clock()); err != nil {
 		return err
 	}

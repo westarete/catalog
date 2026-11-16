@@ -422,3 +422,31 @@ func TestSnapshotWhileRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Once leaves its status in Snapshot, so `catalog daemon --once` can say
+// what it found, even when it stops at a service problem.
+func TestOncePublishesStatus(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	writeFile(t, root, "b.md", body("b"))
+	d, p := newDaemon(t, root)
+	p.fail["a"] = apiError(400)
+	p.fail["b"] = apiError(529)
+
+	if err := d.Once(context.Background(), fixedClock(start)); err == nil {
+		t.Fatal("Once returned no error for the service problem")
+	}
+
+	s := d.Snapshot()
+	if !s.Started.Equal(start) || !s.LastCrawl.Equal(start) {
+		t.Errorf("started %v, last crawl %v; want both %v", s.Started, s.LastCrawl, start)
+	}
+	want := []control.CatalogStatus{{Dir: root, Files: 2, Waiting: 2}}
+	if !slices.Equal(s.Catalogs, want) {
+		t.Errorf("catalogs = %+v, want %+v", s.Catalogs, want)
+	}
+	if got := failingPaths(s); !slices.Equal(got, []string{filepath.Join(root, "a.md")}) {
+		t.Errorf("failing = %v, want a.md", got)
+	}
+}

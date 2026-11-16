@@ -58,7 +58,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	case len(args) == 1 && args[0] == "status":
 		return runStatus(stdout, stderr)
 	case len(args) > 0 && args[0] == "daemon":
-		err = runDaemon(ctx, args[1:], stderr)
+		err = runDaemon(ctx, args[1:], stdout, stderr)
 	default:
 		err = errUsage
 	}
@@ -76,7 +76,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 var errUsage = errors.New("usage")
 
 // runDaemon carries out `catalog daemon` with the arguments that follow it.
-func runDaemon(ctx context.Context, args []string, stderr io.Writer) error {
+func runDaemon(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("catalog daemon", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	once := flags.Bool("once", false, "summarize every waiting file in `folder` once, then exit")
@@ -85,7 +85,7 @@ func runDaemon(ctx context.Context, args []string, stderr io.Writer) error {
 	}
 	switch {
 	case *once && flags.NArg() == 1:
-		return runOnce(ctx, flags.Arg(0))
+		return runOnce(ctx, flags.Arg(0), stdout)
 	case !*once && flags.NArg() == 0:
 		return runLoop(ctx, stderr)
 	default:
@@ -113,10 +113,11 @@ func runStatus(stdout, stderr io.Writer) int {
 	return 0
 }
 
-// runOnce crawls folder as the only watched folder and summarizes every file
-// waiting in its catalogs. It stops at once if global.toml is missing or has
-// no API key.
-func runOnce(ctx context.Context, folder string) error {
+// runOnce crawls folder as the only watched folder, summarizes every file
+// waiting in its catalogs, and prints what it found, as status would. It
+// stops at once if global.toml is missing or has no API key, and fails if it
+// finds no catalog.
+func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	stateDir, err := settings.StateDir()
 	if err != nil {
 		return err
@@ -137,14 +138,21 @@ func runOnce(ctx context.Context, folder string) error {
 	defer func() { _ = d.Store.Close() }()
 	d.Global = g
 	d.Provider = models.NewAnthropic(g.APIKey, g.Model)
-	return d.Once(ctx, time.Now)
+	err = d.Once(ctx, time.Now)
+	s := d.Snapshot()
+	_, _ = fmt.Fprint(stdout, control.Format(s))
+	if err == nil && len(s.Catalogs) == 0 {
+		err = fmt.Errorf("no catalog in %s: it can't be read, or nothing in it has a .catalog/ folder", abs)
+	}
+	return err
 }
 
 // runLoop keeps the catalogs in the folders global.toml watches current,
 // rereading global.toml on each crawl, and answers status requests, until
-// ctx ends. A missing or broken global.toml doesn't stop it: launchd would
-// only start it again, and status reports the problem instead. It writes the
-// errors it can't journal to stderr.
+// ctx ends. It fails at once if another daemon answers on the socket. A
+// missing or broken global.toml doesn't stop it: launchd would only start it
+// again, and status reports the problem instead. It writes the errors it
+// can't journal to stderr.
 func runLoop(ctx context.Context, stderr io.Writer) error {
 	stateDir, err := settings.StateDir()
 	if err != nil {
@@ -152,6 +160,12 @@ func runLoop(ctx context.Context, stderr io.Writer) error {
 	}
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return err
+	}
+	socket := filepath.Join(stateDir, socketFile)
+	// A second daemon would crawl and summarize everything the first one
+	// does, so it stops before it starts.
+	if _, err := control.Ask(socket); err == nil {
+		return fmt.Errorf("another catalog daemon is already running; it answers on %s", socket)
 	}
 	d, err := openDaemon(stateDir)
 	if err != nil {
@@ -165,7 +179,7 @@ func runLoop(ctx context.Context, stderr io.Writer) error {
 	served := make(chan struct{})
 	go func() {
 		defer close(served)
-		if err := control.Serve(serving, filepath.Join(stateDir, socketFile), d.Snapshot); err != nil {
+		if err := control.Serve(serving, socket, d.Snapshot); err != nil {
 			d.Log.Printf("status won't answer: %v", err)
 		}
 	}()
