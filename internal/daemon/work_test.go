@@ -125,3 +125,22 @@ func TestEmptyPDFIsListedNotSent(t *testing.T) {
 		t.Errorf("failure events = %d, want 0", n)
 	}
 }
+
+// Work keeps one byte more than the reader sends, so the reader can tell a
+// text one byte too long and say it cut it.
+func TestWorkTellsTheReaderTextWasCut(t *testing.T) {
+	for size, want := range map[int]bool{400_000: false, 400_001: true} {
+		root := t.TempDir()
+		makeCatalog(t, root)
+		head := body("doc")
+		writeFile(t, root, "doc.txt", head+strings.Repeat("x", size-len(head)))
+		d, p := newDaemon(t, root)
+		crawl(t, d, start)
+
+		work(t, d, start, true)
+
+		if got := strings.Contains(p.requests[0].Text, "[Document truncated"); got != want {
+			t.Errorf("%d-byte file: truncated = %v, want %v", size, got, want)
+		}
+	}
+}

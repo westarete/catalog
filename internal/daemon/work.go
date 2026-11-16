@@ -114,7 +114,7 @@ func (d *Daemon) readUnchanged(c planner.Candidate) ([]byte, bool) {
 
 // textBytesSent is how much of a text file the model reads: the reader cuts
 // text at 400,000 bytes, and one byte more tells it the text was longer.
-const textBytesSent = 400_000 + 1
+const textBytesSent = 400_001
 
 // bytesSent is how much of the file at rel the model reads.
 func bytesSent(rel string) int64 {
