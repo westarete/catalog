@@ -30,8 +30,8 @@ func TestPublishWritesAndSkips(t *testing.T) {
 		t.Fatalf("content = %q", got)
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0o644 {
-		t.Errorf("mode = %v, want 0644", info.Mode().Perm())
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v, want 0600", info.Mode().Perm())
 	}
 
 	old := time.Now().Add(-time.Hour).Truncate(time.Second)
@@ -156,5 +156,67 @@ func TestPublishRemovesLeftoverTempFiles(t *testing.T) {
 	}
 	if fmt.Sprint(names) != "[catalog.md config.toml notes.tmp]" {
 		t.Errorf("entries = %v, want [catalog.md config.toml notes.tmp]", names)
+	}
+}
+
+// catalog.md summarizes files that may be private, so only its owner may
+// read it. One an earlier version left readable by others is replaced with a
+// private one, even when its text hasn't changed.
+func TestPublishReplacesAnUnchangedCatalogReadableByOthers(t *testing.T) {
+	dir := catalogDirWithDot(t)
+	path := filepath.Join(dir, ".catalog", "catalog.md")
+	if err := os.WriteFile(path, []byte("same\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Publish(dir, "same\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPrivateFile(t, path, "same\n")
+}
+
+// A catalog.md that is a link is replaced, and the file it points to is left
+// alone.
+func TestPublishReplacesALinkWithoutTouchingItsTarget(t *testing.T) {
+	dir := catalogDirWithDot(t)
+	path := filepath.Join(dir, ".catalog", "catalog.md")
+	target := filepath.Join(t.TempDir(), "elsewhere.md")
+	if err := os.WriteFile(target, []byte("same\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(target, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Publish(dir, "same\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPrivateFile(t, path, "same\n")
+	if info, err := os.Stat(target); err != nil || info.Mode().Perm() != 0o644 {
+		t.Errorf("link target mode = %v, %v; want it left at 0644", info.Mode().Perm(), err)
+	}
+}
+
+// assertPrivateFile fails unless path is a regular file, not a link, with
+// mode 0600 and the given text.
+func assertPrivateFile(t *testing.T, path, text string) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+		t.Errorf("%s is %v, want a regular file with mode 0600", path, info.Mode())
+	}
+	if got, _ := os.ReadFile(path); string(got) != text {
+		t.Errorf("%s holds %q, want %q", path, got, text)
 	}
 }

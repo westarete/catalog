@@ -13,6 +13,11 @@
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<!-- 63 is octal 077: the log and every file the daemon creates are
+	     readable only by their owner. launchd.plist(5) says it creates the
+	     log files with this umask. -->
+	<key>Umask</key>
+	<integer>63</integer>
 	<key>StandardOutPath</key>
 	<string>/Users/YOUR_NAME/Library/Logs/catalog.log</string>
 	<key>StandardErrorPath</key>

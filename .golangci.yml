@@ -17,8 +17,16 @@ linters:
     # shares only the types in internal/model, and only the daemon imports
     # every component. Rules are configured below.
     - depguard
+    # Catch security mistakes, such as a file the daemon creates that other
+    # accounts on the Mac can read. Its settings are below.
+    - gosec
 
   settings:
+    gosec:
+      excludes:
+        # G304 flags opening a file whose path is in a variable. Reading the
+        # files a person asked it to catalog is the daemon's whole job.
+        - G304
     depguard:
       # depguard checks a file against every rule whose files globs match it,
       # and an import must pass all of them, so the packages with exceptions
@@ -92,3 +100,11 @@ linters:
           deny:
             - pkg: westarete.com/catalog/internal
               desc: the command only parses arguments and wires up the daemon
+
+  exclusions:
+    rules:
+      # Tests create temporary files and folders, where file modes protect
+      # nothing.
+      - path: _test\.go
+        linters:
+          - gosec

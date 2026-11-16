@@ -303,3 +303,69 @@ func TestOpenFailsForNonDatabase(t *testing.T) {
 func mkdirAll(file string) error { return os.MkdirAll(filepath.Dir(file), 0o755) }
 
 func writeFile(path, text string) error { return os.WriteFile(path, []byte(text), 0o644) }
+
+// assertOwnerOnly fails unless the file at path exists with mode 0600.
+func assertOwnerOnly(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("%s mode = %o, want 600", filepath.Base(path), mode)
+	}
+}
+
+// The store holds summaries of private documents, so only its owner may
+// read the database or its write-ahead log.
+func TestOpenCreatesFilesOnlyOwnerCanRead(t *testing.T) {
+	s, path := openTemp(t)
+	if err := s.PutSummary("h", "r", "a summary"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		assertOwnerOnly(t, p)
+	}
+}
+
+// A store created by an earlier version may be readable by anyone, and a
+// daemon that was killed leaves its write-ahead log behind with data in it;
+// Open makes all of it private.
+func TestOpenTightensAnExistingStore(t *testing.T) {
+	live, livePath := openTemp(t)
+	if err := live.PutSummary("h", "r", "a summary"); err != nil {
+		t.Fatal(err)
+	}
+	// Copying the files of a store that is still open is what a killed
+	// daemon leaves behind: a database and a log that holds the summary.
+	path := filepath.Join(t.TempDir(), "store.db")
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		data, err := os.ReadFile(livePath + suffix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path+suffix, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path+suffix, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if info, err := os.Stat(path + "-wal"); err != nil || info.Size() == 0 {
+		t.Fatalf("leftover log is empty or missing: %v", err)
+	}
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		assertOwnerOnly(t, p)
+	}
+	if text, ok, err := s.Summary("h", "r"); err != nil || !ok || text != "a summary" {
+		t.Errorf("Summary = %q, %v, %v; want the summary from the leftover log", text, ok, err)
+	}
+}

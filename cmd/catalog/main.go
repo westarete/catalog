@@ -31,8 +31,12 @@ import (
 
 const usage = "usage: catalog daemon [--once <folder>]\n       catalog status"
 
-// socketFile is the name of the daemon's status socket in the state folder.
-const socketFile = "control.sock"
+// socketFile is the name of the daemon's status socket in the state folder,
+// and journalFile the name of its journal.
+const (
+	socketFile  = "control.sock"
+	journalFile = "journal.jsonl"
+)
 
 // Exit codes: 1 for a failed run or a daemon that isn't running, 2 for a
 // command line we don't understand.
@@ -118,7 +122,7 @@ func runStatus(stdout, stderr io.Writer) int {
 // stops at once if global.toml is missing or has no API key, and fails if it
 // finds no catalog.
 func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
-	stateDir, err := settings.StateDir()
+	stateDir, err := privateStateDir()
 	if err != nil {
 		return err
 	}
@@ -154,11 +158,8 @@ func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 // again, and status reports the problem instead. It writes the errors it
 // can't journal to stderr.
 func runLoop(ctx context.Context, stderr io.Writer) error {
-	stateDir, err := settings.StateDir()
+	stateDir, err := privateStateDir()
 	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return err
 	}
 	socket := filepath.Join(stateDir, socketFile)
@@ -203,9 +204,34 @@ func openDaemon(stateDir string) (*daemon.Daemon, error) {
 	return &daemon.Daemon{
 		Store:       s,
 		NewProvider: models.NewAnthropic,
-		JournalPath: filepath.Join(stateDir, "journal.jsonl"),
+		JournalPath: filepath.Join(stateDir, journalFile),
 		FS:          os.DirFS,
 	}, nil
+}
+
+// privateStateDir returns the state folder, after creating it if it's
+// missing and making it and the journal in it private. It does that before
+// anything else can fail, so a run that stops at once, such as one with no
+// global.toml yet, still fixes what an earlier version left readable. The
+// Store makes its own files private when it opens them.
+func privateStateDir() (string, error) {
+	dir, err := settings.StateDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	// gosec's G302 expects a file; a folder needs its execute bit to be
+	// opened at all, so 0700 is the private mode for one.
+	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // see above
+		return "", err
+	}
+	journal := filepath.Join(dir, journalFile)
+	if err := os.Chmod(journal, 0o600); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	return dir, nil
 }
 
 // loadGlobal reads global.toml, which must exist and hold an API key.

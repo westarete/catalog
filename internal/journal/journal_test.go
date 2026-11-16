@@ -75,20 +75,6 @@ func withoutTime(e Event) Event {
 	return e
 }
 
-func TestAppendCreatesFileWithMode0644(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "journal.jsonl")
-	if err := Append(path, Event{Kind: KindPause}); err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o644 {
-		t.Errorf("mode = %v, want 0644", info.Mode().Perm())
-	}
-}
-
 func TestAppendKeepsExistingContent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "journal.jsonl")
 	if err := os.WriteFile(path, []byte("{\"kind\":\"old\"}\n"), 0o644); err != nil {
@@ -190,5 +176,23 @@ func TestKindValues(t *testing.T) {
 		if kind != want {
 			t.Errorf("kind = %q, want %q", kind, want)
 		}
+	}
+}
+
+// The journal names private files and their errors, so only its owner may
+// read it.
+func TestAppendCreatesJournalOnlyOwnerCanRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "journal.jsonl")
+
+	if err := Append(path, Event{Kind: KindSummary}); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("journal mode = %o, want 600", mode)
 	}
 }

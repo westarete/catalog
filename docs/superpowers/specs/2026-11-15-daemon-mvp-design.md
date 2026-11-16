@@ -415,6 +415,39 @@ installs to run the daemon as an agent for their login. launchd starts
 it at login and restarts it if it exits. The builder writes the list
 from the `launchd.plist` manual, not from memory.
 
+### Who can read what the daemon keeps
+
+The daemon reads private documents and keeps what it learns about them,
+so everything it writes is readable only by the person who runs it.
+Their agents run as that person too, so nothing needs to be readable by
+another account.
+
+- The state folder in Application Support is `0700`. It holds
+  `global.toml` with the API key, the Store with every summary, the
+  Journal, which names every file summarized and every error, and the
+  status socket.
+- The Store's database, write-ahead log, and shared-memory file are
+  `0600`, and so is the Journal.
+- The status socket is `0600`, so only the person can ask the daemon for
+  its status.
+- Each `catalog.md` is `0600`, since it summarizes files that may be
+  private to the person.
+- The launchd property list sets `Umask` to `077`, so launchd creates
+  the log as `0600`, and so is any file the daemon creates without
+  choosing a mode.
+
+An earlier build created the state folder, Store, Journal, and
+`catalog.md` readable by everyone
+([issue #6](https://github.com/westarete/catalog/issues/6)). The daemon
+tightens those whenever it starts and whenever it publishes, including a
+write-ahead log a killed daemon left behind. It can't take back a file
+another account already has open.
+
+The daemon sends each document and its neighbors' summaries to the
+Anthropic API, and nowhere else. Errors in the Journal, the log, and
+status name file paths and quote the API's error text; the daemon never
+writes the API key into them.
+
 ## Commands
 
 - `catalog daemon` runs the loop.

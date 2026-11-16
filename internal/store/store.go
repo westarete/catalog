@@ -6,7 +6,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
+	"os"
 	"time"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
@@ -58,8 +60,11 @@ type Store struct {
 
 // Open opens the database at path, creating it and its tables if missing.
 // It uses WAL journaling and a busy timeout so a second process can open the
-// same file while the daemon runs.
+// same file while the daemon runs. Only the owner can read the database.
 func Open(path string) (*Store, error) {
+	if err := makePrivate(path); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", path, err)
@@ -69,6 +74,27 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("initializing %s: %w", path, err)
 	}
 	return &Store{db: db}, nil
+}
+
+// makePrivate creates the database file at path if it's missing and makes it
+// readable and writable only by its owner, since it holds summaries of
+// private documents. Files an earlier version created get the same mode,
+// including a write-ahead log and shared-memory file that a killed daemon
+// left behind, which SQLite keeps using.
+func makePrivate(path string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("creating %s: %w", path, err)
+	}
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(p, 0o600); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("making %s private: %w", p, err)
+		}
+	}
+	return nil
 }
 
 // dsn builds a file: URI for the driver. The driver runs each _pragma on

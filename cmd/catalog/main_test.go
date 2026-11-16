@@ -347,3 +347,50 @@ func TestDaemonWhenAnotherIsRunning(t *testing.T) {
 		t.Errorf("the second daemon crawled: catalog.md err = %v", err)
 	}
 }
+
+// The state folder holds the API key, the store, and the journal. Earlier
+// setup instructions created it readable by anyone, so the command makes it
+// private.
+func TestStateFolderOnlyOwnerCanRead(t *testing.T) {
+	dir := stateDir(t)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "global.toml"), []byte(`api_key = "test"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	runCatalog("daemon", "--once", t.TempDir())
+
+	assertMode(t, dir, 0o700)
+}
+
+// A journal and log that an earlier version left readable by anyone become
+// private when the daemon starts, even with no events to record and no
+// settings file yet.
+func TestOldStateFilesBecomePrivate(t *testing.T) {
+	dir := stateDir(t)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	journal := filepath.Join(dir, "journal.jsonl")
+	if err := os.WriteFile(journal, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCatalog("daemon", "--once", t.TempDir())
+
+	assertMode(t, dir, 0o700)
+	assertMode(t, journal, 0o600)
+}
+
+func assertMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != want {
+		t.Errorf("%s mode = %o, want %o", filepath.Base(path), mode, want)
+	}
+}

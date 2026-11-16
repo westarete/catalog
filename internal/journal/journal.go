@@ -32,8 +32,9 @@ type Event struct {
 }
 
 // Append writes e as one JSON line at the end of the file at path, creating
-// the file with mode 0644 if it does not exist. It never truncates the file,
-// so earlier events survive. It does not create missing directories.
+// the file if it does not exist, readable only by its owner, since it names
+// private files and their errors. It never truncates the file, so earlier
+// events survive. It does not create missing directories.
 func Append(path string, e Event) error {
 	line, err := json.Marshal(e)
 	if err != nil {
@@ -41,7 +42,7 @@ func Append(path string, e Event) error {
 	}
 	line = append(line, '\n')
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}

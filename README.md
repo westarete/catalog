@@ -51,10 +51,11 @@ The daemon logs to `~/Library/Logs/catalog.log`.
 
 Next, create the settings folder and a `global.toml` in it with your API
 key and the folders to watch. The daemon reads the key only from this
-file, not from `ANTHROPIC_API_KEY`.
+file, not from `ANTHROPIC_API_KEY`. The folder also holds summaries of
+your documents, so only you can open it:
 
 ```sh
-mkdir -p "$HOME/Library/Application Support/com.westarete.catalog"
+mkdir -m 700 -p "$HOME/Library/Application Support/com.westarete.catalog"
 ```
 
 ```toml
@@ -91,6 +92,18 @@ catalog status
 If `catalog status` says the daemon isn't running,
 `tail ~/Library/Logs/catalog.log` shows why. To stop it, run
 `launchctl bootout gui/$(id -u)/com.westarete.catalog`.
+
+launchd keeps running the build it started, so after you pull a newer
+version, stop the agent, build again, copy the property list again in
+case it changed, and load it:
+
+```sh
+launchctl bootout gui/$(id -u)/com.westarete.catalog
+go build -o ~/bin/catalog ./cmd/catalog
+cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
+sed -i '' "s/YOUR_NAME/$(whoami)/g" ~/Library/LaunchAgents/com.westarete.catalog.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.plist
+```
 
 `catalog status` shows when the daemon last crawled, each catalog's file
 counts, and any files that are failing. On the first day the daemon
