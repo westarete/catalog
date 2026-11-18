@@ -1,10 +1,15 @@
 # catalog
 
-Once a repository holds more than a few dozen files, agents do a poor
-job of deciding which ones to load into context. They load files they
-don't need and miss the ones they do. The catalog fixes that by keeping
-a `.catalog/catalog.md` in the folder that tells an agent when to open
-each file, so it can load what the task needs and leave the rest.
+Once a folder holds more than a few dozen files, agents do a poor job of
+deciding which ones to load into context. They load files they don't
+need and miss the ones they do. The catalog fixes that by keeping a
+`.catalog/catalog.md` in the folder that tells an agent when to open
+each file, so it can load what the task needs and leave the rest. It
+does that without showing anyone more than they could already see,
+because people will trust it with their documents only if it keeps them
+safe. Privacy and security are part of what the catalog is for;
+[daemon.md](docs/design/daemon.md#privacy-and-security) says what that
+means.
 
 We're rewriting the catalog as a background daemon that keeps
 `.catalog/catalog.md` current on its own, with no catalog state in Git
