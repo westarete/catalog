@@ -14,7 +14,8 @@ make up the daemon.
 When an agent starts work in a folder tree with more than a few dozen
 files, whether or not it's a Git repository, the catalog tells the agent
 which documents matter for the task, so it doesn't have to read them
-all.
+all, and it does that without showing anyone more than they could
+already see.
 
 That promise has consequences for the people involved.
 
@@ -37,6 +38,112 @@ That promise has consequences for the people involved.
 We want a person to install the catalog, point it at the folders they
 work in, and find that their agents everywhere get better without anyone
 telling the agents why.
+
+## Privacy and security
+
+People will trust the catalog with their documents only if it keeps them
+safe, so privacy and security are part of what the catalog is for. They
+belong in every design, every doc, every piece of code, and every review
+in this project, whether or not a doc mentions them.
+
+### What the catalog protects
+
+The catalog must never show anyone more than they could already see. A
+profile is a copy of what its document says, so the people who can read
+the profile should be the people who can read the document.
+
+That holds for every copy the catalog makes, and any new feature may
+make more. Some of the copies the daemon makes now:
+
+- each file it profiles, and the profiles of its neighbors, sent to the
+  model provider the person chose, whether hosted or local
+- every profile, in the daemon's state folder
+- every file profiled and every error, in the journal and the log
+- each catalog's paths and profiles, in `.catalog/catalog.md` inside the
+  folder
+- the paths and profiles that each agent loading `.catalog/catalog.md`
+  sends to its own model provider, which may be a different one; the
+  daemon writes the file so that agents will load it, so we count that
+  copy as ours
+
+File paths count as much as profiles. A catalog lists every path it
+covers, and a file name such as
+`people/management/disciplinary/2026-03-02-alex-doe-termination-preparation.md`
+says nearly as much as the document does.
+
+The catalog protects everyone whose information is in the files: the
+person who runs it, and also the colleagues, clients, and partners whose
+words sit in those files. Who should see a document is whatever the
+people who shared its folder intended. The catalog can't see that
+intent, so a person has to judge it.
+
+Security matters just as much. The catalog must not open a hole in the
+machine it runs on, and nobody should be able to break into the daemon,
+or watch what it does, to gain access they don't already have.
+
+### Questions for every step
+
+Nobody can list every threat in advance, so we don't protect people by
+forbidding a list of things. At every step, whether a design, a doc, a
+line of code, or a review, we ask:
+
+- Does this keep information away from people and services that
+  shouldn't have it, including in profiles, paths, logs, and the
+  journal?
+- Could this create a security vulnerability?
+- Could someone break into the daemon, or watch its work, to gain access
+  they don't already have?
+
+### Limits, and goals we never reach
+
+Privacy and security aren't traded against quality, size, and cost. They
+set the limits inside which we trade those three. Each proposal says
+what it does to privacy and security, the same way it says what it does
+to quality, size, and cost ([CLAUDE.md](../../CLAUDE.md), "Balance
+quality, size, and cost"). When a change doesn't affect them, the
+proposal says so, and a reviewer checks that claim.
+
+A limit is a concrete definition, so it always covers less than we need.
+Alongside the limits, we keep working toward goals we never mark as met:
+
+- stronger assurance that a model provider keeps nothing we send it and
+  trains on none of it
+- more confidence that we filter confidential information before it
+  reaches a model
+- stronger checks for security vulnerabilities in what we build
+
+The day we say we've covered privacy or security is the day we start to
+fail at it.
+
+### What we assume
+
+We know of these assumptions, and we expect to find more. Each one is
+work still to do, not a reason a leak isn't our problem.
+
+- **No model provider keeps or trains on what it receives.** That
+  includes the provider the daemon sends documents to and the providers
+  behind the agents that read catalogs, whichever providers those are. A
+  model that runs on the person's own machine sends nothing away, so for
+  it the question is what it keeps on that machine. We haven't yet
+  written down how a person would judge a provider by this measure.
+- **No subfolder is shared more narrowly than the folder above it.** Say
+  a People Operations team shares `people/`, but only leadership can
+  open `people/management/disciplinary/`. If the catalog in `people/`
+  covers the disciplinary folder, everyone on the team can read those
+  files' paths and profiles. We expect this to be uncommon, since people
+  usually expect access to a folder to include its subfolders, but it
+  can happen, and the daemon can't tell when it does.
+
+The subfolder problem appears whenever a catalog reaches people other
+than the one who runs the catalog. Someone might commit it to a
+repository that holds folders with fewer readers, or a cloud drive might
+sync it. A central server, or an MCP server that delivers catalogs to
+other people, would face it too.
+
+A profile can also repeat a secret from its document, such as a password
+or an account number. Preventing that means filtering or redacting
+content before the model sees it, which depends on the kind of document.
+We've looked at packages for it before, and it's still to be designed.
 
 ## Who it is for
 
@@ -85,9 +192,10 @@ plan.
 - A daemon keeps the catalog current. It watches the files in the tree,
   and when they change, it reads and profiles the new versions. It
   always catches up eventually.
-- The daemon uses a language model that's cheap and protects privacy.
-  That might be a local open-weight model on the laptop, or a trusted
-  service that costs close to nothing.
+- The daemon uses a language model that's cheap and
+  [protects privacy](#privacy-and-security). That might be a local
+  open-weight model on the laptop, or a trusted service that costs close
+  to nothing.
 - One daemon could serve the whole Mac. A person lists the folders they
   want profiled in one config on their machine, and later in a menu bar
   app. The daemon never searches the rest of the machine for
@@ -198,8 +306,9 @@ several parts.
   and when we start profiling it. We still don't know how to tell when a
   file needs one.
 - We want profiling itself to take less time.
-- We value the privacy a language model gives us, and more privacy often
-  costs speed, or battery on a laptop.
+- We value
+  [the privacy a language model gives us](#privacy-and-security), and
+  more privacy often costs speed, or battery on a laptop.
 - A profile's quality doesn't stand alone. It also depends on how the
   agent chooses between that file and its peers: not just whether to
   load file A, but whether to load A, B, or C when all three look
