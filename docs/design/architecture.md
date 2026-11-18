@@ -98,6 +98,15 @@ Daemon connects the steps.      CLI, menu bar ──► Control ──► Daemon
 
 ## Components
 
+A profile is a copy of what its file says, so any component that keeps
+or sends one has a second job beside the one named here: to say what it
+keeps or sends, and who may read it. The answer is the same on every
+platform this outline covers, including a server that serves a team. A
+profile may be read by the people who can read its file, and by no one
+else ([daemon.md](daemon.md#privacy-and-security)). Paths count too,
+since a path can say nearly as much as the file. A component that makes
+a new kind of copy states the same things for it.
+
 ### Model
 
 The Model is the vocabulary the other components share. It holds values
@@ -180,6 +189,13 @@ different amounts to rebuild.
 - Profiles, keyed by content hash and recipe. Each one cost a model
   call, so the Store keeps them durably.
 
+The Store holds a copy of every file's profile and every path, so its
+readers are the people who can read those files. On a machine several
+people share, that means the Store belongs to one account and no other
+account can read it. On a server that serves a team, a profile reaches
+only those who can read its file; a content hash alone doesn't show that
+someone can.
+
 The Store keys profiles by content, so a moved file keeps its summary. A
 Git worktree, which is a second copy of mostly identical files, also
 costs almost nothing to catalog. No other component knows how the Store
@@ -225,7 +241,12 @@ prompts. A listing needs no model at all.
 The Profiler also returns notes on how the profiling went: whether it
 cut the file short, how much of the file the model needed, and whether
 the model could tell what the file was for. Those notes go to the
-Journal.
+Journal, so they describe the run and don't quote the file.
+
+Because the Profiler decides what a model receives, it sends a file and
+its neighbors' profiles and nothing a profile doesn't need. A profile
+can repeat a secret from its file, and how the Profiler would filter
+those out before the model sees them is still to be designed.
 
 ### Models
 
@@ -235,6 +256,16 @@ content and returns text. It also declares what it can take (text,
 images, PDFs), how much it can take at once, and whether the content
 leaves the machine. The person switches providers in Settings, and the
 Profiler works the same way with any of them.
+
+Every provider also says what it keeps of the content it receives and
+whether it trains on it, and a person can read that before choosing it.
+That holds for a hosted service, and it holds for a model on the same
+machine, which sends nothing away but may still keep prompts, caches, or
+logs there. We rely on the provider's own account of these things; how a
+person would judge a provider by that measure is still to be designed
+(see "What we assume" in [daemon.md](daemon.md#privacy-and-security)). A
+provider's credential stays in Settings and out of everything the other
+components write.
 
 ### Renderer
 
@@ -248,7 +279,14 @@ nothing, so anything that delivers a catalog can use it.
 The Publisher writes what the Renderer produced to a tree's
 `.catalog/catalog.md`, replacing the file in one step. It's the only
 component that writes inside a person's tree, so we can check the
-promise in daemon.md in one place.
+promise in daemon.md in one place, and the promise about who may read
+the file it writes. The catalog lists every path in its tree with a
+profile of each file, so the people who can open the catalog file should
+be people who may read everything it describes. The Publisher can't see
+how a folder is shared; "What we assume" in
+[daemon.md](daemon.md#privacy-and-security) says what follows when a
+subfolder is shared more narrowly than its parent, and where a catalog
+that is committed or synced may end up.
 
 ### Journal
 
@@ -257,6 +295,11 @@ each profiling with its recipe, how long it took, how many tokens it
 used, and the Profiler's notes; each failure; and each time the daemon
 caught up after falling behind. When we want statistics, we'll ask
 questions of that record.
+
+The record names every file the daemon touched and quotes errors that
+may name more, so the people who may read it are the people who can read
+those files. It never holds a credential, and what a report from a
+client may add to it is limited the same way.
 
 We don't plan to build statistics first. We do want every component to
 report through the Journal from the start, so the record exists when we
@@ -287,6 +330,12 @@ Control's messages travel over a Unix socket on every platform, because
 XPC exists only on Apple's systems, and the Linux daemon uses the same
 core.
 
+Several of those requests return profiles, paths, or the Journal.
+Control answers each requester with what that person could already read,
+and nobody on the machine or the network can ask it for more. If a
+server serves a team, a request from another client carries the same
+rule. How Control tells who is asking is still to be designed.
+
 ### Daemon
 
 The Daemon starts the other components, connects them, and shuts them
@@ -300,6 +349,11 @@ window, an MCP server, and a skill that reads statistics. Each one talks
 to the Daemon through Control, and none of them reads the Store or the
 Journal directly. To add an interface, we write a client instead of
 changing the daemon.
+
+What a client shows or passes along is a copy as well, so each client
+states what it keeps and who may read it. An MCP server that delivers
+catalogs to other people would meet the subfolder problem described in
+[daemon.md](daemon.md#privacy-and-security).
 
 Whatever shows status should make it easy to see which folders are
 cataloged and which aren't. To its owner, a tree that never gets indexed
@@ -514,4 +568,7 @@ whichever way they turn out.
   content hash, so that a fresh clone or a cloud agent wouldn't start
   empty. Cursor shortened its first index that way
   ([research/cursor.md](../research/cursor.md)). Profiles would then
-  leave the machine, which raises the privacy questions Cursor faced.
+  leave the machine, which raises the privacy questions Cursor faced and
+  the ones in [daemon.md](daemon.md#privacy-and-security): who may read
+  a profile on the server, and how the server knows a requester may read
+  the file behind it.
