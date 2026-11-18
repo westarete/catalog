@@ -18,7 +18,8 @@ many places; any new feature may make more. Some of the copies the
 daemon makes now:
 
 - each file it summarizes, and the summaries of its neighbors, sent to
-  Anthropic's API
+  the model provider the person chose, which in the first version is
+  Anthropic
 - every summary, kept in `store.db`
 - every file summarized and every error, recorded in `journal.jsonl` and
   the log
@@ -86,9 +87,10 @@ We know of these assumptions, and we expect to find more.
 
 - **No model provider keeps or trains on what it receives.** That covers
   the provider the daemon sends documents to and the providers behind
-  the agents that read catalogs. We haven't yet written down which of
-  Anthropic's terms we rely on, or how a person would judge another
-  provider by the same measure.
+  the agents that read catalogs, whichever providers those are. A model
+  that runs on the person's own machine sends nothing away, so for it
+  the question is what it keeps on that machine. We haven't yet written
+  down how a person would judge a provider by this measure.
 - **No subfolder is shared more narrowly than the folder above it.** Say
   a People Operations team shares `people/`, but only leadership can
   open `people/management/disciplinary/`. If the catalog in `people/`
@@ -146,11 +148,11 @@ Every later design and change carries it further.
   platform, including a server that serves a team.
 - **The first daemon's spec.** "Who can read what the daemon keeps"
   covers paths, the copies agents send to their providers, and the
-  assumptions.
-- **Anthropic's terms.** Someone reads Anthropic's current terms on
-  keeping and training on API content, and daemon.md quotes the
-  sentences we rely on. Where the terms are silent, daemon.md says it's
-  not documented.
+  assumptions. Because that version's one provider is Anthropic, it also
+  quotes the sentences we rely on from Anthropic's current terms on
+  keeping and training on API content, and says "not documented" where
+  the terms are silent. Each later provider gets the same check in the
+  design that adds it.
 - **CLAUDE.md.** "Balance quality, size, and cost" says the three are
   traded inside privacy and security limits, and that every proposal
   states its effect on both. "Security in every design and review"
