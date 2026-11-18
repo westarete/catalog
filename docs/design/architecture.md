@@ -189,12 +189,12 @@ different amounts to rebuild.
 - Profiles, keyed by content hash and recipe. Each one cost a model
   call, so the Store keeps them durably.
 
-The Store holds a copy of every file's profile and every path, so its
-readers are the people who can read those files. On a machine several
-people share, that means the Store belongs to one account and no other
-account can read it. On a server that serves a team, a profile reaches
-only those who can read its file; a content hash alone doesn't show that
-someone can.
+The Store holds a profile and a path for every file, so no one may read
+an entry for a file they couldn't read themselves. On a machine several
+people share, the Store belongs to one account and no other account can
+read it. On a server that serves a team, the Store gives each person
+only the entries for files that person can read; a content hash alone
+doesn't show that someone can.
 
 The Store keys profiles by content, so a moved file keeps its summary. A
 Git worktree, which is a second copy of mostly identical files, also
@@ -280,13 +280,13 @@ The Publisher writes what the Renderer produced to a tree's
 `.catalog/catalog.md`, replacing the file in one step. It's the only
 component that writes inside a person's tree, so we can check the
 promise in daemon.md in one place, and the promise about who may read
-the file it writes. The catalog lists every path in its tree with a
-profile of each file, so the people who can open the catalog file should
-be people who may read everything it describes. The Publisher can't see
-how a folder is shared; "What we assume" in
-[daemon.md](daemon.md#privacy-and-security) says what follows when a
-subfolder is shared more narrowly than its parent, and where a catalog
-that is committed or synced may end up.
+the file it writes. The catalog file is one file with one set of
+readers, so everyone who can open it has to be able to read every file
+it describes, which is the same rule that no one sees an entry for a
+file they couldn't read. The Publisher can't see how a folder is shared;
+"What we assume" in [daemon.md](daemon.md#privacy-and-security) says
+what follows when a subfolder is shared more narrowly than its parent,
+and where a catalog that is committed or synced may end up.
 
 ### Journal
 
@@ -297,9 +297,12 @@ caught up after falling behind. When we want statistics, we'll ask
 questions of that record.
 
 The record names every file the daemon touched and quotes errors that
-may name more, so the people who may read it are the people who can read
-those files. It never holds a credential, and what a report from a
-client may add to it is limited the same way.
+may name more, so no one may read an entry about a file they couldn't
+read themselves. On a server that serves a team, that means the Journal
+gives each person only the entries about files that person can read, and
+a person who can read it all can already read all of those files. It
+never holds a credential, and a report from a client is held to the same
+rule.
 
 We don't plan to build statistics first. We do want every component to
 report through the Journal from the start, so the record exists when we
