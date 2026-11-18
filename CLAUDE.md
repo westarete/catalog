@@ -163,16 +163,31 @@ disagree about process, follow the skill.
 These compete in this project. Quality is how often an agent finds the
 right files. Size is how many words a catalog adds to every request and
 every agent's context. Cost is model calls and money, and time is a good
-proxy for it. When you propose a change that improves one of them, say
-what it does to the other two.
+proxy for it. Trade them inside the limits that privacy and security
+set; never trade privacy or security for any of the three. When you
+propose a change, say what it does to the other two, and what it does to
+privacy and security, even if the answer is that it changes nothing. A
+reviewer checks that answer.
 
-## Security in every design and review
+## Privacy and security in every design and review
 
 The daemon reads private documents and stores what it learns about them.
 The first build left its journal and store readable by every account on
 the Mac ([issue #6](https://github.com/westarete/catalog/issues/6)),
 because no spec asked who could read them and no reviewer was asked to
-check.
+check. Reasons and goals are in
+[daemon.md](docs/design/daemon.md#privacy-and-security).
+
+At every step (a design, a doc, a line of code, a review), ask:
+
+- Does this keep information away from people and services that
+  shouldn't have it, including in summaries, paths, logs, and the
+  journal?
+- Could this create a security vulnerability?
+- Could someone break into the daemon, or watch its work, to gain access
+  they don't already have?
+
+Also:
 
 - In every spec, add a section on the sensitive data the change reads,
   stores, or sends: each place a copy ends up (files, logs, sockets,
@@ -185,6 +200,11 @@ check.
   purpose, suppress that line with `//nolint:gosec` and a comment saying
   why; don't turn off a rule for the whole repository without a comment
   in the config saying why.
+
+West Arete does client work and publishes catalog as open source. Keep
+client work and the company's internal information out of this
+repository, its commits, issues, and pull requests. Make up every
+example.
 
 ## Own everything the program does
 
