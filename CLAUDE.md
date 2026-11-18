@@ -165,9 +165,10 @@ right files. Size is how many words a catalog adds to every request and
 every agent's context. Cost is model calls and money, and time is a good
 proxy for it. Trade them inside the limits that privacy and security
 set; never trade privacy or security for any of the three. When you
-propose a change, say what it does to the other two, and what it does to
-privacy and security, even if the answer is that it changes nothing. A
-reviewer checks that answer.
+propose a change that improves one of them, say what it does to the
+other two. Every proposal also says what it does to privacy and
+security, even if the answer is that it changes nothing; a reviewer
+checks that answer.
 
 ## Privacy and security in every design and review
 
@@ -178,7 +179,8 @@ because no spec asked who could read them and no reviewer was asked to
 check. Reasons and goals are in
 [daemon.md](docs/design/daemon.md#privacy-and-security).
 
-At every step (a design, a doc, a line of code, a review), ask:
+At every step, such as a design, a doc, a line of code, or a review,
+ask:
 
 - Does this keep information away from people and services that
   shouldn't have it, including in summaries, paths, logs, and the
@@ -187,13 +189,13 @@ At every step (a design, a doc, a line of code, a review), ask:
 - Could someone break into the daemon, or watch its work, to gain access
   they don't already have?
 
-Also:
+And follow these rules:
 
 - In every spec, add a section on the sensitive data the change reads,
   stores, or sends: each place a copy ends up (files, logs, sockets,
   requests to a service) and who can read it there.
-- In every plan's Review Focus, include at least one security line, and
-  copy it into each task reviewer's brief.
+- In every plan's Review Focus, include at least one privacy and
+  security line, and copy it into each task reviewer's brief.
 - Before finishing a branch, run Claude Code's `/security-review` as
   well as the whole-branch review.
 - Keep `gosec` enabled in `.golangci.yml`. When it flags a line on

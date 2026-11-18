@@ -99,13 +99,13 @@ Daemon connects the steps.      CLI, menu bar ──► Control ──► Daemon
 ## Components
 
 A profile is a copy of what its file says, so any component that keeps
-or sends one has a second job beside the one named here: to say what it
-keeps or sends, and who may read it. The answer is the same on every
-platform this outline covers, including a server that serves a team. A
-profile may be read by the people who can read its file, and by no one
-else ([daemon.md](daemon.md#privacy-and-security)). Paths count too,
-since a path can say nearly as much as the file. A component that makes
-a new kind of copy states the same things for it.
+or sends one has a second job besides its main one: to say what it keeps
+or sends, and who may read it. The answer is the same on every platform,
+including a server that serves a team. A profile may be read by the
+people who can read its file, and by no one else
+([daemon.md](daemon.md#privacy-and-security)). Paths count too, since a
+path can say nearly as much as the file. A component that makes a new
+kind of copy states the same things for it.
 
 ### Model
 
@@ -244,9 +244,10 @@ the model could tell what the file was for. Those notes go to the
 Journal, so they describe the run and don't quote the file.
 
 Because the Profiler decides what a model receives, it sends a file and
-its neighbors' profiles and nothing a profile doesn't need. A profile
-can repeat a secret from its file, and how the Profiler would filter
-those out before the model sees them is still to be designed.
+its neighbors' profiles and nothing more than it needs to write the
+profile. A profile can repeat a secret from its file, and how the
+Profiler would filter those out before the model sees them is still to
+be designed.
 
 ### Models
 
@@ -257,15 +258,15 @@ images, PDFs), how much it can take at once, and whether the content
 leaves the machine. The person switches providers in Settings, and the
 Profiler works the same way with any of them.
 
-Every provider also says what it keeps of the content it receives and
-whether it trains on it, and a person can read that before choosing it.
-That holds for a hosted service, and it holds for a model on the same
-machine, which sends nothing away but may still keep prompts, caches, or
-logs there. We rely on the provider's own account of these things; how a
-person would judge a provider by that measure is still to be designed
-(see "What we assume" in [daemon.md](daemon.md#privacy-and-security)). A
-provider's credential stays in Settings and out of everything the other
-components write.
+Every provider also declares what it keeps of the content it receives
+and whether it trains on it, and a person can read that before choosing
+it. That holds for a hosted service, and it holds for a model on the
+same machine, which sends nothing away but may still keep prompts,
+caches, or logs there. A person judges a provider by its own account of
+these things; how they would do that is still to be designed (see "What
+we assume" in [daemon.md](daemon.md#privacy-and-security)). A provider's
+credential stays in the person's global settings and out of everything
+the other components write.
 
 ### Renderer
 
@@ -282,11 +283,11 @@ component that writes inside a person's tree, so we can check the
 promise in daemon.md in one place, and the promise about who may read
 the file it writes. The catalog file is one file with one set of
 readers, so everyone who can open it has to be able to read every file
-it describes, which is the same rule that no one sees an entry for a
-file they couldn't read. The Publisher can't see how a folder is shared;
-"What we assume" in [daemon.md](daemon.md#privacy-and-security) says
-what follows when a subfolder is shared more narrowly than its parent,
-and where a catalog that is committed or synced may end up.
+it describes, so no one may read an entry for a file they couldn't read.
+The Publisher can't see how a folder is shared; "What we assume" in
+[daemon.md](daemon.md#privacy-and-security) says what follows when a
+subfolder is shared more narrowly than its parent, and where a catalog
+that is committed or synced may end up.
 
 ### Journal
 
@@ -299,10 +300,10 @@ questions of that record.
 The record names every file the daemon touched and quotes errors that
 may name more, so no one may read an entry about a file they couldn't
 read themselves. On a server that serves a team, that means the Journal
-gives each person only the entries about files that person can read, and
-a person who can read it all can already read all of those files. It
+gives each person only the entries about files that person can read, so
+a person may read all of it only if they can read all of those files. It
 never holds a credential, and a report from a client is held to the same
-rule.
+reader rule.
 
 We don't plan to build statistics first. We do want every component to
 report through the Journal from the start, so the record exists when we

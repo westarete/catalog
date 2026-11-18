@@ -473,16 +473,16 @@ The first version rests on two assumptions, which
 - No model provider keeps or trains on what it receives. For the
   daemon's own requests, the provider is Anthropic. The next section
   quotes what its current terms and documentation say.
-- No subfolder is shared more narrowly than the folder above it. In this
-  version the assumption can fail in two ways. Someone commits a catalog
-  to a repository that also holds folders with fewer readers: a team
-  repository might hold `people/management/disciplinary/` beside
-  `people/`, with the catalog in `people/` listing both. Or a cloud
-  drive syncs the folder that holds `.catalog/catalog.md`, and the drive
-  shares that folder with colleagues who can't open one of its
-  subfolders. In both cases the colleagues can read the paths and
-  summaries of files they can't open, and the daemon can't tell when it
-  happens.
+- No subfolder is shared more narrowly than the folder above it. By our
+  reasoning, this version can fail it in two ways. A folder holds a
+  clone of another repository with fewer collaborators, or files that
+  Git ignores, and the catalog in the outer folder is committed to the
+  outer repository; the outer repository's readers then get those paths
+  and summaries. Or a cloud drive that syncs the catalog's folder
+  delivers `.catalog/catalog.md` to everyone that folder is shared with,
+  including people who can't open one of its subfolders. That is why
+  people should watch only folders that no cloud drive syncs (see
+  above). In both cases the daemon can't tell when it happens.
 
 The daemon sends each document and its neighbors' summaries to the
 Anthropic API, and nowhere else. Errors in the Journal, the log, and
@@ -522,7 +522,7 @@ on them.
   customer submits for 5 years. The Commercial Terms state no retention
   period for Customer Content. They say: "Data submitted through the
   Services will be processed in accordance with the Anthropic Data
-  Processing Addendum ("DPA"), which is incorporated into these Terms by
+  Processing Addendum ('DPA'), which is incorporated into these Terms by
   reference." We haven't read the DPA, so retention beyond what the
   article says is not documented in what we read.
 - **Training.** The Commercial Terms, section B, say: "Anthropic may not
@@ -532,14 +532,15 @@ on them.
   person who isn't covered by the Commercial Terms, whether Anthropic
   trains on their API content is not documented in what we read.
 
-As Anthropic documents it, the first assumption's "keeps nothing" half
-doesn't hold for this version: Anthropic keeps API inputs and outputs
-for up to 30 days, and longer in the cases above. The "trains on none of
-it" half holds for customers under the Commercial Terms. We keep the
-assumption as [daemon.md](../../design/daemon.md#privacy-and-security)
-states it, because it names the goal, and we'll keep looking for
-stronger assurance. These pages say nothing about the providers behind
-the agents that load `catalog.md`; each of those needs the same reading.
+As Anthropic documents it, the first assumption's keeping half doesn't
+hold for this version: Anthropic keeps API inputs and outputs for up to
+30 days, and longer in the cases above. The training half holds for
+customers under the Commercial Terms. We keep the assumption as
+[daemon.md](../../design/daemon.md#privacy-and-security) states it,
+because it's the assumption we hold for every provider, and the gap for
+this version is work still to do. We'll keep looking for stronger
+assurance. These pages say nothing about the providers behind the agents
+that load `catalog.md`; each of those needs the same reading.
 
 ## Commands
 

@@ -49,8 +49,8 @@ in this project, whether or not a doc mentions them.
 ### What the catalog protects
 
 The catalog must never show anyone more than they could already see. A
-profile is a copy of what its document says, so the people who can read
-the profile should be the people who can read the document.
+profile is a copy of what its document says, so only people who can read
+the document may read the profile.
 
 That holds for every copy the catalog makes, and any new feature may
 make more. Some of the copies the daemon makes now:
@@ -125,7 +125,11 @@ work still to do, not a reason a leak isn't our problem.
   behind the agents that read catalogs, whichever providers those are. A
   model that runs on the person's own machine sends nothing away, so for
   it the question is what it keeps on that machine. We haven't yet
-  written down how a person would judge a provider by this measure.
+  written down how a person would judge a provider by this measure. The
+  provider the first version uses documents keeping API inputs and
+  outputs for up to 30 days, and longer in some cases, so the keeping
+  half doesn't yet hold for that version
+  ([what it says](../superpowers/specs/2026-11-15-daemon-mvp-design.md#what-anthropic-says-about-keeping-and-training)).
 - **No subfolder is shared more narrowly than the folder above it.** Say
   a People Operations team shares `people/`, but only leadership can
   open `people/management/disciplinary/`. If the catalog in `people/`
@@ -135,15 +139,19 @@ work still to do, not a reason a leak isn't our problem.
   can happen, and the daemon can't tell when it does.
 
 The subfolder problem appears whenever a catalog reaches people other
-than the one who runs the catalog. Someone might commit it to a
-repository that holds folders with fewer readers, or a cloud drive might
-sync it. A central server, or an MCP server that delivers catalogs to
-other people, would face it too.
+than the one who runs the catalog. By our reasoning, that happens if a
+folder holds a clone of another repository with fewer collaborators, or
+files that Git ignores, and the catalog in the outer folder is committed
+to the outer repository: the outer repository's readers then get those
+paths and summaries. It happens too if a cloud drive that syncs the
+catalog's folder delivers the catalog to everyone that folder is shared
+with. A central server, or an MCP server that delivers catalogs to other
+people, would face it too.
 
 A profile can also repeat a secret from its document, such as a password
 or an account number. Preventing that means filtering or redacting
 content before the model sees it, which depends on the kind of document.
-We've looked at packages for it before, and it's still to be designed.
+It's still to be designed.
 
 ## Who it is for
 
