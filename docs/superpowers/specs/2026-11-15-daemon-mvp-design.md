@@ -460,10 +460,74 @@ tightens those whenever it starts and whenever it publishes, including a
 write-ahead log a killed daemon left behind. It can't take back a file
 another account already has open.
 
+File paths count as much as summaries. A catalog lists every path it
+covers, and a file name can say nearly as much as the document does, so
+the modes above protect the paths as well. Each agent that loads
+`catalog.md` sends its paths and summaries to that agent's own model
+provider, which may not be Anthropic. The daemon writes the file so that
+agents will load it, so we count that copy as ours.
+
+The first version rests on two assumptions, which
+[daemon.md](../../design/daemon.md#privacy-and-security) explains:
+
+- No model provider keeps or trains on what it receives. For the
+  daemon's own requests, the provider is Anthropic. The next section
+  quotes what its current terms and documentation say.
+- No subfolder is shared more narrowly than the folder above it. In this
+  version the assumption can fail in two ways. Someone commits a catalog
+  to a repository that also holds folders with fewer readers: a team
+  repository might hold `people/management/disciplinary/` beside
+  `people/`, with the catalog in `people/` listing both. Or a cloud
+  drive syncs the folder that holds `.catalog/catalog.md`, and the drive
+  shares that folder with colleagues who can't open one of its
+  subfolders. In both cases the colleagues can read the paths and
+  summaries of files they can't open, and the daemon can't tell when it
+  happens.
+
 The daemon sends each document and its neighbors' summaries to the
 Anthropic API, and nowhere else. Errors in the Journal, the log, and
 status name file paths and quote the API's error text; the daemon never
 writes the API key into them.
+
+### What Anthropic says about keeping and training
+
+Everything the daemon sends to the Anthropic API passes through
+Anthropic's systems, so we read Anthropic's own published pages for what
+it does with API content. We read both pages on 2026-11-18. They are
+Anthropic's current wording on that date and may change, so check them
+again before relying on them.
+
+- **Commercial API use.** Anthropic's
+  [Commercial Terms of Service](https://www.anthropic.com/legal/commercial-terms)
+  (effective June 17, 2025) govern a customer's use of Anthropic API
+  keys. Whether the terms apply to a given person's API key depends on
+  the agreement that person has with Anthropic; we haven't checked any
+  person's agreement, and the pages don't say which agreement a key
+  falls under.
+- **Retention.** Anthropic's article
+  [How long do you store my organization's data?](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)
+  says, under "Standard Retention Timeframe," that "For Anthropic API
+  users, we automatically delete inputs and outputs on our backend
+  within 30 days of receipt or generation," with exceptions. The article
+  lists services with longer retention under the customer's control,
+  such as the Files API; agreements that say otherwise, such as a zero
+  data retention agreement; retention to enforce Anthropic's Usage
+  Policy; and legal requirements. For Usage Policy violations it says
+  inputs and outputs may be kept up to two years. The Commercial Terms
+  don't state a retention period. They refer to a Data Processing
+  Addendum that we haven't read, so retention beyond what the article
+  says is not documented in what we read.
+- **Training.** The Commercial Terms, section B, say: "Anthropic may not
+  train models on Customer Content from Services." The terms define the
+  Services to include Anthropic API keys and Customer Content to include
+  the inputs sent and the outputs returned. The retention article says
+  nothing about training on API content. For a person who isn't covered
+  by the Commercial Terms, whether Anthropic trains on their API content
+  is not documented in what we read.
+
+These sentences support the first assumption for the daemon's requests
+to Anthropic. They say nothing about the providers behind the agents
+that load `catalog.md`; each of those needs the same reading.
 
 ## Commands
 
