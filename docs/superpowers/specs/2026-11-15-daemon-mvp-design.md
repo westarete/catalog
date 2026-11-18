@@ -493,41 +493,53 @@ writes the API key into them.
 
 Everything the daemon sends to the Anthropic API passes through
 Anthropic's systems, so we read Anthropic's own published pages for what
-it does with API content. We read both pages on 2026-11-18. They are
-Anthropic's current wording on that date and may change, so check them
-again before relying on them.
+it does with API content, on 2026-11-18. They are Anthropic's current
+wording on that date and may change, so check them again before relying
+on them.
 
 - **Commercial API use.** Anthropic's
   [Commercial Terms of Service](https://www.anthropic.com/legal/commercial-terms)
-  (effective June 17, 2025) govern a customer's use of Anthropic API
-  keys. Whether the terms apply to a given person's API key depends on
-  the agreement that person has with Anthropic; we haven't checked any
-  person's agreement, and the pages don't say which agreement a key
+  (effective June 17, 2025) say they "govern Customer's use of Anthropic
+  API keys." Whether the terms apply to a given person's API key depends
+  on the agreement that person has with Anthropic; we haven't checked
+  any person's agreement, and the pages don't say which agreement a key
   falls under.
 - **Retention.** Anthropic's article
   [How long do you store my organization's data?](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)
-  says, under "Standard Retention Timeframe," that "For Anthropic API
-  users, we automatically delete inputs and outputs on our backend
-  within 30 days of receipt or generation," with exceptions. The article
-  lists services with longer retention under the customer's control,
-  such as the Files API; agreements that say otherwise, such as a zero
-  data retention agreement; retention to enforce Anthropic's Usage
-  Policy; and legal requirements. For Usage Policy violations it says
-  inputs and outputs may be kept up to two years. The Commercial Terms
-  don't state a retention period. They refer to a Data Processing
-  Addendum that we haven't read, so retention beyond what the article
-  says is not documented in what we read.
+  (dated July 1, 2026) says, under "Standard Retention Timeframe," that
+  "For Anthropic API users, we automatically delete inputs and outputs
+  on our backend within 30 days of receipt or generation, except" in
+  four cases: a service with longer retention under the customer's
+  control, such as the Files API; an agreement that says otherwise, such
+  as a zero data retention agreement; retention to enforce Anthropic's
+  Usage Policy; and compliance with the law. The article also says that
+  for Covered Models Anthropic requires limited data retention and
+  review for its safety work. For chats flagged as violating the Usage
+  Policy, it keeps inputs and outputs for up to 2 years and trust and
+  safety classification scores for up to 7 years. If a contract permits
+  it, Anthropic may anonymize an organization's data for research or
+  statistics and keep that for longer. It keeps data tied to feedback a
+  customer submits for 5 years. The Commercial Terms state no retention
+  period for Customer Content. They say: "Data submitted through the
+  Services will be processed in accordance with the Anthropic Data
+  Processing Addendum ("DPA"), which is incorporated into these Terms by
+  reference." We haven't read the DPA, so retention beyond what the
+  article says is not documented in what we read.
 - **Training.** The Commercial Terms, section B, say: "Anthropic may not
-  train models on Customer Content from Services." The terms define the
-  Services to include Anthropic API keys and Customer Content to include
-  the inputs sent and the outputs returned. The retention article says
-  nothing about training on API content. For a person who isn't covered
-  by the Commercial Terms, whether Anthropic trains on their API content
-  is not documented in what we read.
+  train models on Customer Content from Services." They define Customer
+  Content as the Inputs sent to the Services and the Outputs they
+  generate. The retention article says nothing about training. For a
+  person who isn't covered by the Commercial Terms, whether Anthropic
+  trains on their API content is not documented in what we read.
 
-These sentences support the first assumption for the daemon's requests
-to Anthropic. They say nothing about the providers behind the agents
-that load `catalog.md`; each of those needs the same reading.
+As Anthropic documents it, the first assumption's "keeps nothing" half
+doesn't hold for this version: Anthropic keeps API inputs and outputs
+for up to 30 days, and longer in the cases above. The "trains on none of
+it" half holds for customers under the Commercial Terms. We keep the
+assumption as [daemon.md](../../design/daemon.md#privacy-and-security)
+states it, because it names the goal, and we'll keep looking for
+stronger assurance. These pages say nothing about the providers behind
+the agents that load `catalog.md`; each of those needs the same reading.
 
 ## Commands
 
