@@ -115,8 +115,9 @@ Watch only folders that no cloud drive syncs, such as `~/src`. The
 daemon can't yet tell a synced folder from any other, and it must never
 write into one. This version hasn't been made to read the folders macOS
 protects, so don't watch Desktop, Documents, Downloads, or iCloud Drive.
+[Where catalogs go](../explanation/catalogs.md#why-to-watch-only-folders-that-no-cloud-drive-syncs)
+explains why.
+
 A catalog's `enumerate` can cover more of its folder than the global
 list does, so a config that arrives with a clone decides which of that
 folder's files the daemon summarizes and sends to your provider.
-[Where catalogs go](../explanation/catalogs.md#why-to-watch-only-folders-that-no-cloud-drive-syncs)
-explains why.

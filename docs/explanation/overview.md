@@ -145,11 +145,11 @@ more than a few dozen. They load files they don't need and miss the ones
 they do. A catalog entry says when a file is worth opening, so the agent
 loads what the task needs and leaves the rest.
 
-The earlier command-line tool kept its catalog in the repository, and We
-used it for about half a year and can't think of a time its catalog held
-wrong content, but it caused trouble in several ways: the catalog fell
-behind when nobody ran `update`, it conflicted in merges, and people had
-to wait.
+The earlier command-line tool kept its catalog in the repository. We
+used it for about half a year and can't think of a time that catalog
+held wrong content, but it caused trouble in several ways: the catalog
+fell behind when nobody ran `update`, it conflicted in merges, and
+people had to wait.
 
 - The SQLite database was binary, so Git reported a conflict whenever
   both sides changed it. We tested this with real Git: two branches each
