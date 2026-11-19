@@ -262,11 +262,11 @@ Every provider also declares what it keeps of the content it receives
 and whether it trains on it, and a person can read that before choosing
 it. That holds for a hosted service, and it holds for a model on the
 same machine, which sends nothing away but may still keep prompts,
-caches, or logs there. A person judges a provider by its own account of
-these things; how they would do that is still to be designed (see "What
-we assume" in [daemon.md](daemon.md#privacy-and-security)). A provider's
-credential stays in the person's global settings and out of everything
-the other components write.
+caches, or logs there. The person decides what's acceptable for the
+content they send it; "Time vs quality vs cost" in
+[daemon.md](daemon.md#time-vs-quality-vs-cost) describes that choice. A
+provider's credential stays in the person's global settings and out of
+everything the other components write.
 
 ### Renderer
 
@@ -284,8 +284,8 @@ promise in daemon.md in one place, and the promise about who may read
 the file it writes. The catalog file is one file with one set of
 readers, so everyone who can open it has to be able to read every file
 it describes, so no one may read an entry for a file they couldn't read.
-The Publisher can't see how a folder is shared; "What we assume" in
-[daemon.md](daemon.md#privacy-and-security) says what follows when a
+The Publisher can't see how a folder is shared; "Where agents start" in
+[daemon.md](daemon.md#where-agents-start) says what follows when a
 subfolder is shared more narrowly than its parent, and where a catalog
 that is committed or synced may end up.
 

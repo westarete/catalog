@@ -106,52 +106,17 @@ proposal says so, and a reviewer checks that claim.
 A limit is a concrete definition, so it always covers less than we need.
 Alongside the limits, we keep working toward goals we never mark as met:
 
-- stronger assurance that a model provider keeps nothing we send it and
-  trains on none of it
-- more confidence that we filter confidential information before it
-  reaches a model
+- clearer ways for a person to learn what a model provider keeps of what
+  we send it and whether it trains on it, so they can choose a provider
+  that suits the content (see "Time vs quality vs cost")
+- more confidence that a profile doesn't repeat a secret from its
+  document, such as a password or an account number; that means
+  filtering or redacting content before the model sees it, which depends
+  on the kind of document and is still to be designed
 - stronger checks for security vulnerabilities in what we build
 
 The day we say we've covered privacy or security is the day we start to
 fail at it.
-
-### What we assume
-
-We know of these assumptions, and we expect to find more. Each one is
-work still to do, not a reason a leak isn't our problem.
-
-- **No model provider keeps or trains on what it receives.** That
-  includes the provider the daemon sends documents to and the providers
-  behind the agents that read catalogs, whichever providers those are. A
-  model that runs on the person's own machine sends nothing away, so for
-  it the question is what it keeps on that machine. We haven't yet
-  written down how a person would judge a provider by this measure. The
-  provider the first version uses documents keeping API inputs and
-  outputs for up to 30 days, and longer in some cases, so the keeping
-  half doesn't yet hold for that version
-  ([what it says](../superpowers/specs/2026-11-15-daemon-mvp-design.md#what-anthropic-says-about-keeping-and-training)).
-- **No subfolder is shared more narrowly than the folder above it.** Say
-  a People Operations team shares `people/`, but only leadership can
-  open `people/management/disciplinary/`. If the catalog in `people/`
-  covers the disciplinary folder, everyone on the team can read those
-  files' paths and profiles. We expect this to be uncommon, since people
-  usually expect access to a folder to include its subfolders, but it
-  can happen, and the daemon can't tell when it does.
-
-The subfolder problem appears whenever a catalog reaches people other
-than the one who runs the catalog. By our reasoning, that happens if a
-folder holds a clone of another repository with fewer collaborators, or
-files that Git ignores, and the catalog in the outer folder is committed
-to the outer repository: the outer repository's readers then get those
-paths and summaries. It happens too if a cloud drive that syncs the
-catalog's folder delivers the catalog to everyone that folder is shared
-with. A central server, or an MCP server that delivers catalogs to other
-people, would face it too.
-
-A profile can also repeat a secret from its document, such as a password
-or an account number. Preventing that means filtering or redacting
-content before the model sees it, which depends on the kind of document.
-It's still to be designed.
 
 ## Who it is for
 
@@ -314,9 +279,8 @@ several parts.
   and when we start profiling it. We still don't know how to tell when a
   file needs one.
 - We want profiling itself to take less time.
-- We value
-  [the privacy a language model gives us](#privacy-and-security), and
-  more privacy often costs speed, or battery on a laptop.
+- We value [privacy](#privacy-and-security), and the more private choice
+  of model often costs speed, or battery on a laptop.
 - A profile's quality doesn't stand alone. It also depends on how the
   agent chooses between that file and its peers: not just whether to
   load file A, but whether to load A, B, or C when all three look
@@ -335,6 +299,23 @@ We might go further and let people choose the model for each folder. A
 folder's entry in the daemon's settings might recommend a model, or even
 customize the prompt. People will want to make different tradeoffs among
 privacy, speed, price, and quality depending on the content.
+
+Part of the privacy tradeoff is what a provider does with what we send
+it: whether it keeps the content, for how long, and whether it trains on
+it. A model on the person's own machine sends nothing away, though it
+may still keep prompts or logs there. The right answer depends on the
+content and on whose it is. Someone might accept a hosted model that
+keeps requests for a few weeks for work they already trust that provider
+with, run a local model for a client's documents, and use a free hosted
+model that trains on what it reads for material that's already public.
+The person makes that choice. How the catalog shows them what each
+provider says it does is still to be designed. The agents that read a
+catalog make the same kind of copy, since each one sends the catalog's
+paths and profiles to its own provider.
+
+The first version uses Anthropic's API, and
+[its spec](../superpowers/specs/2026-11-15-daemon-mvp-design.md#what-anthropic-says-about-keeping-and-training)
+quotes what Anthropic says it keeps and trains on.
 
 ## Profiles deepen over time
 
@@ -430,6 +411,21 @@ decisions, and a person can make both.
   with agents, so it's better placed to judge than any rule we could
   write into the daemon. It creates a `.catalog/` folder, and the line
   that loads the catalog, in each place the person accepts.
+- A catalog shows the path and profile of every file it covers to anyone
+  who can read the catalog. Now and then a subfolder is shared with
+  fewer people than the folder above it. Say a People Operations team
+  shares `people/`, but only leadership can open
+  `people/management/disciplinary/`. A catalog in `people/` that covers
+  the disciplinary folder would show those files' paths and profiles to
+  the whole team. The daemon can't see how folders are shared, so
+  whoever places a catalog, a person or the catalog skill, has to weigh
+  this. It matters once a catalog reaches people other than the one who
+  runs the daemon. By our reasoning, that happens when someone commits a
+  catalog to a repository whose readers can't open some of the folders
+  it covers, such as a clone of another repository with fewer
+  collaborators or files Git ignores, or when a cloud drive syncs the
+  catalog's folder to everyone it's shared with. A central server that
+  delivers catalogs to other people would face it too.
 
 A developer might ask the daemon to profile everything under `~/src` but
 would never want a catalog there. Their agent would suggest the

@@ -467,22 +467,28 @@ the modes above protect the paths as well. Each agent that loads
 provider, which may not be Anthropic. The daemon writes the file so that
 agents will load it, so we count that copy as ours.
 
-The first version rests on two assumptions, which
-[daemon.md](../../design/daemon.md#privacy-and-security) explains:
+Who else sees what the daemon learns depends on two things outside it.
 
-- No model provider keeps or trains on what it receives. For the
-  daemon's own requests, the provider is Anthropic. The next section
-  quotes what its current terms and documentation say.
-- No subfolder is shared more narrowly than the folder above it. By our
-  reasoning, this version can fail it in two ways. A folder holds a
-  clone of another repository with fewer collaborators, or files that
-  Git ignores, and the catalog in the outer folder is committed to the
-  outer repository; the outer repository's readers then get those paths
-  and summaries. Or a cloud drive that syncs the catalog's folder
-  delivers `.catalog/catalog.md` to everyone that folder is shared with,
-  including people who can't open one of its subfolders. That is why
-  people should watch only folders that no cloud drive syncs (see
-  above). In both cases the daemon can't tell when it happens.
+- The model provider. For the daemon's own requests, that's Anthropic,
+  and the next section quotes what its current terms and documentation
+  say it keeps and trains on. Whether that's acceptable depends on the
+  content, and the person decides
+  ([daemon.md](../../design/daemon.md#time-vs-quality-vs-cost), "Time vs
+  quality vs cost").
+- How folders are shared. If a subfolder is shared with fewer people
+  than the folder holding the catalog, the catalog can show that
+  subfolder's paths and summaries to people who can't open it
+  ([daemon.md](../../design/daemon.md#where-agents-start), "Where agents
+  start"). By our reasoning, this version can do that in two ways. A
+  folder holds a clone of another repository with fewer collaborators,
+  or files that Git ignores, and the catalog in the outer folder is
+  committed to the outer repository; the outer repository's readers then
+  get those paths and summaries. Or a cloud drive that syncs the
+  catalog's folder delivers `.catalog/catalog.md` to everyone that
+  folder is shared with, including people who can't open one of its
+  subfolders. That is one more reason people should watch only folders
+  that no cloud drive syncs (see above). In both cases the daemon can't
+  tell when it happens.
 
 The daemon sends each document and its neighbors' summaries to the
 Anthropic API, and nowhere else. Errors in the Journal, the log, and
@@ -532,15 +538,12 @@ on them.
   person who isn't covered by the Commercial Terms, whether Anthropic
   trains on their API content is not documented in what we read.
 
-As Anthropic documents it, the first assumption's keeping half doesn't
-hold for this version: Anthropic keeps API inputs and outputs for up to
-30 days, and longer in the cases above. The training half holds for
-customers under the Commercial Terms. We keep the assumption as
-[daemon.md](../../design/daemon.md#privacy-and-security) states it,
-because it's the assumption we hold for every provider, and the gap for
-this version is work still to do. We'll keep looking for stronger
-assurance. These pages say nothing about the providers behind the agents
-that load `catalog.md`; each of those needs the same reading.
+In short, as Anthropic documents it, Anthropic keeps API inputs and
+outputs for up to 30 days, and longer in the cases above, and doesn't
+train on them for customers under the Commercial Terms. A person
+deciding whether to send a folder to this version weighs that against
+the content. These pages say nothing about the providers behind the
+agents that load `catalog.md`; each of those needs the same reading.
 
 ## Commands
 
