@@ -62,10 +62,12 @@ These three folders aren't one of the Diátaxis types.
   borrow from.
 - [best-practices](best-practices/) holds the people whose practice we
   follow, in [craftspeople.md](best-practices/craftspeople.md).
-- [superpowers](superpowers/) holds the specs and plans we write while
-  building. Each is dated and records one decision and how we carried it
-  out, so it can describe catalog as it was then. The explanation and
-  reference docs are the current picture.
+- [superpowers](superpowers/) holds the specs we write before building.
+  Each is dated and records one decision, so it can describe catalog as
+  it was then. The explanation and reference docs are the current
+  picture. A plan sits beside its spec only while someone is carrying it
+  out; work still to do is in
+  [GitHub issues](https://github.com/westarete/catalog/issues).
 
 ## How we organize these docs
 

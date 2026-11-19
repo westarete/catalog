@@ -30,8 +30,7 @@ the next conversation. Prefer small, verifiable steps; call out
 trade-offs when a choice matters; avoid expanding scope beyond what they
 asked.
 
-Track work still to do in Superpowers plans under
-`docs/superpowers/plans/` and in
+Track work still to do in
 [GitHub issues](https://github.com/westarete/catalog/issues), where new
 bugs and requests go.
 
@@ -167,7 +166,9 @@ install is Node.
 Build code with the Superpowers plugin's workflow: brainstorming, a spec
 in `docs/superpowers/specs/`, a plan in `docs/superpowers/plans/`, then
 subagent-driven development. Where this file and a Superpowers skill
-disagree about process, follow the skill.
+disagree about process, follow the skill. When a plan is finished, file
+its undone steps and the findings its ledger deferred in issues, then
+delete the plan in the same branch.
 
 ## Balance quality, size, and cost
 

@@ -42,7 +42,9 @@ repository from the earlier tool, see
 installing what you need. Run `make test` after changing Go code and
 `make markdown` after changing Markdown; CI runs both. We build the code
 with the Superpowers plugin, which keeps its designs in
-`docs/superpowers/specs/` and its plans in `docs/superpowers/plans/`.
+`docs/superpowers/specs/`. Its plans stay in `docs/superpowers/plans/`
+only while someone is carrying them out; work still to do is in
+[GitHub issues](https://github.com/westarete/catalog/issues).
 
 ## Releases
 
