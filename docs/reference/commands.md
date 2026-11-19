@@ -51,7 +51,7 @@ standard error, except where a command below says otherwise.
 
 Runs the daemon in the foreground until it receives SIGINT or SIGTERM.
 It does not detach; launchd runs it in the background (see the setup
-steps in the [README](../../README.md)).
+steps in [Install and run the daemon](../how-to/install-and-run.md)).
 
 On start, before it does anything else, the daemon creates the state
 folder if it is missing and sets the folder's mode to 0700. If a journal

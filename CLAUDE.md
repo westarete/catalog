@@ -232,7 +232,7 @@ approval in chat.
 
 Run `make markdown` and `make test` before every commit.
 
-Follow the release process in [README.md](README.md).
+Follow the release process in [Release catalog](docs/how-to/release.md).
 
 Tagging a release is a commit-level decision. Before running `git tag`,
 propose the version number and the exact tag message in chat and wait

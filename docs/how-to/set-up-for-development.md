@@ -17,7 +17,7 @@ go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 Then `make mutate PKG=./some/package` runs it on one package.
 
 CI uses the Go and golangci-lint versions pinned in
-[.github/workflows/check.yml](.github/workflows/check.yml).
+[.github/workflows/check.yml](../../.github/workflows/check.yml).
 
 Then clone the repository and check that it builds clean:
 
