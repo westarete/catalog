@@ -27,7 +27,7 @@ open to its owner only.
 
 The state folder is
 `~/Library/Application Support/com.westarete.catalog`, with `~` the home
-folder the operating system reports.
+folder from `$HOME`.
 
 ## Modes the daemon sets
 

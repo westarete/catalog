@@ -138,13 +138,14 @@ spending, and no more than one model provider; both are direction.
 
 A catalog's `config.toml` may come from someone else, for example with a
 clone, so the daemon trusts it less than the person's global settings.
-It can narrow what gets indexed, and the daemon reads only its
-`enumerate` and `ignore` lists, so it can never name a model or a server
-to send files to, or hold a credential. The daemon doesn't read the API
-key from the environment, because launchd doesn't start it from the
-person's shell. The key lives in the global settings, which only the
-person can read. Keeping it in the Keychain is direction, for when
-there's an app.
+It sets which of its folder's files the catalog covers, and it may widen
+or narrow the global lists, because the folder's config knows its
+contents. The daemon reads only its `enumerate` and `ignore` lists, so
+it can never name a model or a server to send files to, or hold a
+credential. The daemon doesn't read the API key from the environment,
+because launchd doesn't start it from the person's shell. The key lives
+in the global settings, which only the person can read. Keeping it in
+the Keychain is direction, for when there's an app.
 
 ### Trees
 
@@ -221,12 +222,13 @@ show that someone can. That is direction, not built.
 
 The Store keys profiles by content, so a moved file keeps its profile. A
 Git worktree, which is a second copy of mostly identical files, also
-costs almost nothing to catalog. One consequence is that a profile may
-point to a near-duplicate with "see X.md," and the model took that path
-from the catalog where it wrote the profile. If the same content sits
-under a different prefix, such as a subtree copied into another
-repository, the pointer can be wrong. We accept that for now, and we'll
-revisit it if copies under other prefixes turn out to be common.
+costs almost nothing to catalog. No other component knows how the Store
+keeps its data. One consequence is that a profile may point to a
+near-duplicate with "see X.md," and the model took that path from the
+catalog where it wrote the profile. If the same content sits under a
+different prefix, such as a subtree copied into another repository, the
+pointer can be wrong. We accept that for now, and we'll revisit it if
+copies under other prefixes turn out to be common.
 
 `catalog daemon --once` opens the Store directly, even while the daemon
 runs, so the Store uses SQLite's write-ahead log and a busy timeout, and
@@ -345,8 +347,9 @@ the content they send it; [Profiles](profiles.md#what-a-provider-keeps)
 describes that choice and quotes what the provider we use says. The
 daemon sends each file and its neighbors' profiles to that provider, and
 nowhere else. The provider's credential stays in the person's global
-settings and out of everything the other components write, including the
-journal, the log, and status.
+settings. The daemon never formats it into the journal, the log, or
+status itself, though
+[error text from other sources can still carry part of it](../reference/files.md#the-api-key-in-errors).
 
 ### Renderer
 
@@ -394,8 +397,9 @@ read themselves. The journal is readable only by its owner. On a server
 that serves a team, the Journal would give each person only the entries
 about files that person can read, so a person could read all of it only
 if they could read all of those files. That is direction, not built. The
-Journal never holds a credential, and a report from a client would be
-held to the same reader rule.
+daemon never formats a credential into the Journal itself
+([the API key in errors](../reference/files.md#the-api-key-in-errors)),
+and a report from a client would be held to the same reader rule.
 
 #### Statistics for tuning
 
@@ -440,7 +444,9 @@ socket doesn't exist, `catalog status` reports that the daemon isn't
 running. Control imports nothing else in the module, because the daemon
 and the command both use it.
 
-More requests are direction, not built: prioritize this catalog, retry a
+More requests are direction, not built: prioritize this catalog
+(`catalog update` would become a simple way for a person to ask the
+daemon to give the current tree priority; agents don't need it), retry a
 file, pause, read or change settings, read statistics, fetch the catalog
 for a path, and record a report in the Journal. Several of them return
 profiles, paths, or the Journal. Control would answer each requester

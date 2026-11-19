@@ -95,7 +95,10 @@ places a catalog, a person or the catalog skill, has to weigh this. A
 person can keep the narrower folder out of the wider catalog by giving
 it a catalog of its own, which nesting makes the wider catalog leave
 alone, or by listing it under `ignore` in the wider catalog's
-`config.toml`.
+`config.toml`. A catalog's `ignore` replaces the global list, so the
+defaults (`README.md`, `**/CLAUDE.md`, `**/AGENTS.md`) and the person's
+own global ignores stop applying to that catalog unless it repeats them
+([Configuration](../reference/configuration.md#how-settings-combine)).
 
 This matters once a catalog reaches people other than the one who runs
 the daemon. By our reasoning, that happens in these cases.
@@ -127,14 +130,15 @@ reached that size yet. See the open questions below.
 
 ## One daemon per Mac
 
-One daemon serves the whole Mac. A person lists the folders they want
-watched in one `global.toml` on their machine, and later in a menu bar
-app (not built). The daemon never searches the rest of the machine for
-configuration. It still writes a `.catalog/catalog.md` for an
-instruction file in the folder to load, so the agent receives the same
-thing as before. We use `AGENTS.md` as the convention, because most
-agents read it and nothing about the catalog is specific to Claude. A
-Claude Code user can import `AGENTS.md` from `CLAUDE.md`.
+One daemon serves the whole Mac, and it always catches up eventually. A
+person lists the folders they want watched in one `global.toml` on their
+machine, and later in a menu bar app (not built). The daemon never
+searches the rest of the machine for configuration. It writes a
+`.catalog/catalog.md` for an instruction file in the folder to load, so
+the agent receives the same thing as before. We use `AGENTS.md` as the
+convention, because most agents read it and nothing about the catalog is
+specific to Claude. A Claude Code user can import `AGENTS.md` from
+`CLAUDE.md`.
 
 ## What a tree needs
 
@@ -192,13 +196,16 @@ drive delivers the catalog to everyone the folder is shared with.
 So the daemon should refuse a synced folder when someone lists it. It
 doesn't yet: it can't tell a synced folder from any other, so a person
 has to watch only folders that no cloud drive syncs, such as `~/src`.
-Detecting a synced folder is intended direction, not built. For now this
+Detecting a synced folder is intended direction, not built. We could
+serve those folders only by delivering the catalog without a file, for
+example over [MCP](#delivering-the-catalog-without-a-file). For now this
 leaves out many knowledge workers, who often keep their files in cloud
 drives.
 
-This version also doesn't watch folders that macOS protects: Desktop,
-Documents, Downloads, and iCloud Drive. Howard Oakley lists those among
-the locations macOS protects from apps reading them
+This version hasn't been made to read the folders macOS protects, so
+don't watch Desktop, Documents, Downloads, or iCloud Drive. Howard
+Oakley lists those among the locations macOS protects from apps reading
+them
 ([Oakley, 2026](https://eclecticlight.co/2026/04/07/privacy-protected-folders/)).
 We infer that the daemon will need an app bundle before it can read them
 without trouble, which isn't built. The daemon runs as a bare launch

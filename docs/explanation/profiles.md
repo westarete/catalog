@@ -92,10 +92,12 @@ profiles: the daemon keeps a file's older profile in the catalog until
 the new model has written its replacement, and it profiles files that
 have no profile first.
 
-Other providers are intended direction, not built. Given the tradeoffs
-above, we think people should choose from a range of models, open or
-proprietary, hosted or local. Which of them write profiles as good as
-the default model's is an open question below.
+Other providers are intended direction, not built. The model might be a
+local open-weight model on the laptop, or a trusted service that costs
+close to nothing. Given the tradeoffs above, we think people should
+choose from a range of models, open or proprietary, hosted or local.
+Which of them write profiles as good as the default model's is an open
+question below.
 
 We might go further and let people choose the model for each folder. A
 folder's entry in the daemon's settings might recommend a model, or even
@@ -135,11 +137,11 @@ knew nothing about the file. Since time and cost are what we struggle
 with, the daemon profiles in levels.
 
 - The daemon produces the bottom level almost at once, at almost no
-  cost. It lists each file with its type, its size in bytes, and its
-  first lines, up to 10 lines or 512 bytes, whichever is shorter. Every
-  profile starts here, and even this helps an agent far more than
-  nothing. The catalog marks such an entry "Not summarized yet." so the
-  agent knows how far to trust it.
+  cost. It lists each file with its type, its size in bytes, and, for
+  text files, its first lines, up to 10 lines or 512 bytes, whichever is
+  shorter. Every profile starts here, and even this helps an agent far
+  more than nothing. The catalog marks such an entry "Not summarized
+  yet." so the agent knows how far to trust it.
 - At the middle level, a language model has read the file and written
   the profile described above. This is built.
 - At the top level, we would also understand how the file compares with

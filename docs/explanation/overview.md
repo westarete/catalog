@@ -57,9 +57,8 @@ the document may read the profile.
 That holds for every copy the catalog makes, and any new feature may
 make more. Some of the copies the daemon makes now:
 
-- each file it profiles, and the profiles of its neighbors (profiling a
-  file in light of its neighbors is intended direction, not built), sent
-  to the model provider the person chose
+- each file it profiles, and the profiles of its neighbors, sent to the
+  model provider the person chose
 - every profile, in the daemon's state folder
 - every file profiled and every error, in the journal and the log
 - each catalog's paths and profiles, in `.catalog/catalog.md` inside the
@@ -108,11 +107,11 @@ proposal says so, and a reviewer checks that claim.
 
 A limit is a concrete definition, so it always covers less than we need.
 Alongside the limits, we keep working toward goals we never mark as met.
-None of these is built yet.
 
-- clearer ways for a person to learn what a model provider keeps of what
-  we send it and whether it trains on it, so they can choose a provider
-  that suits the content
+- clearer ways for a person to learn
+  [what a model provider keeps](profiles.md#what-a-provider-keeps) of
+  what we send it and whether it trains on it, so they can choose a
+  provider that suits the content
 - more confidence that a profile doesn't repeat a secret from its
   document, such as a password or an account number; that means
   filtering or redacting content before the model sees it, which depends
@@ -146,9 +145,11 @@ more than a few dozen. They load files they don't need and miss the ones
 they do. A catalog entry says when a file is worth opening, so the agent
 loads what the task needs and leaves the rest.
 
-The earlier command-line tool kept its catalog in the repository, and
-that caused two troubles. The catalog fell behind when nobody ran
-`update`, and it conflicted in merges.
+The earlier command-line tool kept its catalog in the repository, and We
+used it for about half a year and can't think of a time its catalog held
+wrong content, but it caused trouble in several ways: the catalog fell
+behind when nobody ran `update`, it conflicted in merges, and people had
+to wait.
 
 - The SQLite database was binary, so Git reported a conflict whenever
   both sides changed it. We tested this with real Git: two branches each
@@ -168,14 +169,15 @@ that caused two troubles. The catalog fell behind when nobody ran
 ## No state in Git by default
 
 For people using the catalog, the main difference is that they no longer
-commit `.catalog/catalog.md` files to Git. Nobody checks the catalog
-files into Git. Git ignores them, or they live outside the repository,
-so they have nothing to conflict on. The daemon keeps those files
-current instead. It also keeps its own state outside every folder it
-serves, in `~/Library/Application Support/com.westarete.catalog`. Since
-none of that changing content is in Git, it can't cause merge conflicts.
-We care most about the experience people have, and this improvement is
-worth working hard for.
+commit `.catalog/catalog.md` files to Git. Our intent is that nobody
+checks the catalog files into Git, whether Git ignores them or they live
+outside the repository, so they have nothing to conflict on. The daemon
+keeps those files current instead. It also keeps its own state outside
+every folder it serves, in
+`~/Library/Application Support/com.westarete.catalog`. Since none of
+that changing content would be in Git, it couldn't cause merge
+conflicts. We care most about the experience people have, and this
+improvement is worth working hard for.
 
 A person who keeps a catalog's folder in a Git repository will probably
 want Git to ignore `.catalog/catalog.md` themselves, since that's the
@@ -196,8 +198,8 @@ things follow from that.
 - The file has to stand on its own. We write into it how deeply we've
   profiled each entry, because the agent has nowhere else to ask. Today
   an entry is either summarized or marked "Not summarized yet." and
-  shows only the start of the file; a deeper level that compares a file
-  with its neighbors is intended direction, not built.
+  shows only the start of the file; a deeper level that would understand
+  how a file compares with its peers is intended direction, not built.
 - The catalog needs no skill or setup on the agent's side, so an agent
   can use it anywhere it can see the folder and load the file. That
   includes Claude Cowork's mount, though we don't yet know what would

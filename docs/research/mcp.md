@@ -4,7 +4,7 @@ An MCP server could give agents the catalog without any file. An agent
 would ask for the catalog for its current path and get what
 `.catalog/catalog.md` would have held. This note records what
 Anthropic's documentation says about how Claude Code and Cowork load and
-reach MCP servers, which decides how well that could work. What the
+reach MCP servers, so we can judge how well that could work. What the
 catalog makes of it is in
 [catalogs](../explanation/catalogs.md#delivering-the-catalog-without-a-file).
 

@@ -1,4 +1,4 @@
-# Developer setup
+# Set up for development
 
 This is for anyone working on `catalog` itself. You need Go,
 golangci-lint, and Node, which runs the pinned Markdown tools through

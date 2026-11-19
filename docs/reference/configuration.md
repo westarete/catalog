@@ -21,15 +21,17 @@ The daemon keeps its settings file and its own state in one folder:
 ~/Library/Application Support/com.westarete.catalog
 ```
 
-The program takes the home folder from the operating system.
-`catalog daemon` and `catalog daemon --once` create the folder with mode
-0700 and set that mode if it already exists.
+The program takes the home folder from `$HOME`. `catalog daemon` and
+`catalog daemon --once` create the folder with mode 0700 and set that
+mode if it already exists.
 
 ## global.toml
 
 The file is `global.toml` in the state folder. The daemon never creates
 it; a person writes it. The daemon doesn't create, check, or change its
-mode. The daemon reads its API key only from this file, never from the
+mode, so after writing it,
+[restrict it with `chmod 600`](../how-to/install-and-run.md). The daemon
+reads its API key only from this file, never from the
 `ANTHROPIC_API_KEY` environment variable or any other environment
 variable.
 
@@ -60,7 +62,9 @@ folder = "/Users/alex/notes"
 Without a key the daemon still crawls and writes each catalog's listing,
 but it summarizes nothing, and `catalog status` says
 `Not summarizing: no API key loaded from global.toml`. An empty
-`api_key` counts as no key. `catalog daemon --once` refuses to run
+`api_key` counts as no key, and a missing one adds a
+`Config error: <path>: no api_key` line to the status, where `<path>` is
+the path of `global.toml`. `catalog daemon --once` refuses to run
 without one.
 
 When the key or the model changes, the daemon starts using the new one
@@ -116,8 +120,11 @@ watch have no effect there: the daemon doesn't read `api_key`, `model`,
 or `watch` from a catalog's config, and it sends nothing to any service
 the file names. A catalog's config can come from someone else, for
 example in a clone, so settings that decide where file content goes stay
-in `global.toml`, which only the person who runs the daemon writes. The
-daemon sends requests only to the model service, with the key from
+in `global.toml`, which only the person who runs the daemon writes. A
+catalog's `enumerate` can cover more of its folder than the global list
+does, so a config that arrives with a clone decides which of that
+folder's files the daemon summarizes and sends to the person's provider.
+The daemon sends requests only to the model service, with the key from
 `global.toml`. [Profiles](../explanation/profiles.md) explains what that
 service receives.
 
@@ -165,5 +172,5 @@ records the error in its journal and shows it in `catalog status` as a
 - A missing `.catalog/config.toml` isn't an error. The catalog uses the
   global lists.
 
-The daemon records a config error again only if the problem is new or
-has changed.
+The daemon records a config error in the journal once, and records it
+again only after a crawl in which the problem was gone.

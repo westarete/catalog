@@ -70,9 +70,11 @@ machine are enough for a first version, and more per-catalog settings
 can come once people ask for them.
 
 The daemon doesn't detect synced folders yet, and it must never write
-into one ([daemon.md](../../explanation/catalogs.md#cloud-drives), "A
-side challenge: cloud drives"). Until it can tell, people should watch
-only folders that no cloud drive syncs, and the README should say so.
+into one
+([daemon.md](../../explanation/catalogs.md#why-to-watch-only-folders-that-no-cloud-drive-syncs),
+"A side challenge: cloud drives"). Until it can tell, people should
+watch only folders that no cloud drive syncs, and the README should say
+so.
 
 This version also watches only folders that macOS doesn't protect, such
 as `~/src`. Desktop, Documents, Downloads, and iCloud Drive wait for the
@@ -480,9 +482,9 @@ Who else sees what the daemon learns depends on two things outside it.
 - How folders are shared. If a subfolder is shared with fewer people
   than the folder holding the catalog, the catalog can show that
   subfolder's paths and summaries to people who can't open it
-  ([daemon.md](../../explanation/catalogs.md#where-agents-start), "Where
-  agents start"). By our reasoning, this version can do that in two
-  ways. A folder holds a clone of another repository with fewer
+  ([daemon.md](../../explanation/catalogs.md#subfolders-shared-more-narrowly-than-their-parent),
+  "Where agents start"). By our reasoning, this version can do that in
+  two ways. A folder holds a clone of another repository with fewer
   collaborators, or files that Git ignores, and the catalog in the outer
   folder is committed to the outer repository; the outer repository's
   readers then get those paths and summaries. Or a cloud drive that

@@ -148,7 +148,7 @@ The status is plain lines. Times are in the local time zone, in the form
 
 ```text
 Started Nov 19 09:12; last crawled Nov 19 09:31.
-Config error: /Users/alex/Library/Application Support/com.example.catalog/global.toml: not found; create it with your api_key and the folders to watch
+Config error: /Users/alex/Library/Application Support/com.westarete.catalog/global.toml: not found; create it with your api_key and the folders to watch
 Summarizing paused until Nov 19 09:33: the model service is not answering
 
 Catalogs:

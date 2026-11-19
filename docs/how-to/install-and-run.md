@@ -113,7 +113,10 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.pl
 
 Watch only folders that no cloud drive syncs, such as `~/src`. The
 daemon can't yet tell a synced folder from any other, and it must never
-write into one. This version also doesn't watch folders that macOS
-protects: Desktop, Documents, Downloads, and iCloud Drive.
+write into one. This version hasn't been made to read the folders macOS
+protects, so don't watch Desktop, Documents, Downloads, or iCloud Drive.
+A catalog's `enumerate` can cover more of its folder than the global
+list does, so a config that arrives with a clone decides which of that
+folder's files the daemon summarizes and sends to your provider.
 [Where catalogs go](../explanation/catalogs.md#why-to-watch-only-folders-that-no-cloud-drive-syncs)
 explains why.

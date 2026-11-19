@@ -55,7 +55,7 @@ aren't built yet.
 
 ## Research, best practices, and dated records
 
-These three folders aren't one of the four types below.
+These three folders aren't one of the Diátaxis types.
 
 - [research](research/) holds our notes on the sources we learn from,
   such as the documentation of tools and platforms we might build on or
@@ -71,6 +71,6 @@ These three folders aren't one of the four types below.
 
 We organize the docs with [Diátaxis](https://diataxis.fr/), which sorts
 them by what the reader needs: tutorials, how-to guides, reference, and
-explanation. [craftspeople.md](best-practices/craftspeople.md) says why
-we follow it. We don't have tutorials yet, so there's no tutorials
+explanation. [craftspeople.md](best-practices/craftspeople.md) says what
+we take from it. We don't have tutorials yet, so there's no tutorials
 folder.
