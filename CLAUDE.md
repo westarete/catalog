@@ -57,10 +57,12 @@ in a doc only where the text is about that person.
 
 Put each new doc in `docs/how-to/`, `docs/reference/`, or
 `docs/explanation/` by what its reader needs, as
-[docs/README.md](docs/README.md) describes. When you add or change a
-feature, check which of the four Diátaxis types (tutorial, how-to,
-reference, explanation) it still needs, and say which are missing. Add a
-section to `docs/README.md` only once it has a doc in it.
+[docs/README.md](docs/README.md) describes, and as
+[docs/best-practices/craftspeople.md](docs/best-practices/craftspeople.md)
+explains. When you add or change a feature, check which of the four
+Diátaxis types (tutorial, how-to, reference, explanation) it still
+needs, and say which are missing. Add a section to `docs/README.md` only
+once it has a doc in it.
 
 ## Reread before you show
 
