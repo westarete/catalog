@@ -53,6 +53,15 @@ in a doc only where the text is about that person.
 
 @writing-style.md
 
+## Place docs by their Diátaxis type
+
+Put each new doc in `docs/how-to/`, `docs/reference/`, or
+`docs/explanation/` by what its reader needs, as
+[docs/README.md](docs/README.md) describes. When you add or change a
+feature, check which of the four Diátaxis types (tutorial, how-to,
+reference, explanation) it still needs, and say which are missing. Add a
+section to `docs/README.md` only once it has a doc in it.
+
 ## Reread before you show
 
 Before you show anyone new writing that other people will read, reread
@@ -177,7 +186,7 @@ The first build left its journal and store readable by every account on
 the Mac ([issue #6](https://github.com/westarete/catalog/issues/6)),
 because no spec asked who could read them and no reviewer was asked to
 check. Reasons and goals are in
-[daemon.md](docs/design/daemon.md#privacy-and-security).
+[overview.md](docs/explanation/overview.md#privacy-and-security).
 
 At every step, such as a design, a doc, a line of code, or a review,
 ask:

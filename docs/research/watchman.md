@@ -139,10 +139,11 @@ data; Waleed Khan recommends this in his talk on
 
 These are our own conclusions, not claims from the sources above.
 
-- [daemon.md](../design/daemon.md) already proposes Watchman's shape:
-  one server per user, finding each tree by walking up to a marker file.
-  The developers' reason for it, that an operating system can only watch
-  so many directories well, applies to us too.
+- [catalogs.md](../explanation/catalogs.md#one-daemon-per-mac) already
+  proposes Watchman's shape: one server per user, finding each tree by
+  walking up to a marker file. The developers' reason for it, that an
+  operating system can only watch so many directories well, applies to
+  us too.
 - When events go missing, a full rescan is the fallback. Ours can be
   cheap if it only compares content hashes with the ones already
   profiled, and calls the model just for files that changed.

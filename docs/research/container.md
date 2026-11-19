@@ -50,8 +50,8 @@ These are our own conclusions, not claims from the sources above.
 
 - A CLI, a launch agent, and XPC between them is a shape Apple's own
   engineers chose for a Swift tool.
-  [architecture.md](../design/architecture.md) proposes the same CLI and
-  agent, and leaves open how their messages travel.
+  [architecture.md](../explanation/architecture.md) proposes the same
+  CLI and agent, and leaves open how their messages travel.
 - Splitting client and server into separate targets lets the compiler
   keep the CLI from reaching into the daemon. We can do the same with
   one target per component.

@@ -2,14 +2,14 @@
 
 This is the design for the first version of the catalog daemon: the
 smallest version that follows
-[architecture.md](../../design/architecture.md) and is good enough for
-people to stop running today's `catalog` command. It narrows mvp.md and
-changes it in three ways. A person lists the folders for the daemon to
-watch in one config on their machine, and a `.catalog/` folder inside
+[architecture.md](../../explanation/architecture.md) and is good enough
+for people to stop running today's `catalog` command. It narrows mvp.md
+and changes it in three ways. A person lists the folders for the daemon
+to watch in one config on their machine, and a `.catalog/` folder inside
 them marks each place a catalog goes. A minimal `catalog status` comes
 forward from mvp.md's "What waits." The daemon does its work in a single
-loop, one file at a time. [daemon.md](../../design/daemon.md) explains
-why we're building it.
+loop, one file at a time. [daemon.md](../../explanation/overview.md)
+explains why we're building it.
 
 We still don't know where catalogs should go so that agents find them
 where people start work. daemon.md describes that problem under "Where
@@ -23,10 +23,11 @@ workers' folders.
 ## Why, and what success looks like
 
 Today's catalog falls behind when nobody runs `catalog update`, and its
-files conflict in Git ([daemon.md](../../design/daemon.md), "What hurts
-today"). This version ends both problems. The daemon keeps each catalog
-current in the background and keeps its own state outside the folders it
-serves.
+files conflict in Git
+([daemon.md](../../explanation/overview.md#the-problem-catalog-solves),
+"What hurts today"). This version ends both problems. The daemon keeps
+each catalog current in the background and keeps its own state outside
+the folders it serves.
 
 We'll judge this version by feel, in daily use by the people trying it.
 
@@ -69,9 +70,9 @@ machine are enough for a first version, and more per-catalog settings
 can come once people ask for them.
 
 The daemon doesn't detect synced folders yet, and it must never write
-into one ([daemon.md](../../design/daemon.md), "A side challenge: cloud
-drives"). Until it can tell, people should watch only folders that no
-cloud drive syncs, and the README should say so.
+into one ([daemon.md](../../explanation/catalogs.md#cloud-drives), "A
+side challenge: cloud drives"). Until it can tell, people should watch
+only folders that no cloud drive syncs, and the README should say so.
 
 This version also watches only folders that macOS doesn't protect, such
 as `~/src`. Desktop, Documents, Downloads, and iCloud Drive wait for the
@@ -108,8 +109,9 @@ happen:
   from memory.
 - Developers often keep repositories in a folder such as `~/src`, which
   isn't among the folders Howard Oakley lists as protected by macOS
-  ([architecture.md](../../design/architecture.md), "Processes and
-  macOS"). Nobody has tested whether a bare launch agent can read it.
+  ([architecture.md](../../explanation/architecture.md#processes-and-macos),
+  "Processes and macOS"). Nobody has tested whether a bare launch agent
+  can read it.
 
 ## Approaches
 
@@ -473,19 +475,19 @@ Who else sees what the daemon learns depends on two things outside it.
   and the next section quotes what its current terms and documentation
   say it keeps and trains on. Whether that's acceptable depends on the
   content, and the person decides
-  ([daemon.md](../../design/daemon.md#time-vs-quality-vs-cost), "Time vs
-  quality vs cost").
+  ([daemon.md](../../explanation/profiles.md#time-quality-and-cost),
+  "Time vs quality vs cost").
 - How folders are shared. If a subfolder is shared with fewer people
   than the folder holding the catalog, the catalog can show that
   subfolder's paths and summaries to people who can't open it
-  ([daemon.md](../../design/daemon.md#where-agents-start), "Where agents
-  start"). By our reasoning, this version can do that in two ways. A
-  folder holds a clone of another repository with fewer collaborators,
-  or files that Git ignores, and the catalog in the outer folder is
-  committed to the outer repository; the outer repository's readers then
-  get those paths and summaries. Or a cloud drive that syncs the
-  catalog's folder delivers `.catalog/catalog.md` to everyone that
-  folder is shared with, including people who can't open one of its
+  ([daemon.md](../../explanation/catalogs.md#where-agents-start), "Where
+  agents start"). By our reasoning, this version can do that in two
+  ways. A folder holds a clone of another repository with fewer
+  collaborators, or files that Git ignores, and the catalog in the outer
+  folder is committed to the outer repository; the outer repository's
+  readers then get those paths and summaries. Or a cloud drive that
+  syncs the catalog's folder delivers `.catalog/catalog.md` to everyone
+  that folder is shared with, including people who can't open one of its
   subfolders. That is one more reason people should watch only folders
   that no cloud drive syncs (see above). In both cases the daemon can't
   tell when it happens.

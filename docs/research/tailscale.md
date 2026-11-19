@@ -37,8 +37,8 @@ These are our own conclusions, not claims from the sources above.
 
 - A daemon written once in Go, with a small native wrapper on the Mac,
   is how Tailscale's developers build their Mac client.
-  [architecture.md](../design/architecture.md) lists that as one of our
-  language options.
+  [architecture.md](../explanation/architecture.md#platforms-and-language)
+  lists that as one of our language options.
 - Tailscale maintains a separate Mac variant for the App Store because
   of the sandbox. If we go to the App Store, we should expect the
   sandbox to shape our daemon too.

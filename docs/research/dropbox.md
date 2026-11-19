@@ -128,7 +128,8 @@ These are our own conclusions, not claims from the sources above.
 - For Dropbox, losing its local state means losing what users meant to
   do. Ours holds nothing like that. Every profile can be regenerated, at
   a cost in time and money, which is why treating the daemon's state as
-  a cache, as [daemon.md](../design/daemon.md) does, is safe.
+  a cache, as [architecture.md](../explanation/architecture.md#store)
+  does, is safe.
 - Cloud drives complicate things. On iCloud Drive or Dropbox, macOS may
   keep only a placeholder on disk. We expect that reading such a file to
   profile it would make macOS download it, though we haven't checked.
