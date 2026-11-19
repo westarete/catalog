@@ -119,17 +119,17 @@ folder keeps other accounts out of it.
 
 Errors in the journal, the log, and the status name file paths and quote
 the error text they come with. The daemon never formats the API key into
-an error itself. Two sources of error text can still carry part of it:
+an error itself.
 
-- When `global.toml` doesn't parse, the error quotes the TOML parser's
-  message, and that message can include the first characters of a
-  malformed value. For an `api_key` written without quotes, such as
-  `api_key = sk-example-key`, the message reads
-  `expected value but found "sk" instead`. The journal records it as a
-  `config_error`, and `catalog status` shows it as a `Config error`
-  line.
-- The text of errors that the model provider's library returns hasn't
-  been checked for the key.
+When `global.toml` doesn't parse, the error gives only the line and the
+last key the parser read, for example
+`parse global.toml: line 1 (last key "api_key"): not valid TOML`, or
+`a value has the wrong type` in place of `not valid TOML`. It quotes
+none of the file's values. The journal records it as a `config_error`,
+and `catalog status` shows it as a `Config error` line.
+
+The text of errors that the model provider's library returns hasn't been
+checked for the key.
 
 ## In each catalog
 

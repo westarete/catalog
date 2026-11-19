@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +80,36 @@ folder = "~other/x"
 func TestParseGlobalMalformed(t *testing.T) {
 	if _, err := ParseGlobal([]byte("model = ")); err == nil {
 		t.Error("want error")
+	}
+}
+
+// global.toml holds the API key, and a parse error reaches the journal, the
+// log, and catalog status, so the error must name where the problem is
+// without quoting any of the file's values.
+func TestParseGlobalErrorQuotesNoValue(t *testing.T) {
+	cases := []struct {
+		in   string
+		line string
+	}{
+		{"api_key = secretvalue123", "line 1"},
+		{"api_key = sk-secret-abc", "line 1"},
+		{"api_key = \"secret-abc", "line 1"},
+		{"api_key = [\"secret\"]", "line 1"},
+		{"model = \"m\"\napi_key = secretvalue123", "line 2"},
+	}
+	for _, c := range cases {
+		_, err := ParseGlobal([]byte(c.in))
+		if err == nil {
+			t.Errorf("%q: want error", c.in)
+			continue
+		}
+		msg := err.Error()
+		if strings.Contains(msg, "secret") || strings.Contains(msg, `"sk"`) {
+			t.Errorf("%q: error quotes the value: %s", c.in, msg)
+		}
+		if !strings.Contains(msg, c.line) {
+			t.Errorf("%q: error %q doesn't say %s", c.in, msg, c.line)
+		}
 	}
 }
 

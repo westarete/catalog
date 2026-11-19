@@ -2,9 +2,11 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -48,11 +50,29 @@ func StateDir() (string, error) {
 	return filepath.Join(home, "Library", "Application Support", "com.westarete.catalog"), nil
 }
 
+// decodeErrorPlace matches where the TOML decoder says a value of the
+// wrong type sits. Those errors aren't a ParseError, so their line and key
+// come only from the message.
+var decodeErrorPlace = regexp.MustCompile(`line (\d+) \(last key "([^"]*)"\)`)
+
+// globalParseError says where global.toml fails to parse without the
+// decoder's own message, which can quote part of a value such as the API
+// key. The error reaches the journal, the log, and catalog status.
+func globalParseError(err error) error {
+	if pe, ok := errors.AsType[toml.ParseError](err); ok {
+		return fmt.Errorf("parse %s: line %d (last key %q): not valid TOML", GlobalFile, pe.Position.Line, pe.LastKey)
+	}
+	if m := decodeErrorPlace.FindStringSubmatch(err.Error()); m != nil {
+		return fmt.Errorf("parse %s: line %s (last key %q): a value has the wrong type", GlobalFile, m[1], m[2])
+	}
+	return fmt.Errorf("parse %s: not valid TOML", GlobalFile)
+}
+
 // ParseGlobal parses global.toml, filling unset fields with built-in defaults.
 func ParseGlobal(data []byte) (Global, error) {
 	var f globalFile
 	if _, err := toml.Decode(string(data), &f); err != nil {
-		return Global{}, fmt.Errorf("parse %s: %w", GlobalFile, err)
+		return Global{}, globalParseError(err)
 	}
 	g := Global{
 		APIKey:    f.APIKey,
