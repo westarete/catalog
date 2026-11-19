@@ -24,18 +24,17 @@ with no entries has only the header.
 
 ### Header
 
-Every file starts with this text, exactly:
+Every file starts with this text, exactly, with each paragraph on one
+line:
 
-```markdown
+```text
 # Catalog
 
-This is an index of the documents in this folder. Read the entries
-below, and open a file only when your task matches its entry.
+This is an index of the documents in this folder. Read the entries below, and open a file only when your task matches its entry.
 
 Paths are relative to the folder that holds the .catalog/ folder.
 
-An entry marked "Not summarized yet." has no summary. It shows only the
-start of the file.
+An entry marked "Not summarized yet." has no summary. It shows only the start of the file.
 ```
 
 ### Directories
@@ -98,16 +97,14 @@ an empty PDF or a PDF over the size the daemon sends.
 A catalog with three files, made up for the example, one of them waiting
 for its summary:
 
-````markdown
+````text
 # Catalog
 
-This is an index of the documents in this folder. Read the entries
-below, and open a file only when your task matches its entry.
+This is an index of the documents in this folder. Read the entries below, and open a file only when your task matches its entry.
 
 Paths are relative to the folder that holds the .catalog/ folder.
 
-An entry marked "Not summarized yet." has no summary. It shows only the
-start of the file.
+An entry marked "Not summarized yet." has no summary. It shows only the start of the file.
 
 ## (root)/
 
