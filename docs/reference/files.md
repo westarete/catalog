@@ -164,7 +164,7 @@ keys.
 
 [`launchd/com.westarete.catalog.plist`](../../launchd/com.westarete.catalog.plist)
 sends the daemon's standard output and standard error to
-`~/Library/Logs/catalog.log` once the person has replaced `YOUR_NAME` in
+`~/Library/Logs/catalog.log` once the person has replaced `YOUR_HOME` in
 it. The daemon writes only to standard error: one line for each error it
 can't journal or act on, with a timestamp. launchd creates the log, not
 the daemon, and the daemon doesn't set its mode. The property list sets

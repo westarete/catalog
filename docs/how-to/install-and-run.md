@@ -3,22 +3,22 @@
 This guide builds the daemon from source, starts it under launchd, and
 puts a catalog in place in one repository. We haven't released the
 daemon through Homebrew yet, so you build it from source. You need Go
-and a Mac. Run these from a checkout of this repository. They put the
-binary in `~/bin`, put it on your `PATH` for zsh, and copy the launchd
-property list into your agents folder:
+and a Mac. Run these from a checkout of this repository.
+
+Build the daemon into the folder on your `PATH` where you keep programs
+you install yourself, putting that folder in place of `<folder>`:
 
 ```sh
-mkdir -p ~/bin
-go build -o ~/bin/catalog ./cmd/catalog
-echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
-cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
+go build -o <folder>/catalog ./cmd/catalog
 ```
 
-Open a new terminal so the `PATH` change takes effect. The property list
-needs absolute paths, so fill in your user name:
+Check that `command -v catalog` prints the path you just built to. Then
+copy the launchd property list into your agents folder. It needs
+absolute paths, so fill in the program's path and your home folder:
 
 ```sh
-sed -i '' "s/YOUR_NAME/$(whoami)/g" ~/Library/LaunchAgents/com.westarete.catalog.plist
+cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
+sed -i '' -e "s|CATALOG_PROGRAM|$(command -v catalog)|" -e "s|YOUR_HOME|$HOME|g" ~/Library/LaunchAgents/com.westarete.catalog.plist
 ```
 
 The daemon logs to `~/Library/Logs/catalog.log`.
@@ -98,14 +98,14 @@ daemon keeps its files.
 ## Update the daemon
 
 launchd keeps running the build it started, so after you pull a newer
-version, stop the agent, build again, copy the property list again in
-case it changed, and load it:
+version, stop the agent, build over the program where it is, copy the
+property list again in case it changed, and load it:
 
 ```sh
 launchctl bootout gui/$(id -u)/com.westarete.catalog
-go build -o ~/bin/catalog ./cmd/catalog
+go build -o "$(command -v catalog)" ./cmd/catalog
 cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
-sed -i '' "s/YOUR_NAME/$(whoami)/g" ~/Library/LaunchAgents/com.westarete.catalog.plist
+sed -i '' -e "s|CATALOG_PROGRAM|$(command -v catalog)|" -e "s|YOUR_HOME|$HOME|g" ~/Library/LaunchAgents/com.westarete.catalog.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.plist
 ```
 
