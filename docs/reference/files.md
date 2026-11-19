@@ -115,6 +115,22 @@ mode, so its readers are whoever the person allowed; the 0700 state
 folder keeps other accounts out of it.
 [Configuration](configuration.md#globaltoml) lists its keys.
 
+#### The API key in errors
+
+Errors in the journal, the log, and the status name file paths and quote
+the error text they come with. The daemon never formats the API key into
+an error itself. Two sources of error text can still carry part of it:
+
+- When `global.toml` doesn't parse, the error quotes the TOML parser's
+  message, and that message can include the first characters of a
+  malformed value. For an `api_key` written without quotes, such as
+  `api_key = sk-example-key`, the message reads
+  `expected value but found "sk" instead`. The journal records it as a
+  `config_error`, and `catalog status` shows it as a `Config error`
+  line.
+- The text of errors that the model provider's library returns hasn't
+  been checked for the key.
+
 ## In each catalog
 
 ### .catalog/catalog.md
