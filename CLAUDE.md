@@ -30,50 +30,72 @@ the next conversation. Prefer small, verifiable steps; call out
 trade-offs when a choice matters; avoid expanding scope beyond what they
 asked.
 
-Work still to do is tracked in two places: [PLAN.md](PLAN.md), following
-the maintaining-plans skill, and
+Track work still to do in
 [GitHub issues](https://github.com/westarete/catalog/issues), where new
-bugs and requests go. In the plan, do not check off an item until the
-developer agrees it is done. Bundle the checkbox update in the same
-commit that completes the work, and delete a section once every item in
-it is checked.
+bugs and requests go.
 
-When pointing at web pages or repo files, use **clickable Markdown
-links** (e.g. `[README](README.md)`), not bare URLs in backticks or
-bold, so nothing requires copy-paste.
+**Don't let existing work decide a choice.** Judge a language, library,
+design, or name by what the finished product needs. Code, branches, or
+files that already exist are not an argument for themselves; the
+developer will throw them away when convention or the product calls for
+it. If reuse genuinely matters, give it as a separate, named trade-off,
+not as the reason.
 
-**Speak plainly. Avoid throwaway metaphors from unrelated domains.**
-Phrases like "land it," "load-bearing," "in flight," "lift," "moving the
-needle," "north star," "heavy lift," or other shallow aviation,
-construction, or sports analogies are annoying when a direct verb will
-do. Say "commit it," "essential," "in progress," "effort," "changes the
-result," "goal," "hard," etc. This applies to chat as much as to docs.
+**Design for the project's audience, not for whoever is testing it.**
+This is West Arete's public, open-source project, meant to be broadly
+useful and to represent the company. An early user's answers are
+evidence about the product, not its scope: never turn "it's only me for
+now" into a design, spec, or plan built around one person. Name a person
+in a doc only where the text is about that person.
+
+**Use the project's words.** Before you name a concept in code, a doc,
+an issue, or chat, find the word the repository and its issues already
+use for it, and use that. Don't coin a synonym, even one that seems
+clearer; if a term seems wrong, propose changing it. A summary the
+daemon writes again is an "update": "redo" crept in and spread through
+the planner, the tests, and the docs before anyone caught it.
 
 ## Writing style
 
-This is a small team, not a corporation. Match that voice everywhere you
-write — README sections, CLAUDE.md updates, replies in chat. The test
-isn't whether the writing is correct; it's whether a colleague would
-want to read it.
+@writing-style.md
 
-Some specific habits:
+## Place docs by their Diátaxis type
 
-- **Don't write for agents when humans will read it.** Phrases like
-  "authoritative source," "deeper procedural guidance," "in full before
-  acting on its topic," or "pointers, not replacements" read like a
-  system prompt. Cut them.
-- **Don't reach for "canonical."** It disambiguates one version from
-  another; use it only when you're actually doing that. If the
-  surrounding sentence already explains what makes the document the one
-  we care about, leave the word out.
-- **Drop redundant qualifiers.** If the next clause does the work, the
-  adjective doesn't.
-- **Say what something is for, not its policy status.** "For more
-  guidance" beats "for the full policy."
-- **Skip forward references the reader will hit on their own.**
-- **Don't bold link text just because it's a link.** The link styling is
-  already enough.
-- **Use the vocabulary the doc has already defined.**
+Put each new doc in `docs/how-to/`, `docs/reference/`, or
+`docs/explanation/` by what its reader needs, as
+[docs/README.md](docs/README.md) describes, and as
+[docs/best-practices/craftspeople.md](docs/best-practices/craftspeople.md)
+explains. When you add or change a feature, check which of the four
+Diátaxis types (tutorial, how-to, reference, explanation) it still
+needs, and say which are missing. Add a section to `docs/README.md` only
+once it has a doc in it.
+
+## Reread before you show
+
+Before you show anyone new writing that other people will read, reread
+it twice: once as a reader who doesn't know what you were thinking, and
+once as the critic who will judge it. Fix every passage either one would
+stumble on or reject.
+
+## Check a claim before you make it
+
+This applies to chat as much as to files. A design here once went into
+two files with citations nobody had read; half of them didn't say what
+the text claimed.
+
+- A search result's summary is a lead, not a source, and so is a
+  subagent's report. Before you cite a page, read it, or have it read
+  and get back the exact sentence, and confirm it says what you're about
+  to write.
+- Never state a guess about how a product behaves (Cowork, Claude Code,
+  macOS, Docker) as a fact or as a doubt. Look it up in its
+  documentation first. If the documentation is silent, say "not
+  documented" and stop there.
+- Before you write that something can't work or must work, name the
+  concrete scenario and walk through it once. If you can't name one,
+  don't write the sentence.
+- Keep what a source says apart from what you conclude from it, and
+  label the second as reasoning. Say what you haven't tested.
 
 ## No willpower promises
 
@@ -91,10 +113,9 @@ larger, ask whether it's worth writing down.
 At the start of every conversation, read README.md and this file before
 doing substantive work.
 
-Before planning or starting a bug fix or feature, read PLAN.md and the
-open GitHub issues, so you don't duplicate or contradict work tracked in
-either place. Use `gh issue list`; where `gh` isn't available, as in
-Cowork, read the
+Before planning or starting a bug fix or feature, read the open GitHub
+issues, so you don't duplicate or contradict work tracked there. Use
+`gh issue list`; where `gh` isn't available, as in Cowork, read the
 [issues page](https://github.com/westarete/catalog/issues) instead.
 
 ## Config files
@@ -107,14 +128,8 @@ exists and are part of the convention — don't strip them.
 
 ## Skills
 
-Load these two at the start of every conversation, before doing any work
-that might touch them:
-
-- `knowledge-work:markdown` — load before editing any `.md` file.
-- `knowledge-work:git-commit` — load before running `git commit` on the
-  developer's behalf.
-
-Both come from the `knowledge-work` plugin in the
+Load `knowledge-work:markdown` before editing any `.md` file. It comes
+from the `knowledge-work` plugin in the
 [claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
 marketplace.
 
@@ -153,32 +168,94 @@ Cowork too; never run `prettier` or `markdownlint-cli2` directly,
 because a different version wraps text differently. The only thing to
 install is Node.
 
+## Building with Superpowers
+
+Build code with the Superpowers plugin's workflow: brainstorming, a spec
+in `docs/superpowers/specs/`, a plan in `docs/superpowers/plans/`, then
+subagent-driven development. Where this file and a Superpowers skill
+disagree about process, follow the skill. When a plan is finished, file
+its undone steps and the findings its ledger deferred in issues, then
+delete the plan in the same branch.
+
+## Balance quality, size, and cost
+
+These compete in this project. Quality is how often an agent finds the
+right files. Size is how many words a catalog adds to every request and
+every agent's context. Cost is model calls and money, and time is a good
+proxy for it. Trade them inside the limits that privacy and security
+set; never trade privacy or security for any of the three. When you
+propose a change that improves one of them, say what it does to the
+other two. Every proposal also says what it does to privacy and
+security, even if the answer is that it changes nothing; a reviewer
+checks that answer.
+
+## Privacy and security in every design and review
+
+The daemon reads private documents and stores what it learns about them.
+The first build left its journal and store readable by every account on
+the Mac ([issue #6](https://github.com/westarete/catalog/issues/6)),
+because no spec asked who could read them and no reviewer was asked to
+check. Reasons and goals are in
+[overview.md](docs/explanation/overview.md#privacy-and-security).
+
+At every step, such as a design, a doc, a line of code, or a review,
+ask:
+
+- Does this keep information away from people and services that
+  shouldn't have it, including in summaries, paths, logs, and the
+  journal?
+- Could this create a security vulnerability?
+- Could someone break into the daemon, or watch its work, to gain access
+  they don't already have?
+
+And follow these rules:
+
+- In every spec, add a section on the sensitive data the change reads,
+  stores, or sends: each place a copy ends up (files, logs, sockets,
+  requests to a service) and who can read it there.
+- In every plan's Review Focus, include at least one privacy and
+  security line, and copy it into each task reviewer's brief.
+- Before finishing a branch, run Claude Code's `/security-review` as
+  well as the whole-branch review.
+- Keep `gosec` enabled in `.golangci.yml`. When it flags a line on
+  purpose, suppress that line with `//nolint:gosec` and a comment saying
+  why; don't turn off a rule for the whole repository without a comment
+  in the config saying why.
+
+West Arete does client work and publishes catalog as open source. Keep
+client work and the company's internal information out of this
+repository, its commits, issues, and pull requests. Make up every
+example.
+
+## Own everything the program does
+
+Security, quality, and robustness are your responsibility, including
+what a library, the OS, or a tool does on the program's behalf. A file
+the program creates, a socket it opens, or a request it sends has the
+mode, scope, and limits we choose, or failed to choose. Never explain a
+problem away with another package's defaults.
+
+When the developer reports a problem, fix all of it before you move on.
+If any part stays unfixed, say so in the first lines of your reply, with
+the reason. Never leave part of a reported problem only in an issue, a
+commit message, or a list of follow-ups. When the developer reported the
+journal and store readable by every account, an agent fixed only the
+journal, which the linter flagged, filed the store in an issue, and
+reported "the journal" as if that were all of it.
+
 ## Git workflow
 
-The hard rule: **never run `git commit` until the developer has approved
-the exact message you proposed in chat.** "Commit when you're done" is
-not pre-approval of a message. Commit messages follow Tim Pope's
-[A note about Git commit messages](https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
+Commit freely on a feature branch or worktree. Never commit directly to
+`main`, merge into it, push it, or push a tag without the developer's
+approval in chat.
 
-Follow the release process in [README.md](README.md).
+Run `make markdown` and `make test` before every commit.
+
+Follow the release process in [Release catalog](docs/how-to/release.md).
 
 Tagging a release is a commit-level decision. Before running `git tag`,
 propose the version number and the exact tag message in chat and wait
-for approval, the same as a commit message. "Do the release" is not
-approval of either. Do not push `main` or the tag until that approval is
-given.
-
-For the git-commit skill, the project's CHECK command is `make markdown`
-and `make test` — there is no separate FORMAT command. Run whichever
-applies to what changed, in Phase 2, before proposing a commit message,
-every time.
-
-### When process fails
-
-If a step in the skill is skipped (e.g. commit without `make markdown`,
-or without message approval), treat it as a **process** problem: fix the
-instructions or tooling in-repo, not "try harder next time."
-Willpower-based promises are not fixes.
+for approval. "Do the release" is not approval of either.
 
 ## Code
 
@@ -187,10 +264,26 @@ writing.
 
 ### Tests
 
-Write tests at every layer: unit, integration, and system. Aim for
-maximum sensible coverage — not 100% for its own sake, but enough that a
-regression is caught before it reaches the developer. When adding a
-feature or fixing a bug, tests come with it, not after.
+Judge a test by whether it catches a fault, not by how it was written.
+Run a mutation testing tool over new code from the first package onward,
+and treat a mutant that no test kills as a missing or weak test. Choose
+the tool during design;
+[research/coding-agent-tools.md](docs/research/coding-agent-tools.md)
+covers Gremlins as the candidate for Go.
+
+### Research the idiomatic way before designing
+
+Don't assume you know the most idiomatic way to use a tool, library,
+language, or platform; that assumption has been wrong here. Before
+proposing a new design, or a new way of using git, Claude Code, Swift,
+macOS, or anything else, find out how the most skilled practitioners do
+it: respected books, talks, and essays by experienced authors, and
+well-crafted open-source projects. For anything about processes, files,
+or how programs coordinate, start from the Unix classics in
+[docs/best-practices/craftspeople.md](docs/best-practices/craftspeople.md),
+not from newer protocols such as MCP. A tool's own documentation says
+what the tool can do, not usually the most elegant way to use it. Report
+what you found and from whom, then propose.
 
 ### API references and dependencies
 
@@ -211,41 +304,8 @@ match the problem domain, not the implementation. When something feels
 awkward to name or test, that is usually a design problem, not a naming
 problem.
 
-### Testing catalog against its own repo
-
-This repo is currently below the catalog skill's own size threshold for
-adopting a catalog (see the skill's SETUP.md). If you run
-`catalog bootstrap` or similar here to verify a change end to end, treat
-`.catalog/` and `.catalog.md` as throwaway output and delete them
-afterward rather than committing them. Don't add them to `.gitignore`
-either — the goal is not to create them for a real reason, not to hide
-them once created. If this repo ever grows enough to clear the threshold
-for real, that's a deliberate decision to make afresh, not something
-that should already be half-done because the files were quietly ignored.
-
-### Changing the default model
-
-Change `defaultModel` in `config.go` and the model, the three price keys
-and `warn_request_tokens` in `config.example.toml` in one commit, then
-release. `catalog init --print` is how the catalog skill learns the
-recommended config, so a stale template means repos upgrade to the wrong
-model or prices. Copy the prices from the
-[pricing page](https://platform.claude.com/docs/en/about-claude/pricing),
-and set `warn_request_tokens` to the model's long-request threshold or
-drop it if there is none. A test keeps the template's model equal to
-`defaultModel`, but nothing checks the prices.
-
-### Work incrementally
-
-Do not generate large amounts of code in one move. Propose a step,
-confirm it makes sense, then write it. A slow developer who ships
-correct code is better than a fast one who ships something to debug.
-When the next step is unclear, say so rather than filling the space with
-plausible-looking code.
-
 ## Principles (short)
 
-- Prefer clarity over decoration-heavy Markdown (excessive bold, etc.).
 - Update the doc that a reader would naturally open — usually the same
   commit as the idea, not a delayed pass.
 - When recommending tools or practices, sanity-check assumptions; say

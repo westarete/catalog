@@ -13,3 +13,98 @@ linters:
     - fatcontext
     # Enforce exhaustive switch statements over enum-like types.
     - exhaustive
+    # Enforce architecture.md's "Rules between components": each component
+    # shares only the types in internal/model, and only the daemon imports
+    # every component. Rules are configured below.
+    - depguard
+    # Catch security mistakes, such as a file the daemon creates that other
+    # accounts on the Mac can read. Its settings are below.
+    - gosec
+
+  settings:
+    gosec:
+      excludes:
+        # G304 flags opening a file whose path is in a variable. Reading the
+        # files a person asked it to catalog is the daemon's whole job.
+        - G304
+    depguard:
+      # depguard checks a file against every rule whose files globs match it,
+      # and an import must pass all of them, so the packages with exceptions
+      # are left out of the general rule and get a rule of their own. Lax mode
+      # denies what matches deny unless a longer allow entry matches; a
+      # trailing $ makes an entry an exact package instead of a prefix.
+      # Packages not named here, such as internal/daemon, may import anything.
+      rules:
+        components:
+          list-mode: lax
+          files:
+            - "**/internal/**/*.go"
+            - "!**/internal/daemon/*.go"
+            - "!**/internal/publish/*.go"
+            - "!**/internal/render/*.go"
+            - "!**/internal/profiler/*.go"
+            - "!**/internal/control/*.go"
+          allow:
+            - westarete.com/catalog/internal/model$
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: components share only internal/model; the daemon combines them
+        publish:
+          list-mode: lax
+          files:
+            - "**/internal/publish/*.go"
+          allow:
+            - westarete.com/catalog/internal/model$
+            - westarete.com/catalog/internal/render$
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: publish may use only internal/model and internal/render
+        render:
+          list-mode: lax
+          files:
+            - "**/internal/render/*.go"
+          allow:
+            - westarete.com/catalog/internal/model$
+            - westarete.com/catalog/internal/reader$
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: render may use only internal/model and internal/reader
+        profiler:
+          list-mode: lax
+          files:
+            - "**/internal/profiler/*.go"
+          allow:
+            - westarete.com/catalog/internal/model$
+            - westarete.com/catalog/internal/reader$
+            - westarete.com/catalog/internal/models$
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: profiler may use only internal/model, internal/reader, and internal/models
+        control:
+          list-mode: lax
+          files:
+            - "**/internal/control/*.go"
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: control is shared by the daemon and the command, so it imports nothing internal
+        command:
+          list-mode: lax
+          files:
+            - "**/cmd/**/*.go"
+          allow:
+            - westarete.com/catalog/internal/daemon$
+            - westarete.com/catalog/internal/settings$
+            - westarete.com/catalog/internal/store$
+            - westarete.com/catalog/internal/models$
+            - westarete.com/catalog/internal/control$
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: the command only parses arguments and wires up the daemon
+
+  exclusions:
+    rules:
+      # Tests create temporary files and folders, where file modes protect
+      # nothing.
+      - path: _test\.go
+        linters:
+          - gosec

@@ -1,0 +1,3 @@
+# Scratch files the Superpowers workflow writes while it builds. Git
+# ignores them, and they are not project documents.
+.superpowers/
