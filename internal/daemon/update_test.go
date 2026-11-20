@@ -42,7 +42,7 @@ func isPartial(e journal.Event) bool {
 
 // A file summarized while other files in its catalog had none is summarized
 // again once they have summaries, so the model sees them as neighbors.
-func TestNewCatalogRedoesSummariesWrittenBeforeItsNeighbors(t *testing.T) {
+func TestNewCatalogUpdatesSummariesWrittenBeforeItsNeighbors(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	for _, name := range []string{"a", "b", "c"} {
@@ -58,7 +58,7 @@ func TestNewCatalogRedoesSummariesWrittenBeforeItsNeighbors(t *testing.T) {
 		text := requestText(p, i)
 		for _, n := range []string{"a", "b", "c"} {
 			if n != names[i] && !strings.Contains(text, summaryOf(n)) {
-				t.Errorf("redo of %s didn't show %s's summary", names[i], n)
+				t.Errorf("update of %s didn't show %s's summary", names[i], n)
 			}
 		}
 	}
@@ -77,9 +77,9 @@ func TestNewCatalogRedoesSummariesWrittenBeforeItsNeighbors(t *testing.T) {
 	}
 }
 
-// Files added together to a catalog whose files all have summaries are redone,
+// Files added together to a catalog whose files all have summaries are updated,
 // except the last, and the files already there are left alone.
-func TestFilesAddedTogetherAreRedoneOnce(t *testing.T) {
+func TestFilesAddedTogetherAreUpdatedOnce(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
@@ -94,7 +94,7 @@ func TestFilesAddedTogetherAreRedoneOnce(t *testing.T) {
 	assertNames(t, requestedNames(p), "a", "x", "y", "z", "x", "y")
 }
 
-func TestOneNewFileIsNotRedone(t *testing.T) {
+func TestOneNewFileIsNotUpdated(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
@@ -111,9 +111,9 @@ func TestOneNewFileIsNotRedone(t *testing.T) {
 	}
 }
 
-// When files are saved a little apart, the first is redone only after the
-// later one has a summary, so the redo sees it.
-func TestRedoWaitsForTheMissingNeighbor(t *testing.T) {
+// When files are saved a little apart, the first is updated only after the
+// later one has a summary, so the update sees it.
+func TestUpdateWaitsForTheMissingNeighbor(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
@@ -130,13 +130,13 @@ func TestRedoWaitsForTheMissingNeighbor(t *testing.T) {
 	}
 	assertNames(t, requestedNames(p), "a", "b", "a")
 	if !strings.Contains(requestText(p, 2), summaryOf("b")) {
-		t.Errorf("redo of a didn't show b's summary")
+		t.Errorf("update of a didn't show b's summary")
 	}
 }
 
 // A file that won't get a summary soon doesn't count as missing: a PDF too
 // large to send, or a file with a failure on record.
-func TestFilesThatCantBeSummarizedDontCauseARedo(t *testing.T) {
+func TestFilesThatCantBeSummarizedDontCauseAnUpdate(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	sparsePDF(t, root, "huge.pdf", 95_000_001)

@@ -284,7 +284,7 @@ and Models).
 The Planner puts the files that changed longest ago first. If a file has
 a summary only under an older recipe, the catalog still shows that
 summary, and the Planner queues the file after every file that has none.
-That way, after a prompt change, the daemon gradually redoes the
+That way, after a prompt change, the daemon gradually updates the
 catalogs without holding up new files.
 
 The three-minute wait is our first answer to the question in daemon.md
@@ -315,25 +315,25 @@ The daemon does it without a command. If another file in the catalog was
 still waiting for its first summary when the daemon summarized a file's
 content for the first time, the daemon marks that summary as partial in
 its recipe. A changed file counts the same as a new one, since the model
-can't see any summary of its new content. The Planner holds the redo
+can't see any summary of its new content. The Planner holds the update
 until no other file in that catalog is waiting for its first summary, so
 the model sees the neighbors that were missing. When someone saves two
-files a minute apart, the first is redone only after the second has a
-summary. While someone keeps editing a file, the redos in its catalog
+files a minute apart, the first is updated only after the second has a
+summary. While someone keeps editing a file, the updates in its catalog
 wait. A file that changes more often than every three minutes, such as a
 log, holds them for as long as it keeps changing, and status counts them
 as waiting. Copies of a file share one summary, so a copy in another
-catalog waits too; otherwise its redo would see the wrong neighbors.
-`catalog daemon --once` sees only its own folder, so it can still redo a
-copy there; we accept that for a maintenance tool. An identical copy
-doesn't count as a missing neighbor, since a redo would show the model
-nothing new. The daemon redoes a file only once for the same content:
-the second summary is never marked partial.
+catalog waits too; otherwise its update would see the wrong neighbors.
+`catalog daemon --once` sees only its own folder, so it can still update
+a copy there; we accept that for a maintenance tool. An identical copy
+doesn't count as a missing neighbor, since an update would show the
+model nothing new. The daemon updates a file only once for the same
+content: the second summary is never marked partial.
 
 - A new catalog of 102 files costs about 101 extra model calls, once, as
   `bootstrap` did.
 - Ten files added together to a catalog with summaries for every other
-  file cost nine extra calls. The first nine are redone, and the
+  file cost nine extra calls. The first nine are updated, and the
   existing files aren't touched.
 - One file added to such a catalog costs nothing extra.
 - Twenty files changed by one `git pull` cost nineteen extra calls, the
@@ -355,10 +355,10 @@ files.
 
 How much an entry should say about related documents is also open. A
 pointer adds words to every request and to every agent's context, and
-keeping pointers current would mean redoing older entries when new files
-arrive. Documents, file names, and Git already record some of these
-relationships, but not all of them. For now the prompt allows a pointer
-only between near-duplicates an agent could confuse.
+keeping pointers current would mean updating older entries when new
+files arrive. Documents, file names, and Git already record some of
+these relationships, but not all of them. For now the prompt allows a
+pointer only between near-duplicates an agent could confuse.
 
 The Profiler starts with today's `profileInstruction`, unchanged
 ([generate.go](https://github.com/westarete/catalog/blob/d9a8d1b3a9dd6826224bda2068a5422b37f8bce9/generate.go)).

@@ -570,7 +570,7 @@ func TestRunCrawlsDuringBacklog(t *testing.T) {
 		t.Fatalf("Run = %v", err)
 	}
 
-	// Five first summaries, then the redos of a through d.
+	// Five first summaries, then the updates of a through d.
 	if got := fmt.Sprint(crawlsSeen); got != "[1 1 2 2 2 2 2 2 2]" {
 		t.Errorf("crawls before each call = %s, want [1 1 2 2 2 2 2 2 2]", got)
 	}
@@ -605,7 +605,7 @@ func TestRunPauseCountsFromTick(t *testing.T) {
 	}
 
 	if calls != 4 {
-		t.Errorf("calls = %d, want 4: a, b failing 30s into the step, then b and the redo of a on the next tick", calls)
+		t.Errorf("calls = %d, want 4: a, b failing 30s into the step, then b and the update of a on the next tick", calls)
 	}
 	if got := kinds(t, d, journal.KindPause, journal.KindResume); fmt.Sprint(got) != "[pause resume]" {
 		t.Errorf("journal = %v, want [pause resume]", got)

@@ -33,7 +33,7 @@ type Candidate struct {
 	HasOlder   bool
 	// HasPartial means the file has a summary written with the current
 	// reader, prompt, and model while another file in its catalog was
-	// waiting for a summary, so it is to be redone.
+	// waiting for a summary, so it is to be updated.
 	HasPartial bool
 	// RetryAt is when to retry after a failure, or zero with no failure.
 	RetryAt time.Time
@@ -44,10 +44,10 @@ type Candidate struct {
 // summary is out of date, so new files are not stuck behind a backlog of
 // updates. Within each group, the file that changed earliest comes first.
 // A file with a partial summary waits until no catalog with a copy of it
-// has a file waiting, so its redo sees every neighbor it missed. Plan does
+// has a file waiting, so its update sees every neighbor it missed. Plan does
 // not modify cs.
 func Plan(cs []Candidate, now time.Time) []Candidate {
-	held := heldRedos(cs)
+	held := heldUpdates(cs)
 	var ready []Candidate
 	for _, c := range cs {
 		if isReady(c, now) && !held[c.Hash] {
@@ -74,7 +74,7 @@ func Backoff(failures int) time.Duration {
 // WouldBePartial reports whether a summary of c written now would be
 // partial: it is the first summary of c's content, and a file in c's catalog
 // with other content is waiting for one. An identical copy doesn't count: the
-// redo would show the model nothing new. A file is redone only once per
+// update would show the model nothing new. A file is updated only once per
 // content, so a summary of content that had one already is never partial.
 func WouldBePartial(cs []Candidate, c Candidate) bool {
 	if c.HasOlder {
@@ -91,11 +91,11 @@ func waiting(c Candidate) bool {
 	return !c.HasOlder && c.RetryAt.IsZero()
 }
 
-// heldRedos returns the content whose partial summary must wait to be redone,
+// heldUpdates returns the content whose partial summary must wait to be updated,
 // because a catalog with a copy of it has a file waiting for its first
 // summary. Copies share one summary, so a copy in another catalog waits too;
-// otherwise its redo would see the wrong neighbors and end the wait for all.
-func heldRedos(cs []Candidate) map[model.Hash]bool {
+// otherwise its update would see the wrong neighbors and end the wait for all.
+func heldUpdates(cs []Candidate) map[model.Hash]bool {
 	withWaiting := map[string]bool{}
 	for _, c := range cs {
 		if waiting(c) {

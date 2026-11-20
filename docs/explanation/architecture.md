@@ -100,8 +100,8 @@ package.
   position among its peers, is direction, not built
   ([Profiles](profiles.md#profiles-deepen-over-time) describes it).
 - A recipe records the reader, prompt, and model that produced a
-  profile, so the daemon can redo profiles when any of them changes. It
-  also marks a profile written while another file in its catalog was
+  profile, so the daemon can update profiles when any of them changes.
+  It also marks a profile written while another file in its catalog was
   still waiting for its first one
   ([Profiles](profiles.md#the-second-pass)). GNOME's indexer records its
   extractor the same way
@@ -261,7 +261,7 @@ A file needs a profile when all of these hold.
 
 Files with no profile come first. A file that has a profile only under
 an older recipe goes after every file that has none, so after a prompt
-change the daemon gradually redoes the catalogs without holding up new
+change the daemon gradually updates the catalogs without holding up new
 files. Within each group, the file that changed earliest comes first.
 When a file fails, the Planner sets the wait before the next try: a
 minute for the first failure, doubling each time up to six hours, and
