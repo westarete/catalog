@@ -33,10 +33,13 @@ type Snapshot struct {
 }
 
 // CatalogStatus counts the files in the catalog in Dir. Every file is either
-// summarized under the current recipe or waiting to be.
+// summarized, with a summary in catalog.md, or waiting for its first one.
+// ToUpdate counts the summarized files whose summary the daemon will write
+// again: one written before its neighbors had summaries, or one under an
+// older recipe.
 type CatalogStatus struct {
-	Dir                        string
-	Files, Summarized, Waiting int
+	Dir                                  string
+	Files, Summarized, Waiting, ToUpdate int
 }
 
 // FailingFile is a file or folder the daemon couldn't handle. Rel is empty

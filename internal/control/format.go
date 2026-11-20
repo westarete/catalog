@@ -55,7 +55,7 @@ func writeCatalogs(b *strings.Builder, catalogs []CatalogStatus) {
 	}
 	b.WriteString("\nCatalogs:\n")
 	for _, c := range catalogs {
-		fmt.Fprintf(b, "  %s: %d files, %d summarized, %d waiting\n", c.Dir, c.Files, c.Summarized, c.Waiting)
+		fmt.Fprintf(b, "  %s: %d files, %d summarized, %d waiting, %d to update\n", c.Dir, c.Files, c.Summarized, c.Waiting, c.ToUpdate)
 	}
 }
 

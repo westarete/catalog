@@ -39,7 +39,8 @@ The urgency may not be as bad as we imagine. Large amounts of content
 arrive rarely, say from a clone or a big download, so people will come
 to expect new content to take a little while to show up.
 `catalog status` shows them progress for each catalog: how many files it
-has, how many have a summary, and how many are waiting.
+has, how many have a summary, how many are waiting for their first one,
+and how many summaries the daemon will update.
 
 When an agent generates a lot of content itself, there's no special
 urgency, because the agent already knows what it created.

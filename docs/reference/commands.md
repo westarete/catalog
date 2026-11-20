@@ -152,7 +152,7 @@ Config error: /Users/alex/Library/Application Support/com.westarete.catalog/glob
 Summarizing paused until Nov 19 09:33: the model service is not answering
 
 Catalogs:
-  /Users/alex/src/notes: 41 files, 38 summarized, 3 waiting
+  /Users/alex/src/notes: 41 files, 38 summarized, 3 waiting, 5 to update
 
 Failing:
   /Users/alex/src/notes/drafts/plan.pdf: unreadable (retry next crawl)
@@ -176,12 +176,17 @@ The lines appear in this order:
    API key loaded, the reason is `no API key loaded from global.toml`.
 4. A blank line, then `Catalogs:` with one line per catalog, sorted by
    path, indented two spaces:
-   `<folder>: <n> files, <n> summarized, <n> waiting`. A file counts as
-   summarized when a summary exists for its content under the current
-   recipe, and as waiting otherwise. The recipe includes the model's
-   name, so a change of `model` makes every file wait. If the last crawl
-   found no catalogs, the blank line is followed by `No catalogs found.`
-   instead.
+   `<folder>: <n> files, <n> summarized, <n> waiting, <n> to update`. A
+   file counts as summarized when `catalog.md` has a summary of its
+   content, under any recipe, and as waiting otherwise. Of the
+   summarized files, `to update` counts the ones whose summary the
+   daemon will write again: a summary written while another file in the
+   catalog had none, as
+   [the second pass](../explanation/profiles.md#the-second-pass)
+   explains, or one under an older recipe. The recipe includes the
+   model's name, so a change of `model` counts every summarized file as
+   one to update. If the last crawl found no catalogs, the blank line is
+   followed by `No catalogs found.` instead.
 5. If any file or folder is failing, a blank line, then `Failing:` with
    one line per problem, sorted by folder and path, indented two spaces:
    `<path>: <error> (retry <time>)`. The retry is `next crawl` when the

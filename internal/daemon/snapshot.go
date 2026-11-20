@@ -7,6 +7,7 @@ import (
 
 	"westarete.com/catalog/internal/control"
 	"westarete.com/catalog/internal/journal"
+	"westarete.com/catalog/internal/model"
 )
 
 // noProvider is why the daemon isn't summarizing when it has no API key.
@@ -75,12 +76,15 @@ func (d *Daemon) catalogStatus(dir string) (control.CatalogStatus, []control.Fai
 	c := control.CatalogStatus{Dir: dir, Files: len(files)}
 	var failing []control.FailingFile
 	for rel, f := range files {
-		_, ok, err := d.Store.Summary(f.Hash, d.recipe())
+		summarized, toUpdate, err := d.summaryState(f.Hash)
 		if err != nil {
 			return c, nil, err
 		}
-		if ok {
+		if summarized {
 			c.Summarized++
+		}
+		if toUpdate {
+			c.ToUpdate++
 		}
 		fail, found, err := d.Store.Failure(dir, rel)
 		if err != nil {
@@ -92,6 +96,19 @@ func (d *Daemon) catalogStatus(dir string) (control.CatalogStatus, []control.Fai
 	}
 	c.Waiting = c.Files - c.Summarized
 	return c, failing, nil
+}
+
+// summaryState reports whether content h has a summary for catalog.md to
+// show, and whether the daemon will update it: it does when the summary is
+// partial or under an older recipe. Only a file without a current summary
+// costs a second Store query.
+func (d *Daemon) summaryState(h model.Hash) (summarized, toUpdate bool, err error) {
+	_, current, err := d.Store.Summary(h, d.recipe())
+	if err != nil || current {
+		return current, false, err
+	}
+	_, _, older, err := d.Store.AnySummary(h)
+	return older, older, err
 }
 
 // configErrorLines describes each config file that failed to load, in order.

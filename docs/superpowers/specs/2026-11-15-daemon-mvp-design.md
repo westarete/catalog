@@ -416,9 +416,11 @@ connects, asks, and prints:
 - when the daemon started and when it last crawled
 - any config error, and whether summarizing is paused and why
 - for each catalog, its folder, how many files it covers, how many have
-  summaries, and how many are waiting. A file whose summary is partial
-  or under an older recipe counts as waiting, since the daemon still has
-  a model call to make for it.
+  a summary in `catalog.md`, how many are waiting for their first
+  summary, and how many summaries the daemon will update. A summary that
+  is partial or under an older recipe counts as summarized and as one to
+  update, so a person can see a new catalog fill in and still see that
+  the daemon has a model call to make for each update.
 - each failing file, with its last error and when the daemon will retry
   it
 

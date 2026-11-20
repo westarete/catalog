@@ -69,8 +69,8 @@ func TestNewCatalogUpdatesSummariesWrittenBeforeItsNeighbors(t *testing.T) {
 		}
 	}
 	assertNames(t, partial, "a.md", "b.md")
-	if got := d.Snapshot().Catalogs[0]; got.Summarized != 3 || got.Waiting != 0 {
-		t.Errorf("status = %d summarized, %d waiting; want 3 and 0", got.Summarized, got.Waiting)
+	if got := d.Snapshot().Catalogs[0]; got.Summarized != 3 || got.Waiting != 0 || got.ToUpdate != 0 {
+		t.Errorf("status = %d summarized, %d waiting, %d to update; want 3, 0, and 0", got.Summarized, got.Waiting, got.ToUpdate)
 	}
 	if got := entry(t, catalogText(t, root), "a.md"); !strings.Contains(got, summaryOf("a")) {
 		t.Errorf("a.md entry = %q", got)

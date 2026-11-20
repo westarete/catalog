@@ -72,7 +72,7 @@ func sample() Snapshot {
 		ConfigErrors: []string{"/state/global.toml: parse global.toml: bad"},
 		PausedUntil:  started.Add(45 * time.Minute),
 		PauseReason:  "summarize /notes/a.md: 529 Overloaded",
-		Catalogs:     []CatalogStatus{{Dir: "/notes", Files: 12, Summarized: 10, Waiting: 2}},
+		Catalogs:     []CatalogStatus{{Dir: "/notes", Files: 12, Summarized: 10, Waiting: 2, ToUpdate: 3}},
 		Failing: []FailingFile{
 			{Dir: "/notes", Rel: "b.pdf", Error: "model returned no profile text", RetryAt: started.Add(time.Hour)},
 		},
@@ -310,7 +310,7 @@ func TestFormat(t *testing.T) {
 		"Summarizing paused until Nov 15 09:45: summarize /notes/a.md: 529 Overloaded",
 		"",
 		"Catalogs:",
-		"  /notes: 12 files, 10 summarized, 2 waiting",
+		"  /notes: 12 files, 10 summarized, 2 waiting, 3 to update",
 		"",
 		"Failing:",
 		"  /notes/b.pdf: model returned no profile text (retry Nov 15 10:00)",

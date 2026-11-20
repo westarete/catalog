@@ -436,13 +436,13 @@ so a Linux daemon could use the same core.
 The answer to a status request is a snapshot: when the daemon started
 and last crawled, any settings error, whether profiling is paused and
 why, and for each catalog its folder and how many of its files are
-profiled or waiting, along with each failing file, its last error, and
-when the daemon will retry it. That names folders and files and quotes
-errors, so it's a copy like the others. Control answers only the account
-that runs the daemon, and the socket's mode is how it checks. If the
-socket doesn't exist, `catalog status` reports that the daemon isn't
-running. Control imports nothing else in the module, because the daemon
-and the command both use it.
+profiled, waiting, or to update, along with each failing file, its last
+error, and when the daemon will retry it. That names folders and files
+and quotes errors, so it's a copy like the others. Control answers only
+the account that runs the daemon, and the socket's mode is how it
+checks. If the socket doesn't exist, `catalog status` reports that the
+daemon isn't running. Control imports nothing else in the module,
+because the daemon and the command both use it.
 
 More requests are direction, not built: prioritize this catalog
 (`catalog update` would become a simple way for a person to ask the
@@ -636,11 +636,12 @@ Wherever we show status, a person should be able to see at a glance
 which folders are cataloged and which aren't. To its owner, a folder
 that never gets indexed looks the same as one that's merely behind.
 Today `catalog status` lists each catalog with how many of its files are
-profiled and waiting, and the files that are failing, so a person can
-tell a catalog that is filling in from one that is stuck. It doesn't
-list a watched folder with no `.catalog/` folder, which the daemon skips
-silently, so that case is not built. Much later, the menu bar item might
-notice someone working in a folder with no catalog and offer to add one.
+profiled, waiting, and to update, and the files that are failing, so a
+person can tell a catalog that is filling in from one that is stuck. It
+doesn't list a watched folder with no `.catalog/` folder, which the
+daemon skips silently, so that case is not built. Much later, the menu
+bar item might notice someone working in a folder with no catalog and
+offer to add one.
 
 ## Open questions
 

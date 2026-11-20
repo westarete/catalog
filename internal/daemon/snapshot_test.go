@@ -69,8 +69,9 @@ func TestSnapshotCountsEachCatalog(t *testing.T) {
 
 	s := d.Snapshot()
 	want := []control.CatalogStatus{
-		// a's summary is partial until c has one, so a is still waiting.
-		{Dir: filepath.Join(root, "one"), Files: 3, Summarized: 0, Waiting: 3},
+		// a's summary is partial, so it's summarized and has an update to
+		// come once c has a summary. b failed and c changed, so both wait.
+		{Dir: filepath.Join(root, "one"), Files: 3, Summarized: 1, Waiting: 2, ToUpdate: 1},
 		{Dir: filepath.Join(root, "two"), Files: 1, Summarized: 1, Waiting: 0},
 	}
 	if fmt.Sprint(s.Catalogs) != fmt.Sprint(want) {
@@ -81,9 +82,9 @@ func TestSnapshotCountsEachCatalog(t *testing.T) {
 	}
 }
 
-// A summary under an older recipe still shows in the catalog, but the file
-// waits for one under the current recipe.
-func TestSnapshotCountsOnlyCurrentRecipe(t *testing.T) {
+// A summary under an older recipe still shows in the catalog, so the file
+// counts as summarized, with an update to come under the current recipe.
+func TestSnapshotCountsOlderRecipeAsToUpdate(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
@@ -95,8 +96,9 @@ func TestSnapshotCountsOnlyCurrentRecipe(t *testing.T) {
 	step(t, d, start.Add(time.Minute))
 
 	c := d.Snapshot().Catalogs
-	if len(c) != 1 || c[0].Summarized != 0 || c[0].Waiting != 1 {
-		t.Errorf("catalogs = %+v, want a.md waiting", c)
+	want := []control.CatalogStatus{{Dir: root, Files: 1, Summarized: 1, ToUpdate: 1}}
+	if !slices.Equal(c, want) {
+		t.Errorf("catalogs = %+v, want %+v", c, want)
 	}
 }
 
