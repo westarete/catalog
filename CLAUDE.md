@@ -48,6 +48,13 @@ evidence about the product, not its scope: never turn "it's only me for
 now" into a design, spec, or plan built around one person. Name a person
 in a doc only where the text is about that person.
 
+**Use the project's words.** Before you name a concept in code, a doc,
+an issue, or chat, find the word the repository and its issues already
+use for it, and use that. Don't coin a synonym, even one that seems
+clearer; if a term seems wrong, propose changing it. A summary the
+daemon writes again is an "update": "redo" crept in and spread through
+the planner, the tests, and the docs before anyone caught it.
+
 ## Writing style
 
 @writing-style.md
