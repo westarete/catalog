@@ -285,9 +285,13 @@ records the error in its journal and shows it in `catalog status` as a
   daemon started, it skips the catalog until the file loads. Its
   `Config error` line names the catalog's folder.
 
-The errors never quote a value from any of the three files. When a file
-isn't valid TOML, the error gives the line, and the last key the parser
-read if that is a key the file can hold, for example
+The errors never quote a key, a key's name from `keys.toml`, or any
+other value from the three files. The one exception is the folders
+listed in `watch`, which appear as paths: a relative one in its
+`Config error` line, as [watch](#watch) describes, and one the daemon
+can't read in a `Failing` line. When a file isn't valid TOML, the error
+gives the line, and the last key the parser read if that is a key the
+file can hold, for example
 `parse global.toml: line 4 (last key "exclude"): not valid TOML`, or
 `a value has the wrong type` in place of `not valid TOML`.
 

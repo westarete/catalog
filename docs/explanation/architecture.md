@@ -155,12 +155,14 @@ Keychain is direction, for when there's an app.
 
 The lists add up, rather than each replacing the one before, so that a
 catalog can leave out one more file, or cover one more type of file,
-with one line. When a catalog's list replaced the global one, leaving
-out one more file meant copying the whole global list into the catalog's
-config, a file everyone who shares the folder sees
-([issue #17](https://github.com/westarete/catalog/issues/17)). Exclusion
-wins over inclusion at every level, with no patterns that undo an
-exclusion, so the order of patterns never matters.
+with one line. Under the earlier rule, a catalog's list replaced the
+global one, so a catalog that set its own list lost the global entries
+unless it repeated them. In
+[issue #17](https://github.com/westarete/catalog/issues/17), because a
+repository's `config.toml` had its own `ignore` list, the only way to
+leave out one file was to change a tracked file everyone shares.
+Exclusion wins over inclusion at every level, with no patterns that undo
+an exclusion, so the order of patterns never matters.
 
 A catalog's `config.toml` may come from someone else, for example with a
 clone, so the daemon trusts it less than the person's own files. Because

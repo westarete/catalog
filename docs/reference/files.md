@@ -150,10 +150,12 @@ whoever can change it decides which files go to the model service.
 
 Errors in the journal, the log, and the status name file paths and quote
 the error text they come with. The daemon never formats an API key into
-an error itself. No error, status line, or journal entry quotes a value
-from `keys.toml`, `global.toml`, or a catalog's `config.toml`, or a name
-from `keys.toml`, because a person may paste a key where it doesn't
-belong.
+an error itself. No error, status line, or journal entry quotes a key, a
+key's name from `keys.toml`, or any other value from `keys.toml`,
+`global.toml`, or a catalog's `config.toml`, because a person may paste
+a key where it doesn't belong. The one exception is the folders listed
+in `watch`, which appear as paths: a relative one in its `Config error`
+line, and one the daemon can't read in a `Failing` line.
 
 When one of those files doesn't parse, the error gives only the line,
 and the last key the parser read if that is a key the file can hold, for
