@@ -32,9 +32,6 @@ experimental, so its versions start with 0, and semver says that in a
 release adds functionality or makes breaking changes, and a patch
 release fixes bugs without changing behavior.
 
-If the release changes the cask or what `catalog setup` does, first
-[test the Homebrew cask on a Mac](test-the-homebrew-cask.md).
-
 Before picking a version number, fetch tags from upstream so you have
 the full picture:
 

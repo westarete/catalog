@@ -477,27 +477,24 @@ git commit -m "Document installing with Homebrew and catalog setup"
 
 ### Task 7: Check it on a Mac, and review
 
-The developer runs Step 1, because it installs a cask and needs a macOS
-account with no catalog daemon running.
+The developer runs Step 1, because it needs a published release.
 
-- [ ] **Step 1: Install, upgrade, and uninstall a snapshot cask from a
-      local tap**
+- [ ] **Step 1: Check the agent after the v0.6.0 release and the next
+      one**
 
-Build two snapshots with different versions, put each cask in a local
-tap whose `url` points at the snapshot archive, and check:
+Only the developer installs from `westarete/tap`, so check the real
+releases instead of a test cask. After the v0.6.0 release, run
+`brew install --cask westarete/tap/catalog`, then:
 
-- `brew install` leaves
-  `launchctl print gui/$(id -u)/com.westarete.catalog` succeeding and
-  the property list 0600
-- `catalog setup` writes `global.toml` as 0600, and `catalog status`
-  shows the install lines and the daemon running
-- `brew upgrade` leaves the daemon running the second snapshot
-  (`launchctl print` names its path)
-- `brew uninstall` leaves no agent and no property list;
-  `brew uninstall --zap` also deletes the state folder and the log
+```sh
+launchctl print gui/$(id -u)/com.westarete.catalog | grep -E '^\s*(state|program) ='
+```
 
-Expected: each check holds. If the upgrade leaves no agent loaded, stop
-and bring it back to the developer; the design depends on it.
+Expected: `state = running` and a `program` under
+`Caskroom/catalog/0.6.0/`. After the next release, run
+`brew upgrade --cask westarete/tap/catalog` and the same command.
+Expected: a `program` under that release's folder. If the agent isn't
+running after either, fix the cask and release again.
 
 - [ ] **Step 2: Review the branch**
 

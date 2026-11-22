@@ -21,9 +21,6 @@ These are steps for a task, in order.
 - [Set up for development](how-to/set-up-for-development.md) installs
   what you need to work on catalog's code and docs, and builds the
   daemon from source.
-- [Test the Homebrew cask on a Mac](how-to/test-the-homebrew-cask.md)
-  installs, upgrades, and uninstalls a notarized snapshot from a local
-  tap before a release.
 - [Release catalog](how-to/release.md) covers tagging and publishing a
   release.
 - [Apple code signing](how-to/apple-code-signing.md) covers signing and
