@@ -375,3 +375,82 @@ func TestAskSettingsReportsFolderReadError(t *testing.T) {
 		t.Error("wrote files after a failed folder read")
 	}
 }
+
+const fullPathMessage = "Enter a full path that starts with / or ~/.\n"
+
+// launchd starts the daemon in /, so a relative folder would watch the
+// wrong place.
+func TestReadFoldersRejectsRelativePaths(t *testing.T) {
+	const p = "Folder: "
+	const m = fullPathMessage
+	cases := []struct {
+		name, in string
+		want     []string
+		out      string
+	}{
+		{"relative", "src\n~/ok\n\n", []string{"~/ok"}, p + m + p + p},
+		{"nested relative", "work/notes\n/abs\n\n", []string{"/abs"}, p + m + p + p},
+		{"other user", "~user/x\n~/ok\n\n", []string{"~/ok"}, p + m + p + p},
+		{"dot", "./src\n\n", []string{"~/src"}, p + m + p},
+		{"rejected at end of input", "src", []string{"~/src"}, p + m},
+		{"accepted forms", "/abs/path\n~/x\n~\n\n", []string{"/abs/path", "~/x", "~"}, p + p + p + p},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var out bytes.Buffer
+			got, err := ReadFolders(bufio.NewReader(strings.NewReader(c.in)), &out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(got, "|") != strings.Join(c.want, "|") {
+				t.Errorf("folders = %q, want %q", got, c.want)
+			}
+			if out.String() != c.out {
+				t.Errorf("output = %q, want %q", out.String(), c.out)
+			}
+		})
+	}
+}
+
+func TestAskSettingsNeverWritesRelativeFolder(t *testing.T) {
+	home := t.TempDir()
+	out, err := askSettings(t, home, "src\n~user/x\n~/ok\n\n", "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out, fullPathMessage) != 2 {
+		t.Errorf("output lacks two rejections:\n%s", out)
+	}
+	_, watch, _ := readBack(t, filepath.Join(home, "state", "global.toml"))
+	if len(watch) != 1 || watch[0] != "~/ok" {
+		t.Errorf("watch = %q, want only ~/ok", watch)
+	}
+}
+
+// Status reads global.toml with os.ReadFile, which fails on a dangling
+// link, so setup must not call that link "already there".
+func TestAskSettingsRefusesDanglingLink(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "state")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "global.toml")
+	target := filepath.Join(home, "elsewhere.toml")
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+	out, err := askSettings(t, home, "~/src\n\n", "sk-test", nil, nil)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("err = %v, want one wrapping fs.ErrExist", err)
+	}
+	if strings.Contains(out, "already in") {
+		t.Errorf("output says the settings exist:\n%s", out)
+	}
+	if _, statErr := os.Stat(target); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("a file was created at the link's target: %v", statErr)
+	}
+	if got, lerr := os.Readlink(path); lerr != nil || got != target {
+		t.Errorf("link changed: %q, %v", got, lerr)
+	}
+}

@@ -26,8 +26,15 @@ type Prompt struct {
 	Home string
 }
 
+// isFullPath reports whether the daemon, which launchd starts in /, will
+// find folder wherever it is started: it starts with / or ~/, or is ~.
+func isFullPath(folder string) bool {
+	return folder == "~" || strings.HasPrefix(folder, "/") || strings.HasPrefix(folder, "~/")
+}
+
 // ReadFolders asks for folders, one per line, until an empty line or the
-// end of input. If the person lists none, it returns ~/src. Any other read
+// end of input. It rejects a folder that isn't a full path and asks again,
+// and the rejected line doesn't end the list. If the person lists none, it returns ~/src. Any other read
 // error is returned, so a broken terminal never picks a folder for them.
 func ReadFolders(in *bufio.Reader, out io.Writer) ([]string, error) {
 	var folders []string
@@ -35,8 +42,11 @@ func ReadFolders(in *bufio.Reader, out io.Writer) ([]string, error) {
 		_, _ = fmt.Fprint(out, "Folder: ")
 		line, err := in.ReadString('\n')
 		line = strings.TrimSpace(line)
-		if line != "" {
+		blank := line == ""
+		if !blank && isFullPath(line) {
 			folders = append(folders, line)
+		} else if !blank {
+			_, _ = fmt.Fprintln(out, "Enter a full path that starts with / or ~/.")
 		}
 		if errors.Is(err, io.EOF) {
 			break
@@ -44,7 +54,7 @@ func ReadFolders(in *bufio.Reader, out io.Writer) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read folders: %w", err)
 		}
-		if line == "" {
+		if blank {
 			break
 		}
 	}
@@ -123,7 +133,7 @@ func makePrivateDir(dir string) error {
 // globalPath. If globalPath exists, it says so and leaves it alone.
 func AskSettings(p Prompt, globalPath string) error {
 	shown := Tilde(p.Home, globalPath)
-	if _, err := os.Lstat(globalPath); err == nil {
+	if _, err := os.Stat(globalPath); err == nil {
 		_, _ = fmt.Fprintf(p.Out, "Your settings are already in %s. To change them, edit that file.\n", shown)
 		return nil
 	} else if !errors.Is(err, fs.ErrNotExist) {

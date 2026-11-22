@@ -196,3 +196,39 @@ func TestStateDir(t *testing.T) {
 		t.Errorf("StateDir = %q, want %q", got, want)
 	}
 }
+
+// A person can paste the API key as a bare TOML key, so the decoder's last
+// key may be the secret itself. The error names a key only when
+// global.toml defines it.
+func TestParseGlobalErrorNamesOnlyKnownKeys(t *testing.T) {
+	_, err := ParseGlobal([]byte("sk-ant-api03-SECRETxyz ="))
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if strings.Contains(err.Error(), "SECRETxyz") {
+		t.Errorf("error quotes an unknown key: %s", err)
+	}
+	if !strings.Contains(err.Error(), "line 1") {
+		t.Errorf("error %q doesn't say line 1", err)
+	}
+
+	_, err = ParseGlobal([]byte("model = "))
+	if err == nil || !strings.Contains(err.Error(), "model") {
+		t.Errorf("error %v should name the known key model", err)
+	}
+
+	_, err = ParseGlobal([]byte("model = 5"))
+	if err == nil || !strings.Contains(err.Error(), "model") || !strings.Contains(err.Error(), "line 1") {
+		t.Errorf("type error %v should name line 1 and key model", err)
+	}
+
+	_, err = ParseGlobal([]byte("sk-ant-api03-SECRETxyz = 5\n[[watch]]\nfolder = 3"))
+	if err == nil || strings.Contains(err.Error(), "SECRETxyz") {
+		t.Errorf("unknown key in a decode error leaked: %v", err)
+	}
+
+	_, err = ParseGlobal([]byte("[[watch]]\nfolder = 3"))
+	if err == nil || !strings.Contains(err.Error(), "folder") {
+		t.Errorf("error %v should name folder", err)
+	}
+}

@@ -60,12 +60,28 @@ var decodeErrorPlace = regexp.MustCompile(`line (\d+) \(last key "([^"]*)"\)`)
 // key. The error reaches the journal, the log, and catalog status.
 func globalParseError(err error) error {
 	if pe, ok := errors.AsType[toml.ParseError](err); ok {
-		return fmt.Errorf("parse %s: line %d (last key %q): not valid TOML", GlobalFile, pe.Position.Line, pe.LastKey)
+		return fmt.Errorf("parse %s: %s: not valid TOML", GlobalFile, errorPlace(pe.Position.Line, pe.LastKey))
 	}
 	if m := decodeErrorPlace.FindStringSubmatch(err.Error()); m != nil {
-		return fmt.Errorf("parse %s: line %s (last key %q): a value has the wrong type", GlobalFile, m[1], m[2])
+		return fmt.Errorf("parse %s: %s: a value has the wrong type", GlobalFile, errorPlace(m[1], m[2]))
 	}
 	return fmt.Errorf("parse %s: not valid TOML", GlobalFile)
+}
+
+// globalKeys are the keys global.toml defines. An error names a key only if
+// it is one of these, because a person can paste the API key as a bare key
+// and the decoder would report that key.
+var globalKeys = map[string]bool{
+	"api_key": true, "model": true, "enumerate": true, "ignore": true,
+	"watch": true, "folder": true, "watch.folder": true,
+}
+
+// errorPlace says the line, and the last key if global.toml defines it.
+func errorPlace(line any, key string) string {
+	if globalKeys[key] {
+		return fmt.Sprintf("line %v (last key %q)", line, key)
+	}
+	return fmt.Sprintf("line %v", line)
 }
 
 // ParseGlobal parses global.toml, filling unset fields with built-in defaults.
