@@ -78,9 +78,9 @@ Then it:
    state folder. If it can't listen there, it writes
    `status won't answer: <error>` to standard error and keeps working.
 4. Crawls the watched folders at once and then every minute, summarizing
-   waiting files between crawls. It rereads `global.toml` on each crawl,
-   so a missing or broken file doesn't stop it; `catalog status` reports
-   the problem instead.
+   waiting files between crawls. It rereads `global.toml` and
+   `keys.toml` on each crawl, so a missing or broken file doesn't stop
+   it; `catalog status` reports the problem instead.
 
 When the daemon stops, it removes the socket.
 
