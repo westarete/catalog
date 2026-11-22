@@ -1,11 +1,12 @@
 # Commands
 
-The `catalog` program has four commands: `catalog daemon`, which keeps
+The `catalog` program has five commands: `catalog daemon`, which keeps
 catalogs current, `catalog status`, which asks a running daemon what it
 is doing, `catalog setup`, which gives the daemon its settings and
-starts it, and `catalog init`, which makes a folder a catalog. This page
-lists each command's arguments, output, and exit codes. For the reasons
-behind the daemon's design, see the
+starts it, `catalog init`, which makes a folder a catalog, and
+`catalog version`, which prints the program's version. This page lists
+each command's arguments, output, and exit codes. For the reasons behind
+the daemon's design, see the
 [architecture](../explanation/architecture.md); for the settings it
 reads, see [configuration](configuration.md).
 
@@ -17,6 +18,7 @@ catalog daemon --once <folder>
 catalog status
 catalog setup [--agent-only]
 catalog init [folder]
+catalog version
 ```
 
 Any other command line prints the usage text to standard error and exits
@@ -27,6 +29,7 @@ usage: catalog daemon [--once <folder>]
        catalog status
        catalog setup [--agent-only]
        catalog init [folder]
+       catalog version
 ```
 
 These command lines are usage errors:
@@ -36,6 +39,7 @@ These command lines are usage errors:
 - `status` with any argument
 - `setup` with an argument other than `--agent-only`
 - `init` with more than one argument
+- `version` with any argument
 - `daemon` with an argument but no `--once`
 - `daemon --once` with no folder, or with more than one
 - an unknown flag, which also prints the flag package's own message
@@ -262,6 +266,17 @@ given.
 | 0    | Setup finished. Off a Mac, that is after it writes the settings files that were missing.     |
 | 1    | Setup failed, or the person pressed Ctrl-C. The error is on standard error after `catalog:`. |
 | 2    | The command line wasn't understood, such as an argument other than `--agent-only`.           |
+
+## catalog version
+
+```text
+catalog version
+```
+
+Prints `catalog` and the version, such as `catalog 0.7.0`, to standard
+output and exits with code 0. `catalog --version` and `catalog -v` do
+the same. A build from source that doesn't set the version prints
+`catalog dev`.
 
 ## catalog status
 

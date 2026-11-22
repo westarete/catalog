@@ -32,7 +32,11 @@ import (
 	"westarete.com/catalog/internal/store"
 )
 
-const usage = "usage: catalog daemon [--once <folder>]\n       catalog status\n       catalog setup [--agent-only]\n       catalog init [folder]"
+const usage = "usage: catalog daemon [--once <folder>]\n       catalog status\n       catalog setup [--agent-only]\n       catalog init [folder]\n       catalog version"
+
+// version is set at build time by GoReleaser with -X main.version=<version>.
+// A local `go build` leaves it "dev".
+var version = "dev"
 
 // socketFile is the name of the daemon's status socket in the state folder,
 // and journalFile the name of its journal.
@@ -64,6 +68,9 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	switch {
 	case len(args) == 1 && args[0] == "status":
 		return runStatus(stdout, stderr)
+	case len(args) == 1 && (args[0] == "version" || args[0] == "--version" || args[0] == "-v"):
+		_, _ = fmt.Fprintln(stdout, "catalog", version)
+		return 0
 	case len(args) > 0 && args[0] == "setup":
 		err = runSetup(ctx, args[1:], stdin, stdout, stderr)
 	case len(args) > 0 && args[0] == "init":

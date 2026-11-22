@@ -1068,3 +1068,15 @@ func TestInitMissingFolder(t *testing.T) {
 		t.Errorf("stat folder: %v, want not exist", err)
 	}
 }
+
+func TestVersionPrintsVersion(t *testing.T) {
+	saved := version
+	version = "1.2.3"
+	t.Cleanup(func() { version = saved })
+	for _, arg := range []string{"-v", "--version", "version"} {
+		code, stdout, stderr := runCatalogOut(context.Background(), arg)
+		if code != 0 || stdout != "catalog 1.2.3\n" || stderr != "" {
+			t.Errorf("run(%q) = %d, stdout %q, stderr %q; want 0 and %q", arg, code, stdout, stderr, "catalog 1.2.3\n")
+		}
+	}
+}
