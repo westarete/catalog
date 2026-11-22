@@ -1,4 +1,13 @@
-/catalog
-/context-catalog
-dist/
+# Finder writes one into each folder it shows, to remember view settings.
+.DS_Store
+
+# Claude Code's worktrees: a full checkout per session, each on its own branch.
 .claude/worktrees/
+
+# The program `go build ./cmd/catalog` writes the new binary at the
+# repository root. The leading slash keeps this from matching the
+# cmd/catalog folder.
+/catalog
+
+# GoReleaser's build output.
+dist/
