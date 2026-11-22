@@ -1,8 +1,9 @@
 # Commands
 
-The `catalog` program has two commands: `catalog daemon`, which keeps
-catalogs current, and `catalog status`, which asks a running daemon what
-it is doing. This page lists each command's arguments, output, and exit
+The `catalog` program has three commands: `catalog daemon`, which keeps
+catalogs current, `catalog status`, which asks a running daemon what it
+is doing, and `catalog setup`, which gives the daemon its settings and
+starts it. This page lists each command's arguments, output, and exit
 codes. For the reasons behind the daemon's design, see the
 [architecture](../explanation/architecture.md); for the settings it
 reads, see [configuration](configuration.md).
@@ -13,6 +14,7 @@ reads, see [configuration](configuration.md).
 catalog daemon
 catalog daemon --once <folder>
 catalog status
+catalog setup [--agent-only]
 ```
 
 Any other command line prints the usage text to standard error and exits
@@ -21,6 +23,7 @@ with code 2:
 ```text
 usage: catalog daemon [--once <folder>]
        catalog status
+       catalog setup [--agent-only]
 ```
 
 These command lines are usage errors:
@@ -28,6 +31,7 @@ These command lines are usage errors:
 - no arguments
 - an unknown command
 - `status` with any argument
+- `setup` with an argument other than `--agent-only`
 - `daemon` with an argument but no `--once`
 - `daemon --once` with no folder, or with more than one
 - an unknown flag, which also prints the flag package's own message
@@ -50,8 +54,8 @@ standard error, except where a command below says otherwise.
 ## catalog daemon
 
 Runs the daemon in the foreground until it receives SIGINT or SIGTERM.
-It does not detach; launchd runs it in the background (see the setup
-steps in [Install and run the daemon](../how-to/install-and-run.md)).
+It does not detach; launchd runs it in the background, once
+[`catalog setup`](#catalog-setup) has installed the launch agent.
 
 On start, before it does anything else, the daemon creates the state
 folder if it is missing and sets the folder's mode to 0700. If a journal
@@ -78,8 +82,8 @@ When the daemon stops, it removes the socket.
 
 The daemon writes to standard error each error it can't record in its
 journal or act on, one line each, prefixed with a timestamp and the word
-`catalog:`. It writes nothing to standard output. Under the launchd
-property list in the repository, both go to
+`catalog:`. It writes nothing to standard output. Under the launch
+agent's property list, which `catalog setup` writes, both go to
 `~/Library/Logs/catalog.log`.
 
 ## catalog daemon --once
@@ -121,6 +125,88 @@ These cases then exit with code 1:
 
 Otherwise it exits with code 0.
 
+## catalog setup
+
+```text
+catalog setup [--agent-only]
+```
+
+Gives the daemon its settings and starts it. It has two parts, and
+`--agent-only` runs only the second. The Homebrew cask runs
+`catalog setup --agent-only` when it installs, so the person is asked
+nothing at install time.
+
+### Asking for settings
+
+If `global.toml` doesn't exist in the state folder, setup asks for the
+Anthropic API key and the folders to watch, then writes the file:
+
+```text
+Paste your Anthropic API key and press Return, or press Return to skip this step.
+API key:
+
+The daemon will watch the folders you list. Don't list a folder that a cloud drive syncs, or Desktop, Documents, or Downloads.
+Enter one folder per line, then press Return on an empty line to finish. To watch only ~/src, press Return now.
+Folder: ~/src
+Folder: ~/notes/Project Plans
+Folder:
+
+Your settings are in ~/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
+```
+
+- When standard input is a terminal, setup turns off echo while the key
+  is typed, so the key never appears on screen. Otherwise it reads the
+  key as one line from standard input. It takes no key as an argument.
+- An empty key leaves `api_key` out of the file, and setup adds
+  `To add your API key later, set api_key in that file.` The daemon then
+  runs but summarizes nothing, and `catalog status` says why.
+- Setup trims spaces around each folder and keeps spaces inside it. An
+  empty line or the end of input ends the list. If the first line is
+  empty, setup watches `~/src`. For a folder that doesn't exist, it
+  prints
+  `<folder> doesn't exist yet. The daemon will start watching it once you create it.`
+  and writes it anyway.
+- Setup creates the state folder with mode 0700 if it's missing, and
+  creates `global.toml` with mode 0600, holding the key if one was given
+  and a `[[watch]]` table for each folder. Every other setting keeps its
+  default ([Configuration](configuration.md)).
+- If `global.toml` already exists, setup asks nothing, changes nothing
+  in it, and prints
+  `Your settings are already in <path>. To change them, edit that file.`
+- If the person presses Ctrl-C at a prompt, setup stops with exit code 1
+  and `catalog: setup interrupted` on standard error, before it writes
+  `global.toml` or the property list or loads the agent.
+
+### Installing the launch agent
+
+On a Mac, setup then writes
+`~/Library/LaunchAgents/com.westarete.catalog.plist` with mode 0600,
+naming the running program, with symbolic links resolved, followed by
+`daemon`. It unloads the agent first if launchd has it loaded, then
+loads it with `launchctl bootstrap`, so a running daemon restarts on the
+program that ran setup. It creates the folder for the log if that is
+missing. [Files](files.md#the-launch-agents-property-list) describes the
+property list.
+
+If the replaced property list named a different program, setup prints
+`The daemon was running <old program>, and now it runs <new program>.`
+It then prints
+``The catalog daemon is running. To see what it's doing, run `catalog status`.``
+
+A Mac has one agent with this label, so a source build and a Homebrew
+install share it, and the agent runs whichever program ran setup last.
+Off a Mac, setup prints `Setup can start the daemon only on a Mac.` and
+exits with code 0, after asking for settings unless `--agent-only` was
+given.
+
+### Setup's exit codes
+
+| Code | Meaning                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------- |
+| 0    | Setup finished, or stopped at once because it isn't on a Mac.                                |
+| 1    | Setup failed, or the person pressed Ctrl-C. The error is on standard error after `catalog:`. |
+| 2    | The command line wasn't understood, such as an argument other than `--agent-only`.           |
+
 ## catalog status
 
 ```text
@@ -138,13 +224,36 @@ seconds for the connection and for the answer. It takes no arguments.
 | Something that isn't a socket is at the socket's path    | Nothing                             | `catalog: <path> is not a socket; move it aside so the daemon can listen there` | 1    |
 | The connection or the read fails                         | Nothing                             | `catalog: <error>`                                                              | 1    |
 
-The first case is the only one in which the not-running message goes to
-standard output.
+The install lines described below come first in standard output in every
+row. The first case is the only one in which the not-running message
+goes to standard output.
 
 ### Status output
 
-The status is plain lines. Times are in the local time zone, in the form
-`Jan 2 15:04`.
+Whether or not the daemon is running, the output begins with three lines
+about the install, then a blank line:
+
+```text
+Launch agent: ~/Library/LaunchAgents/com.westarete.catalog.plist
+Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (API key set)
+Log: ~/Library/Logs/catalog.log
+
+```
+
+- `Launch agent:` shows the property list's path, or
+  `not installed; run catalog setup` if the file is missing. Off a Mac,
+  this line is left out.
+- `Settings:` shows `global.toml`'s path, then `(API key set)`,
+  `(no API key)`, `(not found; run catalog setup)`, or
+  `(can't be read: <error>)`. Status reads the file only to see whether
+  `api_key` has a value, and never prints the key.
+- `Log:` shows the log's path.
+
+The home folder is shown as `~`. When the daemon isn't running,
+`The catalog daemon isn't running.` follows the blank line.
+
+The rest of the status is plain lines. Times are in the local time zone,
+in the form `Jan 2 15:04`.
 
 ```text
 Started Nov 19 09:12; last crawled Nov 19 09:31.

@@ -1,54 +1,90 @@
 # Install and run the daemon
 
-This guide builds the daemon from source, starts it under launchd, and
-puts a catalog in place in one repository. We haven't released the
-daemon through Homebrew yet, so you build it from source. You need Go
-and a Mac. Run these from a checkout of this repository.
+This guide installs the daemon with Homebrew, gives it your API key and
+the folders to watch, and puts a catalog in place in one repository. You
+need a Mac. We haven't released the daemon through Homebrew yet, so
+until the first release the `brew install` below has nothing to install;
+to try the daemon now, build it from source as
+[Set up for development](set-up-for-development.md) describes, then pick
+up here at `catalog setup`.
 
-Build the daemon into the folder on your `PATH` where you keep programs
-you install yourself, putting that folder in place of `<folder>`:
-
-```sh
-go build -o <folder>/catalog ./cmd/catalog
-```
-
-Check that `command -v catalog` prints the path you just built to. Then
-copy the launchd property list into your agents folder. It needs
-absolute paths, so fill in the program's path and your home folder:
+Install the daemon:
 
 ```sh
-cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
-sed -i '' -e "s|CATALOG_PROGRAM|$(command -v catalog)|" -e "s|YOUR_HOME|$HOME|g" ~/Library/LaunchAgents/com.westarete.catalog.plist
+brew install westarete/tap/catalog
 ```
 
-The daemon logs to `~/Library/Logs/catalog.log`.
+The install puts the `catalog` program on your `PATH` and starts the
+daemon's launch agent, which runs the daemon in the background. The
+daemon can't summarize anything yet, because it has no API key and no
+folders to watch.
 
-Next, create the settings folder and a `global.toml` in it with your API
-key and the folders to watch. The daemon reads the key only from this
-file, not from `ANTHROPIC_API_KEY`. The folder also holds summaries of
-your documents, so only you can open it:
+## Give the daemon its key and folders
+
+Run:
 
 ```sh
-mkdir -m 700 -p "$HOME/Library/Application Support/com.westarete.catalog"
+catalog setup
 ```
 
-```toml
-api_key = "sk-ant-..."
-model = "claude-haiku-5-5"
+Setup asks for your Anthropic API key and then for the folders to watch.
+What you type is shown after each prompt. Nothing appears as you type
+the key, so the line after `API key:` looks empty:
 
-[[watch]]
-folder = "~/src"
+```text
+$ catalog setup
+Paste your Anthropic API key and press Return, or press Return to skip this step.
+API key:
+
+The daemon will watch the folders you list. Don't list a folder that a cloud drive syncs, or Desktop, Documents, or Downloads.
+Enter one folder per line, then press Return on an empty line to finish. To watch only ~/src, press Return now.
+Folder: ~/src
+Folder: ~/notes/Project Plans
+Folder:
+
+Your settings are in ~/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
+The catalog daemon is running. To see what it's doing, run `catalog status`.
 ```
 
-Choose the watched folders with care; see "Which folders to watch"
-below. Because the file holds your API key, make it readable only by
-you:
+Choose the folders with care; see "Which folders to watch" below. If you
+press Return at the first `Folder:` prompt, the daemon watches `~/src`.
+If you press Return at the key prompt, setup leaves the key out, and the
+daemon runs but summarizes nothing until you add `api_key` to
+`global.toml`.
+
+The key lives only in `global.toml`, in a folder and a file that only
+you can open. The daemon doesn't read it from `ANTHROPIC_API_KEY` or
+from a command-line argument, so setup never asks for it that way. Press
+Ctrl-C at any prompt to stop setup with nothing written.
+
+You can run `catalog setup` again whenever you like. If `global.toml`
+exists, setup leaves it alone and tells you where it is; to change the
+key or the folders, edit that file.
+[Configuration](../reference/configuration.md) lists every key it can
+hold. Setup also writes the launch agent's property list,
+`~/Library/LaunchAgents/com.westarete.catalog.plist`, and loads the
+agent again.
+
+Check on the daemon:
 
 ```sh
-chmod 600 "$HOME/Library/Application Support/com.westarete.catalog/global.toml"
+catalog status
 ```
 
-[Configuration](../reference/configuration.md) lists every key.
+It begins with where the launch agent, your settings, and the log are,
+and whether the settings hold a key. If it says the daemon isn't
+running, `tail ~/Library/Logs/catalog.log` shows why. To stop the daemon
+without uninstalling it, run
+`launchctl bootout gui/$(id -u)/com.westarete.catalog`; `catalog setup`
+starts it again.
+
+`catalog status` also shows when the daemon last crawled, each catalog's
+file counts, and any files that are failing. On the first day the daemon
+summarizes one file at a time, so expect catalogs to fill in gradually.
+Edits to `global.toml` and to each `config.toml` take effect within a
+minute, with no restart. [Commands](../reference/commands.md) describes
+`catalog setup` and `catalog status`, and [Files](../reference/files.md)
+lists where the daemon keeps its files.
 
 ## Put a catalog in place
 
@@ -74,40 +110,17 @@ cataloged:
 [Where catalogs go](../explanation/catalogs.md#what-a-tree-needs) says
 why a tree needs each of these.
 
-## Load the agent
-
-Load the agent into your login session, and check on it:
-
-```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.plist
-catalog status
-```
-
-If `catalog status` says the daemon isn't running,
-`tail ~/Library/Logs/catalog.log` shows why. To stop it, run
-`launchctl bootout gui/$(id -u)/com.westarete.catalog`.
-
-`catalog status` shows when the daemon last crawled, each catalog's file
-counts, and any files that are failing. On the first day the daemon
-summarizes one file at a time, so expect catalogs to fill in gradually.
-Edits to `global.toml` and to each `config.toml` take effect within a
-minute, with no restart. [Commands](../reference/commands.md) describes
-`catalog status`, and [Files](../reference/files.md) lists where the
-daemon keeps its files.
-
 ## Update the daemon
 
-launchd keeps running the build it started, so after you pull a newer
-version, stop the agent, build over the program where it is, copy the
-property list again in case it changed, and load it:
+Update with Homebrew:
 
 ```sh
-launchctl bootout gui/$(id -u)/com.westarete.catalog
-go build -o "$(command -v catalog)" ./cmd/catalog
-cp launchd/com.westarete.catalog.plist ~/Library/LaunchAgents/
-sed -i '' -e "s|CATALOG_PROGRAM|$(command -v catalog)|" -e "s|YOUR_HOME|$HOME|g" ~/Library/LaunchAgents/com.westarete.catalog.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.westarete.catalog.plist
+brew upgrade catalog
 ```
+
+Then run `catalog status`. If its first line says the launch agent isn't
+installed, or the daemon isn't running, run `catalog setup`, which loads
+the agent for the new version.
 
 ## Which folders to watch
 
@@ -121,3 +134,48 @@ explains why.
 A catalog's `enumerate` can cover more of its folder than the global
 list does, so a config that arrives with a clone decides which of that
 folder's files the daemon summarizes and sends to your provider.
+
+## Uninstall the daemon
+
+Uninstalling leaves your key and your summaries on disk unless you ask
+for them to be deleted, so choose the command that matches what you
+want.
+
+```sh
+brew uninstall catalog
+```
+
+This removes the program, stops the daemon, and removes the launch agent
+and its property list. Our cask asks Homebrew to remove the launchd job
+([Cask Cookbook, uninstall](https://docs.brew.sh/Cask-Cookbook#stanza-uninstall)),
+and Homebrew's
+[source](https://github.com/Homebrew/brew/blob/b39ed2c1958182c9fc90fa87366d4510021ecf75/Library/Homebrew/cask/artifact/abstract_uninstall.rb#L288-L314)
+shows that it then deletes the property list. It leaves these behind:
+
+- The state folder,
+  `~/Library/Application Support/com.westarete.catalog`, which holds
+  `global.toml` with your API key, the store of summaries of your
+  documents, and the journal.
+- The log, `~/Library/Logs/catalog.log`.
+- Each `catalog.md` in your catalogs.
+
+To delete the state folder and the log too, uninstall with `--zap`:
+
+```sh
+brew uninstall --zap catalog
+```
+
+The Cask Cookbook says zap steps run only when you pass `--zap`
+([zap stanza](https://docs.brew.sh/Cask-Cookbook#stanza-zap)). Our
+cask's zap deletes the state folder and the log, in place of moving them
+to the Trash, where they would stay readable until you emptied it.
+
+Neither command touches your catalogs. The daemon keeps no list of where
+they are, so delete each `.catalog/catalog.md` yourself, along with any
+`.catalog/` folder you no longer want. To stop the daemon without
+deleting anything, see the `launchctl bootout` command above.
+
+If you built the daemon from source, `brew uninstall` doesn't know about
+it. See
+[Set up for development](set-up-for-development.md#install-the-daemon-from-source)
+for how a source build and a Homebrew install share one launch agent.

@@ -14,11 +14,11 @@ that means.
 A background daemon keeps each `.catalog/catalog.md` current on its own,
 with no catalog state in Git to conflict. The daemon is built but not
 released; to try it, build it from source as
-[Install and run the daemon](docs/how-to/install-and-run.md) describes.
-The [documentation index](docs/README.md) says where to find the rest,
-including why catalog works as it does. The released versions are the
-earlier command-line tool, whose source and documentation are in Git
-history.
+[Set up for development](docs/how-to/set-up-for-development.md#install-the-daemon-from-source)
+describes. The [documentation index](docs/README.md) says where to find
+the rest, including why catalog works as it does. The released versions
+are the earlier command-line tool, whose source and documentation are in
+Git history.
 
 ## How it works
 
@@ -31,9 +31,11 @@ summary is ugly, but a wrong profile sends the agent to the wrong file.
 
 ## Running the daemon
 
-[Install and run the daemon](docs/how-to/install-and-run.md) builds the
-daemon from source, starts it, and puts a catalog in place. To move a
-repository from the earlier tool, see
+[Install and run the daemon](docs/how-to/install-and-run.md) installs
+the daemon with Homebrew, gives it your key and folders, and puts a
+catalog in place. It describes the install we plan for the first
+release; until then, build from source as the developer guide says. To
+move a repository from the earlier tool, see
 [Move a repository from the earlier tool](docs/how-to/move-from-the-earlier-tool.md).
 
 ## Development

@@ -28,12 +28,12 @@ mode if it already exists.
 ## global.toml
 
 The file is `global.toml` in the state folder. The daemon never creates
-it; a person writes it. The daemon doesn't create, check, or change its
-mode, so after writing it,
-[restrict it with `chmod 600`](../how-to/install-and-run.md). The daemon
-reads its API key only from this file, never from the
-`ANTHROPIC_API_KEY` environment variable or any other environment
-variable.
+it. [`catalog setup`](commands.md#catalog-setup) creates it with mode
+0600 if it's missing, and a person can write it instead. The daemon
+doesn't create, check, or change its mode, so if you wrote it yourself,
+restrict it with `chmod 600`. The daemon reads its API key only from
+this file, never from the `ANTHROPIC_API_KEY` environment variable or
+any other environment variable.
 
 | Key                  | Type                                         | Default                                           | Meaning                                                                       |
 | -------------------- | -------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |

@@ -585,14 +585,15 @@ run as a helper process, which the Reader's design already allows.
 ## Processes and macOS
 
 On a Mac, the daemon runs as a launchd agent for the logged-in user. The
-repository includes a property list that a person installs: launchd
-starts the daemon when the person logs in and starts it again if it
-exits. launchd sends the daemon's log to a file, and the property list
-sets the umask so that the log and any file the daemon creates without
-choosing a mode are readable only by their owner. The log names files
-and quotes errors, like the journal, so it follows the same reader rule.
-Apple's `container` tool has the same shape, a CLI and a launch agent,
-though it connects them with XPC
+property list that names the program comes from `catalog setup`, which
+the Homebrew cask runs when it installs and a person who builds from
+source runs themself. launchd starts the daemon when the person logs in
+and starts it again if it exits. launchd sends the daemon's log to a
+file, and the property list sets the umask so that the log and any file
+the daemon creates without choosing a mode are readable only by their
+owner. The log names files and quotes errors, like the journal, so it
+follows the same reader rule. Apple's `container` tool has the same
+shape, a CLI and a launch agent, though it connects them with XPC
 ([research/container.md](../research/container.md)).
 
 macOS permissions may affect how we package the daemon. Howard Oakley

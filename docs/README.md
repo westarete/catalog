@@ -12,13 +12,15 @@ want to know why catalog is built this way, begin with the
 
 These are steps for a task, in order.
 
-- [Install and run the daemon](how-to/install-and-run.md) builds the
-  daemon from source, starts it, and puts a catalog in place.
+- [Install and run the daemon](how-to/install-and-run.md) installs the
+  daemon with Homebrew, gives it a key and folders with `catalog setup`,
+  puts a catalog in place, and uninstalls it.
 - [Move a repository from the earlier tool](how-to/move-from-the-earlier-tool.md)
   switches a repository that has a catalog from the earlier command-line
   tool to the daemon.
 - [Set up for development](how-to/set-up-for-development.md) installs
-  what you need to work on catalog's code and docs.
+  what you need to work on catalog's code and docs, and builds the
+  daemon from source.
 - [Release catalog](how-to/release.md) covers tagging and publishing a
   release.
 - [Apple code signing](how-to/apple-code-signing.md) covers signing and
@@ -29,8 +31,8 @@ These are steps for a task, in order.
 These describe what catalog does, for looking things up.
 
 - [Commands](reference/commands.md) lists `catalog daemon`,
-  `catalog daemon --once`, and `catalog status`, with their arguments,
-  output, and exit codes.
+  `catalog daemon --once`, `catalog status`, and `catalog setup`, with
+  their arguments, output, and exit codes.
 - [Configuration](reference/configuration.md) lists every key in
   `global.toml` and in a catalog's `config.toml`.
 - [Files](reference/files.md) lists each file and socket the daemon

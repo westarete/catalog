@@ -13,17 +13,18 @@ open to its owner only.
 
 ## Summary
 
-| Path                                          | Created by                      | Mode                                 | What it holds                                     |
-| --------------------------------------------- | ------------------------------- | ------------------------------------ | ------------------------------------------------- |
-| `<state folder>`                              | the daemon                      | 0700                                 | the files below, except `catalog.md` and the log  |
-| `<state folder>/global.toml`                  | a person                        | not set by the daemon                | the API key and the global settings               |
-| `<state folder>/store.db`                     | the daemon                      | 0600                                 | the store: files seen, summaries, failures        |
-| `<state folder>/store.db-wal`, `store.db-shm` | SQLite, while the store is open | 0600                                 | recent writes to the store, and its shared memory |
-| `<state folder>/journal.jsonl`                | the daemon                      | 0600                                 | one line for each event the daemon records        |
-| `<state folder>/control.sock`                 | the daemon                      | 0600                                 | the status socket                                 |
-| `<catalog folder>/.catalog/catalog.md`        | the daemon                      | 0600                                 | the catalog agents read                           |
-| `<catalog folder>/.catalog/catalog-*.tmp`     | the daemon, briefly             | 0600                                 | a `catalog.md` being written                      |
-| `~/Library/Logs/catalog.log`                  | launchd                         | 0600, from the property list's umask | the daemon's standard error                       |
+| Path                                                 | Created by                      | Mode                                 | What it holds                                     |
+| ---------------------------------------------------- | ------------------------------- | ------------------------------------ | ------------------------------------------------- |
+| `<state folder>`                                     | the daemon                      | 0700                                 | the files below, except `catalog.md` and the log  |
+| `<state folder>/global.toml`                         | `catalog setup`, or a person    | 0600 from `catalog setup`            | the API key and the global settings               |
+| `<state folder>/store.db`                            | the daemon                      | 0600                                 | the store: files seen, summaries, failures        |
+| `<state folder>/store.db-wal`, `store.db-shm`        | SQLite, while the store is open | 0600                                 | recent writes to the store, and its shared memory |
+| `<state folder>/journal.jsonl`                       | the daemon                      | 0600                                 | one line for each event the daemon records        |
+| `<state folder>/control.sock`                        | the daemon                      | 0600                                 | the status socket                                 |
+| `<catalog folder>/.catalog/catalog.md`               | the daemon                      | 0600                                 | the catalog agents read                           |
+| `<catalog folder>/.catalog/catalog-*.tmp`            | the daemon, briefly             | 0600                                 | a `catalog.md` being written                      |
+| `~/Library/Logs/catalog.log`                         | launchd                         | 0600, from the property list's umask | the daemon's standard error                       |
+| `~/Library/LaunchAgents/com.westarete.catalog.plist` | `catalog setup`                 | 0600                                 | the launch agent: the program to run and the log  |
 
 The state folder is
 `~/Library/Application Support/com.westarete.catalog`, with `~` the home
@@ -109,10 +110,13 @@ files, and each failing file with its error. It holds no summary text.
 
 ### global.toml
 
-A person writes `global.toml`; the daemon only reads it. It holds the
-API key. The daemon doesn't create it, check its mode, or change its
-mode, so its readers are whoever the person allowed; the 0700 state
-folder keeps other accounts out of it.
+The daemon only reads `global.toml`. It holds the API key. If the file
+is missing, `catalog setup` creates it with mode 0600, in the state
+folder that it creates as 0700 if needed; a person can also write it.
+The daemon doesn't create it, check its mode, or change its mode, so for
+a file a person wrote, its readers are whoever that person allowed; the
+0700 state folder keeps other accounts out of it. `catalog setup` never
+changes a `global.toml` that exists.
 [Configuration](configuration.md#globaltoml) lists its keys.
 
 #### The API key in errors
@@ -160,18 +164,38 @@ A person writes this optional file; the daemon only reads it, on each
 crawl. [Configuration](configuration.md#catalogconfigtoml) lists its
 keys.
 
+## The launch agent's property list
+
+`catalog setup` writes
+`~/Library/LaunchAgents/com.westarete.catalog.plist` with mode 0600,
+from a template built into the program. It names the program that ran
+setup, with symbolic links resolved, followed by `daemon`, and has these
+keys:
+
+| Key                                    | Value                                           |
+| -------------------------------------- | ----------------------------------------------- |
+| `Label`                                | `com.westarete.catalog`                         |
+| `ProgramArguments`                     | the program's path, then `daemon`               |
+| `RunAtLoad`, `KeepAlive`               | true                                            |
+| `Umask`                                | 63, which is octal 077                          |
+| `StandardOutPath`, `StandardErrorPath` | `~/Library/Logs/catalog.log`, with `~` expanded |
+
+Setup writes the file through a temporary file in the same folder and
+renames it into place. It holds the program's path and the log's path,
+which name the home folder, and no key or other setting.
+[Commands](commands.md#catalog-setup) describes setup.
+
 ## The log
 
-[`launchd/com.westarete.catalog.plist`](../../launchd/com.westarete.catalog.plist)
-sends the daemon's standard output and standard error to
-`~/Library/Logs/catalog.log` once the person has replaced `YOUR_HOME` in
-it. The daemon writes only to standard error: one line for each error it
-can't journal or act on, with a timestamp. launchd creates the log, not
-the daemon, and the daemon doesn't set its mode. The property list sets
-`Umask` to 63, which is octal 077, so launchd creates the log with mode
-0600; a comment in the property list cites `launchd.plist(5)` for this.
-The umask also applies to any file the daemon creates without choosing a
-mode.
+The property list sends the daemon's standard output and standard error
+to `~/Library/Logs/catalog.log`. The daemon writes only to standard
+error: one line for each error it can't journal or act on, with a
+timestamp. launchd creates the log, not the daemon, and the daemon
+doesn't set its mode. The property list sets `Umask` to 63, which is
+octal 077, so launchd creates the log with mode 0600; a comment in the
+template cites `launchd.plist(5)` for this. The umask also applies to
+any file the daemon creates without choosing a mode. `catalog setup`
+creates the log's folder, closed to other accounts, if it is missing.
 
 ## Files the daemon only reads
 
