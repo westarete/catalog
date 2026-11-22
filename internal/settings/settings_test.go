@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 var (
@@ -290,5 +292,38 @@ func TestReadGlobalFileParseErrorQuotesNoValue(t *testing.T) {
 	_, err := ReadGlobalFile(path)
 	if err == nil || strings.Contains(err.Error(), "sk-secret") {
 		t.Errorf("err = %v; want a parse error without the key", err)
+	}
+}
+
+func TestReadGlobalFileRefusesDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), GlobalFile)
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ReadGlobalFile(path)
+	if !errors.Is(err, ErrNotRegularFile) {
+		t.Errorf("err = %v; want ErrNotRegularFile", err)
+	}
+}
+
+// Opening a FIFO waits for a writer, so a FIFO at the path would stop the
+// daemon and status for good if ReadGlobalFile opened it the usual way.
+func TestReadGlobalFileRefusesFIFOWithoutWaiting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), GlobalFile)
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan error, 1)
+	go func() {
+		_, err := ReadGlobalFile(path)
+		got <- err
+	}()
+	select {
+	case err := <-got:
+		if !errors.Is(err, ErrNotRegularFile) {
+			t.Errorf("err = %v; want ErrNotRegularFile", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("ReadGlobalFile waited on a FIFO")
 	}
 }

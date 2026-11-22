@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/BurntSushi/toml"
 )
@@ -94,11 +95,19 @@ var ErrWorldReadableOrWritable = errors.New("world-readable or world-writable")
 // worldReadWrite are the world read and write bits of a file's mode.
 const worldReadWrite = 0o006
 
+// ErrNotRegularFile means something other than a regular file, such as a
+// folder or a FIFO, is at global.toml's path.
+var ErrNotRegularFile = errors.New("not a regular file")
+
 // ReadGlobalFile reads and parses the global.toml at path. It returns an error
 // wrapping ErrWorldReadableOrWritable, and no settings, if the file is
-// world-readable or world-writable, and one wrapping fs.ErrNotExist if there is no file.
+// world-readable or world-writable, one wrapping ErrNotRegularFile if the
+// path holds something other than a regular file, and one wrapping
+// fs.ErrNotExist if there is no file.
 func ReadGlobalFile(path string) (Global, error) {
-	f, err := os.Open(path) //nolint:gosec // path is global.toml in the state folder
+	// O_NONBLOCK keeps the open from waiting for a writer if the path is a
+	// FIFO. A regular file ignores it.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // path is global.toml in the state folder
 	if err != nil {
 		return Global{}, err
 	}
@@ -108,6 +117,9 @@ func ReadGlobalFile(path string) (Global, error) {
 	info, err := f.Stat()
 	if err != nil {
 		return Global{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return Global{}, ErrNotRegularFile
 	}
 	if mode := info.Mode().Perm(); mode&worldReadWrite != 0 {
 		return Global{}, fmt.Errorf("%w (mode %v); to fix it, run chmod o-rw on it", ErrWorldReadableOrWritable, mode)
