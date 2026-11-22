@@ -4,6 +4,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -82,6 +83,40 @@ func errorPlace(line any, key string) string {
 		return fmt.Sprintf("line %v (last key %q)", line, key)
 	}
 	return fmt.Sprintf("line %v", line)
+}
+
+// ErrWorldReadableOrWritable means global.toml is world-readable or
+// world-writable. It holds the API key, so ReadGlobalFile won't use it. The
+// group bits don't count: the owner may share the file with a group on
+// purpose.
+var ErrWorldReadableOrWritable = errors.New("world-readable or world-writable")
+
+// worldReadWrite are the world read and write bits of a file's mode.
+const worldReadWrite = 0o006
+
+// ReadGlobalFile reads and parses the global.toml at path. It returns an error
+// wrapping ErrWorldReadableOrWritable, and no settings, if the file is
+// world-readable or world-writable, and one wrapping fs.ErrNotExist if there is no file.
+func ReadGlobalFile(path string) (Global, error) {
+	f, err := os.Open(path) //nolint:gosec // path is global.toml in the state folder
+	if err != nil {
+		return Global{}, err
+	}
+	defer func() { _ = f.Close() }()
+	// Stat the open file, not the path, so the mode checked is the mode of
+	// the bytes read.
+	info, err := f.Stat()
+	if err != nil {
+		return Global{}, err
+	}
+	if mode := info.Mode().Perm(); mode&worldReadWrite != 0 {
+		return Global{}, fmt.Errorf("%w (mode %v); to fix it, run chmod o-rw on it", ErrWorldReadableOrWritable, mode)
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return Global{}, err
+	}
+	return ParseGlobal(data)
 }
 
 // ParseGlobal parses global.toml, filling unset fields with built-in defaults.

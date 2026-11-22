@@ -3,7 +3,6 @@ package daemon
 import (
 	"errors"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -13,7 +12,9 @@ import (
 
 // reloadGlobal rereads global.toml from GlobalPath, if it's set. If the file
 // can't be read or doesn't parse, it journals the error and keeps the
-// settings from the last file that loaded. A file with no API key is used
+// settings from the last file that loaded. If the file is world-readable
+// or world-writable, it also drops the key, so the daemon summarizes nothing
+// until the owner fixes the file's mode. A file with no API key is used
 // for everything else, and journaled; the daemon then has no Provider and
 // summarizes nothing. When the key or the model changes, reloadGlobal builds
 // a new Provider and ends any pause.
@@ -21,7 +22,11 @@ func (d *Daemon) reloadGlobal(now time.Time) error {
 	if d.GlobalPath == "" {
 		return nil
 	}
-	g, err := readGlobal(d.GlobalPath)
+	g, err := readGlobalFile(d.GlobalPath)
+	if errors.Is(err, settings.ErrWorldReadableOrWritable) {
+		d.Global.APIKey = ""
+		d.useProvider(d.Global)
+	}
 	if err != nil {
 		return d.reportGlobal(now, err)
 	}
@@ -56,14 +61,11 @@ func (d *Daemon) reportGlobal(now time.Time, err error) error {
 	})
 }
 
-// readGlobal reads and parses global.toml.
-func readGlobal(path string) (settings.Global, error) {
-	data, err := os.ReadFile(path)
+// readGlobalFile reads and parses global.toml.
+func readGlobalFile(path string) (settings.Global, error) {
+	g, err := settings.ReadGlobalFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return settings.Global{}, errors.New("not found; create it with your api_key and the folders to watch")
 	}
-	if err != nil {
-		return settings.Global{}, err
-	}
-	return settings.ParseGlobal(data)
+	return g, err
 }

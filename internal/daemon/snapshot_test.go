@@ -453,3 +453,45 @@ func TestOncePublishesStatus(t *testing.T) {
 		t.Errorf("failing = %v, want a.md", got)
 	}
 }
+
+// A world-readable or world-writable global.toml stops summarizing,
+// though the daemon had a key before, and a fixed mode starts it again.
+func TestRunStopsWhileGlobalIsWorldReadableOrWritable(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	built := useGlobal(t, d, p, root, "")
+	if err := os.Chmod(d.GlobalPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	step(t, d, start)
+	step(t, d, start.Add(quiet))
+
+	if p.calls() != 0 {
+		t.Errorf("calls while global.toml is open = %d, want 0", p.calls())
+	}
+	if d.Global.APIKey != "" {
+		t.Errorf("kept the key %q while global.toml is open", d.Global.APIKey)
+	}
+	s := d.Snapshot()
+	if len(s.ConfigErrors) != 1 || !strings.Contains(s.ConfigErrors[0], "world-readable or world-writable") {
+		t.Errorf("config errors = %q, want one about world access", s.ConfigErrors)
+	}
+
+	if err := os.Chmod(d.GlobalPath, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	step(t, d, start.Add(quiet+time.Minute))
+
+	if p.calls() != 1 {
+		t.Errorf("calls after the fix = %d, want 1", p.calls())
+	}
+	if fmt.Sprint(*built) != "[key-1 claude-haiku-5-5]" {
+		t.Errorf("built %v, want one provider after the fix", *built)
+	}
+	if s := d.Snapshot(); len(s.ConfigErrors) != 0 {
+		t.Errorf("config errors after the fix = %q", s.ConfigErrors)
+	}
+}

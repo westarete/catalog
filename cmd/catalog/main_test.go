@@ -510,13 +510,13 @@ func TestSetupSettingsLoadForTheDaemon(t *testing.T) {
 		t.Fatalf("code %d", code)
 	}
 
-	g, err := loadGlobal(dir)
+	g, err := loadGlobalFile(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []string{filepath.Join(homeOf(t), "src")}
 	if g.APIKey != "sk-test" || len(g.Watch) != 1 || g.Watch[0] != want[0] {
-		t.Errorf("loadGlobal = key %q, watch %v; want sk-test and %v", g.APIKey, g.Watch, want)
+		t.Errorf("loadGlobalFile = key %q, watch %v; want sk-test and %v", g.APIKey, g.Watch, want)
 	}
 }
 
@@ -770,5 +770,37 @@ func TestSetupStopsWhenInterrupted(t *testing.T) {
 				t.Errorf("launchctl called: %v", *calls)
 			}
 		})
+	}
+}
+
+func TestOnceRefusesWorldReadableOrWritableGlobal(t *testing.T) {
+	dir := stateDir(t)
+	writeGlobal(t, dir, `api_key = "sk-secret"`)
+	if err := os.Chmod(filepath.Join(dir, "global.toml"), 0o604); err != nil {
+		t.Fatal(err)
+	}
+
+	code, out := runCatalog("daemon", "--once", t.TempDir())
+
+	if code == 0 || !strings.Contains(out, "world-readable or world-writable") || strings.Contains(out, "sk-secret") {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "store.db")); !os.IsNotExist(err) {
+		t.Errorf("store.db created before the mode was checked: %v", err)
+	}
+}
+
+func TestStatusSaysGlobalIsWorldReadableOrWritable(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, false)
+	writeGlobal(t, dir, `api_key = "sk-secret"`)
+	if err := os.Chmod(filepath.Join(dir, "global.toml"), 0o602); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stdout, _ := runCatalogOut(context.Background(), "status")
+
+	if !strings.Contains(stdout, "(can't be read: world-readable or world-writable") || strings.Contains(stdout, "API key set") {
+		t.Errorf("stdout:\n%s", stdout)
 	}
 }

@@ -30,10 +30,13 @@ mode if it already exists.
 The file is `global.toml` in the state folder. The daemon never creates
 it. [`catalog setup`](commands.md#catalog-setup) creates it with mode
 0600 if it's missing, and a person can write it instead. The daemon
-doesn't create, check, or change its mode, so if you wrote it yourself,
-restrict it with `chmod 600`. The daemon reads its API key only from
-this file, never from the `ANTHROPIC_API_KEY` environment variable or
-any other environment variable.
+never changes its mode, but because the file holds the API key, the
+daemon won't use it while it is world-readable or world-writable. Group
+read and write are allowed, so you can share the file with a group on
+purpose. If you wrote the file yourself, restrict it with `chmod 600`.
+The daemon reads its API key only from this file, never from the
+`ANTHROPIC_API_KEY` environment variable or any other environment
+variable.
 
 | Key                  | Type                                         | Default                                           | Meaning                                                                       |
 | -------------------- | -------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -165,6 +168,10 @@ records the error in its journal and shows it in `catalog status` as a
 - If `global.toml` fails, the daemon keeps the last `global.toml` that
   loaded. Before one has loaded, it has no settings, so it watches no
   folder and summarizes nothing.
+- If `global.toml` is world-readable or world-writable, the daemon also
+  drops the API key it loaded, and summarizes nothing until you run
+  `chmod o-rw` on the file. The `Config error` line gives the file's
+  mode.
 - If a catalog's `.catalog/config.toml` fails, the daemon keeps the
   globs from the last config that loaded for that catalog. If none has
   loaded since the daemon started, it skips the catalog until the file

@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -230,5 +232,63 @@ func TestParseGlobalErrorNamesOnlyKnownKeys(t *testing.T) {
 	_, err = ParseGlobal([]byte("[[watch]]\nfolder = 3"))
 	if err == nil || !strings.Contains(err.Error(), "folder") {
 		t.Errorf("error %v should name folder", err)
+	}
+}
+
+// writeWithMode writes text to global.toml in a new folder and sets its
+// mode, whatever the umask.
+func writeWithMode(t *testing.T, text string, mode os.FileMode) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), GlobalFile)
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// Group bits are the owner's choice, so only the world bits
+// stop ReadGlobalFile.
+func TestReadGlobalFileAcceptsOwnerAndGroup(t *testing.T) {
+	for _, mode := range []os.FileMode{0o600, 0o400, 0o640, 0o660} {
+		path := writeWithMode(t, `api_key = "sk-secret"`, mode)
+		g, err := ReadGlobalFile(path)
+		if err != nil || g.APIKey != "sk-secret" {
+			t.Errorf("mode %v: ReadGlobalFile = key %q, %v; want sk-secret", mode, g.APIKey, err)
+		}
+	}
+}
+
+func TestReadGlobalFileRefusesWorldReadableOrWritable(t *testing.T) {
+	for _, mode := range []os.FileMode{0o604, 0o602, 0o644, 0o666} {
+		path := writeWithMode(t, `api_key = "sk-secret"`, mode)
+		g, err := ReadGlobalFile(path)
+		if !errors.Is(err, ErrWorldReadableOrWritable) {
+			t.Errorf("mode %v: err = %v; want ErrWorldReadableOrWritable", mode, err)
+			continue
+		}
+		if g.APIKey != "" {
+			t.Errorf("mode %v: returned key %q with the error", mode, g.APIKey)
+		}
+		if msg := err.Error(); strings.Contains(msg, "sk-secret") || !strings.Contains(msg, mode.String()) {
+			t.Errorf("mode %v: error %q; want the mode and no key", mode, msg)
+		}
+	}
+}
+
+func TestReadGlobalFileMissing(t *testing.T) {
+	_, err := ReadGlobalFile(filepath.Join(t.TempDir(), GlobalFile))
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("err = %v; want fs.ErrNotExist", err)
+	}
+}
+
+func TestReadGlobalFileParseErrorQuotesNoValue(t *testing.T) {
+	path := writeWithMode(t, "api_key = sk-secret", 0o600)
+	_, err := ReadGlobalFile(path)
+	if err == nil || strings.Contains(err.Error(), "sk-secret") {
+		t.Errorf("err = %v; want a parse error without the key", err)
 	}
 }

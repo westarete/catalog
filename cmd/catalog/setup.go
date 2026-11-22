@@ -167,14 +167,10 @@ func readHiddenKey(ctx context.Context, fd int) (string, error) {
 // exists, holds an API key, or can't be read. It never returns the key.
 func settingsState(stateDir string) install.Settings {
 	path := filepath.Join(stateDir, settings.GlobalFile)
-	data, err := os.ReadFile(path) //nolint:gosec // path is global.toml in the state folder
+	g, err := settings.ReadGlobalFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return install.Settings{Path: path}
 	}
-	if err != nil {
-		return install.Settings{Path: path, Found: true, Err: err}
-	}
-	g, err := settings.ParseGlobal(data)
 	if err != nil {
 		return install.Settings{Path: path, Found: true, Err: err}
 	}

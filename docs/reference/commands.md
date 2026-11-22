@@ -105,11 +105,12 @@ directory. It doesn't reread `global.toml` during the run.
 Unlike the running daemon, it stops at once, with code 1, in these
 cases:
 
-| Case                           | Message on standard error                                          |
-| ------------------------------ | ------------------------------------------------------------------ |
-| `global.toml` doesn't exist    | `catalog: no settings file at <path>; create it with your api_key` |
-| `global.toml` doesn't parse    | `catalog: <path>: parse global.toml: <parser error>`               |
-| `global.toml` has no `api_key` | `catalog: <path> has no api_key`                                   |
+| Case                                              | Message on standard error                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `global.toml` doesn't exist                       | `catalog: no settings file at <path>; create it with your api_key`                                     |
+| `global.toml` doesn't parse                       | `catalog: <path>: parse global.toml: line <n>: not valid TOML`, or another reason that quotes no value |
+| `global.toml` has no `api_key`                    | `catalog: <path> has no api_key`                                                                       |
+| `global.toml` is world-readable or world-writable | `catalog: <path>: world-readable or world-writable (mode <mode>); to fix it, run chmod o-rw on it`     |
 
 When the run reaches the crawl, it prints a report in the format of
 `catalog status` (below) to standard output, even if the run fails.

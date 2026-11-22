@@ -39,6 +39,13 @@ They do this before anything else can fail, so a run that stops at once,
 such as one with no `global.toml`, still tightens what an earlier
 version left readable.
 
+The daemon never changes `global.toml`'s mode. Instead, `catalog daemon`
+and `catalog daemon --once` won't use a `global.toml` that is
+world-readable or world-writable, and `catalog status` shows the problem
+on its `Settings:` line.
+[When a file doesn't load](configuration.md#when-a-file-doesnt-load)
+says what the running daemon does then.
+
 The store sets its own files to 0600 when it opens, and the daemon sets
 `catalog.md` to 0600 whenever it publishes. A file left readable by an
 earlier version is tightened the next time the daemon starts or

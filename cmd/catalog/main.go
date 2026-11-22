@@ -136,7 +136,7 @@ func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	g, err := loadGlobal(stateDir)
+	g, err := loadGlobalFile(stateDir)
 	if err != nil {
 		return err
 	}
@@ -244,17 +244,13 @@ func privateStateDir() (string, error) {
 	return dir, nil
 }
 
-// loadGlobal reads global.toml, which must exist and hold an API key.
-func loadGlobal(stateDir string) (settings.Global, error) {
+// loadGlobalFile reads global.toml, which must exist and hold an API key.
+func loadGlobalFile(stateDir string) (settings.Global, error) {
 	path := filepath.Join(stateDir, settings.GlobalFile)
-	data, err := os.ReadFile(path)
+	g, err := settings.ReadGlobalFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return settings.Global{}, fmt.Errorf("no settings file at %s; create it with your api_key", path)
 	}
-	if err != nil {
-		return settings.Global{}, err
-	}
-	g, err := settings.ParseGlobal(data)
 	if err != nil {
 		return settings.Global{}, fmt.Errorf("%s: %w", path, err)
 	}
