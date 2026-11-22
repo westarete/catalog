@@ -220,10 +220,12 @@ func TestDaemonWithoutSocket(t *testing.T) {
 
 // installLines is what status prints about the install in a home with no
 // settings file, with agent saying what the first line says.
-func installLines(agent string) string {
+func installLines(t *testing.T, agent string) string {
+	t.Helper()
+	home := os.Getenv("HOME")
 	return "Launch agent: " + agent + "\n" +
-		"Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
-		"Log: ~/Library/Logs/catalog.log\n"
+		"Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
+		"Log: " + home + "/Library/Logs/catalog.log\n"
 }
 
 func TestStatusWhenDaemonIsNotRunning(t *testing.T) {
@@ -232,7 +234,7 @@ func TestStatusWhenDaemonIsNotRunning(t *testing.T) {
 
 	code, stdout, _ := runCatalogOut(context.Background(), "status")
 
-	want := installLines("not installed; run catalog setup") + "\nThe catalog daemon isn't running.\n"
+	want := installLines(t, "not installed; run catalog setup") + "\nThe catalog daemon isn't running.\n"
 	if code != 1 || stdout != want {
 		t.Errorf("code %d, stdout %q, want %q", code, stdout, want)
 	}
@@ -280,7 +282,7 @@ func TestStatusOfRunningDaemon(t *testing.T) {
 	}
 	cancel()
 
-	if !strings.HasPrefix(stdout, installLines("not installed; run catalog setup")+"\n") {
+	if !strings.HasPrefix(stdout, installLines(t, "not installed; run catalog setup")+"\n") {
 		t.Errorf("status doesn't begin with the install lines and a blank line:\n%s", stdout)
 	}
 	for _, want := range []string{"Config error: " + filepath.Join(dir, "global.toml") + ": not found", "Not summarizing:"} {

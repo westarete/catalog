@@ -23,15 +23,18 @@ func settingsAt(home string) Settings {
 	return Settings{Path: filepath.Join(home, "Library", "Application Support", "com.westarete.catalog", "global.toml")}
 }
 
+// Describe prints absolute paths as they are, the way pwd and git do, so a
+// person can paste one in quotes and an agent can open it. A path with ~
+// stops working in quotes, and "Application Support" has a space.
 func TestDescribeInstalled(t *testing.T) {
 	home := t.TempDir()
 	installPlist(t, home)
 	s := settingsAt(home)
 	s.Found, s.HasKey = true, true
 
-	want := "Launch agent: ~/Library/LaunchAgents/com.westarete.catalog.plist\n" +
-		"Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (API key set)\n" +
-		"Log: ~/Library/Logs/catalog.log\n"
+	want := "Launch agent: " + home + "/Library/LaunchAgents/com.westarete.catalog.plist\n" +
+		"Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (API key set)\n" +
+		"Log: " + home + "/Library/Logs/catalog.log\n"
 	if got := Describe(home, s, true); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
@@ -41,8 +44,8 @@ func TestDescribeNothingInstalled(t *testing.T) {
 	home := t.TempDir()
 
 	want := "Launch agent: not installed; run catalog setup\n" +
-		"Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
-		"Log: ~/Library/Logs/catalog.log\n"
+		"Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
+		"Log: " + home + "/Library/Logs/catalog.log\n"
 	if got := Describe(home, settingsAt(home), true); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
@@ -53,7 +56,7 @@ func TestDescribeNoAPIKey(t *testing.T) {
 	s := settingsAt(home)
 	s.Found = true
 
-	want := "Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (no API key)\n"
+	want := "Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (no API key)\n"
 	if got := Describe(home, s, false); !containsLine(got, want) {
 		t.Errorf("got:\n%s\nwant line %q", got, want)
 	}
@@ -65,7 +68,7 @@ func TestDescribeBrokenSettings(t *testing.T) {
 	s.Found, s.HasKey = true, true
 	s.Err = errors.New(`line 2: bad value for key "x"`)
 
-	want := "Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (can't be read: line 2: bad value for key \"x\")\n"
+	want := "Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (can't be read: line 2: bad value for key \"x\")\n"
 	if got := Describe(home, s, false); !containsLine(got, want) {
 		t.Errorf("got:\n%s\nwant line %q", got, want)
 	}
@@ -75,8 +78,8 @@ func TestDescribeNotOnMac(t *testing.T) {
 	home := t.TempDir()
 	installPlist(t, home)
 
-	want := "Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
-		"Log: ~/Library/Logs/catalog.log\n"
+	want := "Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
+		"Log: " + home + "/Library/Logs/catalog.log\n"
 	if got := Describe(home, settingsAt(home), false); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}

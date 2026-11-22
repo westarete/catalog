@@ -153,7 +153,7 @@ Folder: ~/src
 Folder: ~/notes/Project Plans
 Folder:
 
-Your settings are in ~/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
+Your settings are in /Users/alex/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
 ```
 
 - When standard input is a terminal, setup turns off echo while the key
@@ -242,9 +242,9 @@ Whether or not the daemon is running, the output begins with three lines
 about the install, then a blank line:
 
 ```text
-Launch agent: ~/Library/LaunchAgents/com.westarete.catalog.plist
-Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (API key set)
-Log: ~/Library/Logs/catalog.log
+Launch agent: /Users/alex/Library/LaunchAgents/com.westarete.catalog.plist
+Settings: /Users/alex/Library/Application Support/com.westarete.catalog/global.toml (API key set)
+Log: /Users/alex/Library/Logs/catalog.log
 
 ```
 
@@ -257,8 +257,17 @@ Log: ~/Library/Logs/catalog.log
   `api_key` has a value, and never prints the key.
 - `Log:` shows the log's path.
 
-The home folder is shown as `~`. When the daemon isn't running,
-`The catalog daemon isn't running.` follows the blank line.
+Status prints its paths in full and without quotes, as `pwd` does, and
+so does setup when it says where your settings are. To use one in a
+shell, put it in double quotes, because `Application Support` has a
+space:
+
+```sh
+open -e "/Users/alex/Library/Application Support/com.westarete.catalog/global.toml"
+```
+
+When the daemon isn't running, `The catalog daemon isn't running.`
+follows the blank line.
 
 The rest of the status is plain lines. Times are in the local time zone,
 in the form `Jan 2 15:04`.

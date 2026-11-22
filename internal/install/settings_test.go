@@ -172,22 +172,6 @@ func TestWriteGlobalReportsUncreatableFolder(t *testing.T) {
 	}
 }
 
-func TestTilde(t *testing.T) {
-	cases := []struct{ home, path, want string }{
-		{"/Users/a", "/Users/a/src", "~/src"},
-		{"/Users/a", "/Users/a", "~"},
-		{"/Users/a", "/Users/ab/src", "/Users/ab/src"},
-		{"/Users/a", "/elsewhere", "/elsewhere"},
-		{"", "/elsewhere", "/elsewhere"},
-		{"/", "/x", "/x"},
-	}
-	for _, c := range cases {
-		if got := Tilde(c.home, c.path); got != c.want {
-			t.Errorf("Tilde(%q, %q) = %q, want %q", c.home, c.path, got, c.want)
-		}
-	}
-}
-
 // askSettings runs AskSettings with a fake key reader and returns the
 // output. It never logs the output, which could hold the key.
 func askSettings(t *testing.T, home, in, key string, keyErr error, keyCalls *int) (string, error) {
@@ -223,7 +207,7 @@ func TestAskSettingsWritesNewFile(t *testing.T) {
 		"Enter one folder per line, then press Return on an empty line to finish. To watch only ~/src, press Return now.\n" +
 		"Folder: Folder: " +
 		"\n" +
-		"Your settings are in ~/state/global.toml, and only you can read that file.\n"
+		"Your settings are in " + filepath.Join(home, "state", "global.toml") + ", and only you can read that file.\n"
 	if out != want {
 		t.Errorf("output =\n%q\nwant\n%q", out, want)
 	}
@@ -303,7 +287,7 @@ func TestAskSettingsKeepsExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "Your settings are already in ~/state/global.toml. To change them, edit that file.\n"; out != want {
+	if want := "Your settings are already in " + filepath.Join(home, "state", "global.toml") + ". To change them, edit that file.\n"; out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
 	if calls != 0 {

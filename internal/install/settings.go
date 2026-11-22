@@ -118,9 +118,8 @@ func WriteGlobal(path, apiKey string, folders []string) error {
 // AskSettings asks for an API key and folders, then writes them to
 // globalPath. If globalPath exists, it says so and leaves it alone.
 func AskSettings(p Prompt, globalPath string) error {
-	shown := Tilde(p.Home, globalPath)
 	if _, err := os.Stat(globalPath); err == nil {
-		_, _ = fmt.Fprintf(p.Out, "Your settings are already in %s. To change them, edit that file.\n", shown)
+		_, _ = fmt.Fprintf(p.Out, "Your settings are already in %s. To change them, edit that file.\n", globalPath)
 		return nil
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -153,25 +152,11 @@ func AskSettings(p Prompt, globalPath string) error {
 	if err := WriteGlobal(globalPath, key, folders); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(p.Out, "Your settings are in %s, and only you can read that file.\n", shown)
+	_, _ = fmt.Fprintf(p.Out, "Your settings are in %s, and only you can read that file.\n", globalPath)
 	if key == "" {
 		_, _ = fmt.Fprintln(p.Out, "To add your API key later, set api_key in that file.")
 	}
 	return nil
-}
-
-// Tilde replaces a leading home folder in path with ~.
-func Tilde(home, path string) string {
-	if home == "" || home == "/" {
-		return path
-	}
-	if path == home {
-		return "~"
-	}
-	if rest, ok := strings.CutPrefix(path, home+"/"); ok {
-		return "~/" + rest
-	}
-	return path
 }
 
 // expandTilde replaces a leading ~ in path with home.

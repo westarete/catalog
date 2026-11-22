@@ -17,13 +17,16 @@ type Settings struct {
 // Describe returns the lines that say where the launch agent, the
 // settings, and the log are. It prints paths and whether a key is set,
 // never the key. It leaves out the launch agent line when onMac is false.
+// Paths are absolute and unquoted, as pwd and git print them: a path that
+// starts with ~ stops working once someone quotes it for the space in
+// "Application Support", and an agent's file tools need an absolute path.
 func Describe(home string, s Settings, onMac bool) string {
 	var b strings.Builder
 	if onMac {
 		fmt.Fprintf(&b, "Launch agent: %s\n", launchAgentState(home))
 	}
-	fmt.Fprintf(&b, "Settings: %s (%s)\n", Tilde(home, s.Path), settingsState(s))
-	fmt.Fprintf(&b, "Log: %s\n", Tilde(home, LogPath(home)))
+	fmt.Fprintf(&b, "Settings: %s (%s)\n", s.Path, settingsState(s))
+	fmt.Fprintf(&b, "Log: %s\n", LogPath(home))
 	return b.String()
 }
 
@@ -33,7 +36,7 @@ func launchAgentState(home string) string {
 	if _, err := os.Stat(PlistPath(home)); err != nil {
 		return "not installed; run catalog setup"
 	}
-	return Tilde(home, PlistPath(home))
+	return PlistPath(home)
 }
 
 func settingsState(s Settings) string {

@@ -51,7 +51,7 @@ Folder: ~/src
 Folder: ~/notes/Project Plans
 Folder:
 
-Your settings are in ~/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
+Your settings are in /Users/alex/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
 The catalog daemon is running. To see what it's doing, run `catalog status`.
 ```
 
