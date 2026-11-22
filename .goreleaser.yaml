@@ -73,8 +73,8 @@ homebrew_casks:
     commit_msg_template: "Update catalog to {{ .Tag }}"
     # The Cask Cookbook says "Installer scripts run without the cask
     # sandbox", and `sudo:` is for a script that needs it, so leaving it
-    # out runs this as a non-root script. A Homebrew maintainer recommends
-    # that mechanism for a tap that registers an agent:
+    # out runs this as a non-root script. A Homebrew maintainer says a tap
+    # can use that mechanism to register an agent:
     # https://github.com/Homebrew/brew/issues/23891#issuecomment-5585219358
     # `--agent-only` writes the launch agent and loads it without asking
     # questions. custom_block goes at the top of the cask. macOS only,
@@ -105,5 +105,5 @@ homebrew_casks:
       Run `catalog setup` to add an API key and choose the folders to watch,
       then `catalog status` to see how the daemon is doing.
 
-      `brew uninstall catalog` keeps your settings and summaries.
+      `brew uninstall catalog` keeps your API key, settings, and summaries.
       `brew uninstall --zap catalog` deletes them.

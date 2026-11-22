@@ -112,10 +112,11 @@ We considered four ways to get from `brew install` to a running agent.
    loads the agent without asking anything, and declares
    `uninstall launchctl:` to remove it. On upgrade, Homebrew removes the
    old agent and the new version's installer loads it again, so the
-   daemon moves to the new build with no one doing anything. This is the
-   route Homebrew's maintainers recommend for a tap. It costs one thing:
-   our program runs outside Homebrew's sandbox at install time, with the
-   person's permissions, and without asking.
+   daemon moves to the new build with no one doing anything. A Homebrew
+   maintainer says a tap can use this route
+   ([comment](https://github.com/Homebrew/brew/issues/23891#issuecomment-5585219358)).
+   It costs one thing: our program runs outside Homebrew's sandbox at
+   install time, with the person's permissions, and without asking.
 2. **The daemon restarts itself, as atuin's does.** `catalog setup`
    installs the agent, and the daemon exits when it sees its program has
    changed, so launchd starts the new one. atuin's code says
@@ -141,8 +142,8 @@ We considered four ways to get from `brew install` to a running agent.
    which is a separate project.
 
 The developer chose the first, because it's the only one in which
-upgrading and uninstalling each take a single Homebrew command, and it's
-the way Homebrew's maintainers point taps to.
+upgrading and uninstalling each take a single Homebrew command, and a
+Homebrew maintainer says a tap can use it.
 
 ## How it works
 
