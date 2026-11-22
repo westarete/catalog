@@ -60,7 +60,7 @@ homebrew_casks:
       - catalog
     homepage: https://github.com/westarete/catalog
     # brew style requires: under 80 chars, no trailing period.
-    description: Generates and maintains .catalog.md for AI agent context loading
+    description: Keeps a catalog.md current in each cataloged folder
     repository:
       owner: westarete
       name: homebrew-tap
@@ -71,9 +71,33 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
     commit_msg_template: "Update catalog to {{ .Tag }}"
-    # Clean up the credentials catalog writes to ~/.config/catalog on an
-    # explicit `brew uninstall --zap`. Default XDG path only; a custom
-    # XDG_CONFIG_HOME can't be expressed in a static cask string.
+    # Homebrew runs an installer script outside its sandbox, as the person
+    # who ran `brew install` and without sudo (the script sets no `sudo:`).
+    # `--agent-only` writes the launch agent and loads it without asking
+    # questions. custom_block goes at the top of the cask. macOS only,
+    # because the launch agent is a macOS feature.
+    custom_block: |
+      on_macos do
+        installer script: {
+          executable: "catalog",
+          args:       ["setup", "--agent-only"],
+        }
+      end
+    # A plain `brew uninstall` removes the launch agent and keeps the
+    # person's settings and summaries.
+    uninstall:
+      launchctl:
+        - com.westarete.catalog
+    # `brew uninstall --zap` deletes the settings folder, which holds the
+    # API key and summaries of the person's documents, and the log. Use
+    # `delete`, not `trash`: Trash would keep them readable.
     zap:
-      trash:
-        - ~/.config/catalog
+      delete:
+        - ~/Library/Application Support/com.westarete.catalog
+        - ~/Library/Logs/catalog.log
+    caveats: |
+      Run `catalog setup` to add an API key and choose the folders to watch,
+      then `catalog status` to see how the daemon is doing.
+
+      `brew uninstall catalog` keeps your settings and summaries.
+      `brew uninstall --zap catalog` deletes them.
