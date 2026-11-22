@@ -48,6 +48,11 @@ evidence about the product, not its scope: never turn "it's only me for
 now" into a design, spec, or plan built around one person. Name a person
 in a doc only where the text is about that person.
 
+**Design for people who work with documents, most often not
+developers.** Git repositories are a primary use, not the only one.
+Handle Git well where it applies, and give every design decision a
+reason that holds for a folder that isn't a repository.
+
 **Use the project's words.** Before you name a concept in code, a doc,
 an issue, or chat, find the word the repository and its issues already
 use for it, and use that. Don't coin a synonym, even one that seems
