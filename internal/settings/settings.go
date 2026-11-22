@@ -167,10 +167,15 @@ func readPrivateFile(path string) ([]byte, error) {
 }
 
 // ParseGlobal parses global.toml, filling unset fields with built-in defaults.
+// It rejects the file if it has a key the daemon doesn't read.
 func ParseGlobal(data []byte) (Global, error) {
 	var f globalFile
-	if _, err := toml.Decode(string(data), &f); err != nil {
+	md, err := toml.Decode(string(data), &f)
+	if err != nil {
 		return Global{}, parseError(GlobalFile, globalKeys, err)
+	}
+	if err := unknownKeyError(GlobalFile, data, md, globalKeys); err != nil {
+		return Global{}, err
 	}
 	g := Global{Key: f.Key, Model: defaultModel, Include: f.Include, Exclude: f.Exclude}
 	if f.Model != "" {
@@ -187,11 +192,15 @@ func ParseGlobal(data []byte) (Global, error) {
 }
 
 // ParseCatalog parses a catalog's .catalog/config.toml. It reads no keys but
-// include and exclude.
+// include and exclude, and rejects the file if it has any other.
 func ParseCatalog(data []byte) (Catalog, error) {
 	var c Catalog
-	if _, err := toml.Decode(string(data), &c); err != nil {
+	md, err := toml.Decode(string(data), &c)
+	if err != nil {
 		return Catalog{}, parseError(CatalogConfigFile, catalogKeys, err)
+	}
+	if err := unknownKeyError(CatalogConfigFile, data, md, catalogKeys); err != nil {
+		return Catalog{}, err
 	}
 	return c, nil
 }

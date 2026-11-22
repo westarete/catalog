@@ -127,20 +127,6 @@ func TestParseCatalogReadsLists(t *testing.T) {
 	}
 }
 
-func TestParseCatalogIgnoresOtherKeys(t *testing.T) {
-	c, err := ParseCatalog([]byte(`
-model = "other"
-profile = "profiles/default.md"
-input_price = 1.5
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(c.Include) != 0 || len(c.Exclude) != 0 {
-		t.Errorf("catalog = %+v", c)
-	}
-}
-
 func TestParseCatalogEmpty(t *testing.T) {
 	for _, data := range []string{"", "# only a comment\n"} {
 		c, err := ParseCatalog([]byte(data))
