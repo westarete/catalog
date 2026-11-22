@@ -105,30 +105,39 @@ var ErrNotRegularFile = errors.New("not a regular file")
 // path holds something other than a regular file, and one wrapping
 // fs.ErrNotExist if there is no file.
 func ReadGlobalFile(path string) (Global, error) {
-	// O_NONBLOCK keeps the open from waiting for a writer if the path is a
-	// FIFO. A regular file ignores it.
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // path is global.toml in the state folder
+	data, err := readPrivateFile(path)
 	if err != nil {
 		return Global{}, err
+	}
+	return ParseGlobal(data)
+}
+
+// readPrivateFile reads the file at path if it is a regular file with no
+// world permission bit set. It returns ErrNotRegularFile or an error
+// wrapping ErrWorldAccessible otherwise, so no settings file that may hold
+// a secret or steer what leaves the machine is read from a place others
+// can change.
+func readPrivateFile(path string) ([]byte, error) {
+	// O_NONBLOCK keeps the open from waiting for a writer if the path is a
+	// FIFO. A regular file ignores it.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // path is a settings file in the state folder
+	if err != nil {
+		return nil, err
 	}
 	defer func() { _ = f.Close() }()
 	// Stat the open file, not the path, so the mode checked is the mode of
 	// the bytes read.
 	info, err := f.Stat()
 	if err != nil {
-		return Global{}, err
+		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return Global{}, ErrNotRegularFile
+		return nil, ErrNotRegularFile
 	}
 	if mode := info.Mode().Perm(); mode&worldBits != 0 {
-		return Global{}, fmt.Errorf("%w (mode %v); to fix it, run chmod o-rwx on it", ErrWorldAccessible, mode)
+		return nil, fmt.Errorf("%w (mode %v); to fix it, run chmod o-rwx on it", ErrWorldAccessible, mode)
 	}
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return Global{}, err
-	}
-	return ParseGlobal(data)
+	return io.ReadAll(f)
 }
 
 // ParseGlobal parses global.toml, filling unset fields with built-in defaults.
