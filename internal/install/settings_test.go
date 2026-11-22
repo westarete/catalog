@@ -49,7 +49,10 @@ func TestReadFolders(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var out bytes.Buffer
-			got := ReadFolders(bufio.NewReader(strings.NewReader(c.in)), &out)
+			got, err := ReadFolders(bufio.NewReader(strings.NewReader(c.in)), &out)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if strings.Join(got, "|") != strings.Join(c.want, "|") {
 				t.Errorf("folders = %q, want %q", got, c.want)
 			}
@@ -319,5 +322,56 @@ func TestAskSettingsNeverPrintsKey(t *testing.T) {
 	}
 	if strings.Contains(out, "sk-test") {
 		t.Error("output contains the key")
+	}
+}
+
+func TestWriteGlobalRemovesFileAfterFailedWrite(t *testing.T) {
+	boom := errors.New("disk full")
+	old := encodeSettings
+	encodeSettings = func(w io.Writer, _ any) error {
+		_, _ = w.Write([]byte("api_key = \"partial"))
+		return boom
+	}
+	defer func() { encodeSettings = old }()
+	path := filepath.Join(t.TempDir(), "global.toml")
+	err := WriteGlobal(path, "sk-test", []string{"~/src"})
+	if !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want the encode error", err)
+	}
+	if _, statErr := os.Stat(path); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("a partial file was left behind: %v", statErr)
+	}
+}
+
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestReadFoldersReturnsReadError(t *testing.T) {
+	boom := errors.New("terminal gone")
+	got, err := ReadFolders(bufio.NewReader(failingReader{boom}), io.Discard)
+	if !errors.Is(err, boom) {
+		t.Errorf("err = %v, want the read error", err)
+	}
+	if got != nil {
+		t.Errorf("folders = %q, want none", got)
+	}
+}
+
+func TestAskSettingsReportsFolderReadError(t *testing.T) {
+	home := t.TempDir()
+	boom := errors.New("terminal gone")
+	p := Prompt{
+		In:      bufio.NewReader(failingReader{boom}),
+		Out:     io.Discard,
+		Home:    home,
+		ReadKey: func() (string, error) { return "sk-test", nil },
+	}
+	err := AskSettings(p, filepath.Join(home, "state", "global.toml"))
+	if !errors.Is(err, boom) {
+		t.Errorf("err = %v, want it to wrap the read error", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, "state")); statErr == nil {
+		t.Error("wrote files after a failed folder read")
 	}
 }

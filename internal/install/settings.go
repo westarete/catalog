@@ -27,8 +27,9 @@ type Prompt struct {
 }
 
 // ReadFolders asks for folders, one per line, until an empty line or the
-// end of input. If the person lists none, it returns ~/src.
-func ReadFolders(in *bufio.Reader, out io.Writer) []string {
+// end of input. If the person lists none, it returns ~/src. Any other read
+// error is returned, so a broken terminal never picks a folder for them.
+func ReadFolders(in *bufio.Reader, out io.Writer) ([]string, error) {
 	var folders []string
 	for {
 		_, _ = fmt.Fprint(out, "Folder: ")
@@ -37,14 +38,25 @@ func ReadFolders(in *bufio.Reader, out io.Writer) []string {
 		if line != "" {
 			folders = append(folders, line)
 		}
-		if line == "" || err != nil {
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read folders: %w", err)
+		}
+		if line == "" {
 			break
 		}
 	}
 	if len(folders) == 0 {
-		return []string{defaultFolder}
+		return []string{defaultFolder}, nil
 	}
-	return folders
+	return folders, nil
+}
+
+// encodeSettings writes v as TOML. Tests replace it to force a failed write.
+var encodeSettings = func(w io.Writer, v any) error {
+	return toml.NewEncoder(w).Encode(v)
 }
 
 type globalSettings struct {
@@ -69,16 +81,28 @@ func WriteGlobal(path, apiKey string, folders []string) error {
 	if err != nil {
 		return err
 	}
+	// Setup never repairs a file that exists, so a partial one must not
+	// stay behind. O_EXCL means this call created the file, so it is ours
+	// to remove.
+	discard := func(cause error) error {
+		return errors.Join(cause, f.Close(), os.Remove(path))
+	}
 	// The umask can only remove bits from the mode above, so set it again.
 	if err := f.Chmod(privateFileMode); err != nil {
-		return errors.Join(err, f.Close())
+		return discard(err)
 	}
 	settings := globalSettings{APIKey: apiKey}
 	for _, folder := range folders {
 		settings.Watch = append(settings.Watch, watchFolder{Folder: folder})
 	}
 	// The key goes to this file on purpose; it is the only place it is kept.
-	return errors.Join(toml.NewEncoder(f).Encode(settings), f.Close()) //nolint:gosec // G117: the API key belongs in global.toml
+	if err := encodeSettings(f, settings); err != nil { //nolint:gosec // G117: the API key belongs in global.toml
+		return discard(err)
+	}
+	if err := f.Close(); err != nil {
+		return errors.Join(err, os.Remove(path))
+	}
+	return nil
 }
 
 // makePrivateDir creates dir and its parents if missing. It sets the mode
@@ -118,7 +142,10 @@ func AskSettings(p Prompt, globalPath string) error {
 
 	_, _ = fmt.Fprint(p.Out, "The daemon will watch the folders you list. Don't list a folder that a cloud drive syncs, or Desktop, Documents, or Downloads.\n"+
 		"Enter one folder per line, then press Return on an empty line to finish. To watch only ~/src, press Return now.\n")
-	folders := ReadFolders(p.In, p.Out)
+	folders, err := ReadFolders(p.In, p.Out)
+	if err != nil {
+		return err
+	}
 	for _, folder := range folders {
 		if _, err := os.Stat(expandTilde(p.Home, folder)); errors.Is(err, fs.ErrNotExist) {
 			_, _ = fmt.Fprintf(p.Out, "%s doesn't exist yet. The daemon will start watching it once you create it.\n", folder)
