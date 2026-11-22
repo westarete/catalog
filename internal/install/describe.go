@@ -37,14 +37,14 @@ func launchAgentState(home string) string {
 }
 
 func settingsState(s Settings) string {
-	switch {
-	case s.Err != nil:
+	if s.Err != nil {
 		return "can't be read: " + s.Err.Error()
-	case !s.Found:
-		return "not found; run catalog setup"
-	case !s.HasKey:
-		return "no API key"
-	default:
-		return "API key set"
 	}
+	if !s.Found {
+		return "not found; run catalog setup"
+	}
+	if !s.HasKey {
+		return "no API key"
+	}
+	return "API key set"
 }
