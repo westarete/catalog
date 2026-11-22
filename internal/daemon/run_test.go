@@ -218,7 +218,7 @@ func useGlobal(t *testing.T, d *Daemon, p *fakeProvider, root, extra string) *[]
 // keys.toml whose default key is key-1.
 func writeGlobal(t *testing.T, d *Daemon, root, extra string) {
 	t.Helper()
-	writeSettings(t, d.GlobalPath, fmt.Sprintf("%s\n[[watch]]\nfolder = %q\n", extra, root))
+	writeSettings(t, d.GlobalPath, fmt.Sprintf("%s\nwatch = [%q]\n", extra, root))
 	writeSettings(t, d.KeysPath, `default = "key-1"`)
 }
 
@@ -320,14 +320,14 @@ func TestRunRereadsGlobal(t *testing.T) {
 	writeFile(t, root, "a.md", body("a"))
 	writeFile(t, root, "b.txt", body("b"))
 	d, p := newDaemon(t, root)
-	useGlobal(t, d, p, root, `enumerate = ["**/*.md"]`)
+	useGlobal(t, d, p, root, `exclude = ["**/*.txt"]`)
 
 	step(t, d, start)
 	if text := catalogText(t, root); strings.Contains(text, "b.txt") {
 		t.Fatalf("b.txt listed before the change:\n%s", text)
 	}
 
-	writeGlobal(t, d, root, `enumerate = ["**/*.txt"]`)
+	writeGlobal(t, d, root, `exclude = ["**/*.md"]`)
 	step(t, d, start.Add(time.Minute))
 
 	text := catalogText(t, root)
@@ -361,9 +361,9 @@ func TestRunKeepsLastGoodGlobal(t *testing.T) {
 	writeFile(t, root, "a.md", body("a"))
 	writeFile(t, root, "b.txt", body("b"))
 	d, p := newDaemon(t, root)
-	useGlobal(t, d, p, root, `enumerate = ["**/*.md"]`)
+	useGlobal(t, d, p, root, `exclude = ["**/*.txt"]`)
 	step(t, d, start)
-	if err := os.WriteFile(d.GlobalPath, []byte("enumerate = [[["), 0o600); err != nil {
+	if err := os.WriteFile(d.GlobalPath, []byte("include = [[["), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, root, "c.md", body("c"))
@@ -387,7 +387,7 @@ func TestRunKeepsLastGoodGlobal(t *testing.T) {
 		t.Errorf("ConfigErrors = %v, want global.toml", d.ConfigErrors())
 	}
 
-	writeGlobal(t, d, root, `enumerate = ["**/*.md"]`)
+	writeGlobal(t, d, root, `exclude = ["**/*.txt"]`)
 	step(t, d, start.Add(3*time.Minute))
 	if errs := d.ConfigErrors(); len(errs) != 0 {
 		t.Errorf("ConfigErrors after the fix = %v", errs)

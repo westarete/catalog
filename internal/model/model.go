@@ -22,7 +22,7 @@ type FileState struct {
 // Catalog is one folder tree that holds a .catalog/ folder.
 type Catalog struct {
 	// Dir is the absolute folder that holds .catalog/.
-	Dir       string
-	Enumerate []string
-	Ignore    []string
+	Dir     string
+	Include []string
+	Exclude []string
 }

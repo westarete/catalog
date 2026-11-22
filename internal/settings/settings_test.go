@@ -6,15 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
-)
-
-var (
-	defaultEnumerate = []string{"**/*.csv", "**/*.md", "**/*.pdf", "**/*.txt"}
-	defaultIgnore    = []string{"README.md", "**/CLAUDE.md", "**/AGENTS.md"}
 )
 
 func TestParseGlobalDefaults(t *testing.T) {
@@ -25,11 +21,8 @@ func TestParseGlobalDefaults(t *testing.T) {
 	if g.Model != "claude-haiku-5-5" {
 		t.Errorf("Model = %q", g.Model)
 	}
-	if !reflect.DeepEqual(g.Enumerate, defaultEnumerate) {
-		t.Errorf("Enumerate = %v", g.Enumerate)
-	}
-	if !reflect.DeepEqual(g.Ignore, defaultIgnore) {
-		t.Errorf("Ignore = %v", g.Ignore)
+	if len(g.Include) != 0 || len(g.Exclude) != 0 || len(g.Watch) != 0 {
+		t.Errorf("empty global.toml set lists: %+v", g)
 	}
 }
 
@@ -37,8 +30,8 @@ func TestParseGlobalKeepsSetValues(t *testing.T) {
 	g, err := ParseGlobal([]byte(`
 key = "acme"
 model = "other-model"
-enumerate = ["a"]
-ignore = []
+include = ["a"]
+exclude = ["b"]
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -46,36 +39,21 @@ ignore = []
 	if g.Key != "acme" || g.KeyName() != "acme" || g.Model != "other-model" {
 		t.Errorf("got %+v", g)
 	}
-	if !reflect.DeepEqual(g.Enumerate, []string{"a"}) {
-		t.Errorf("Enumerate = %v", g.Enumerate)
-	}
-	if len(g.Ignore) != 0 {
-		t.Errorf("explicit empty ignore was replaced: %v", g.Ignore)
+	if !reflect.DeepEqual(g.Include, []string{"a"}) || !reflect.DeepEqual(g.Exclude, []string{"b"}) {
+		t.Errorf("Include = %v, Exclude = %v", g.Include, g.Exclude)
 	}
 }
 
-func TestParseGlobalWatch(t *testing.T) {
+func TestParseGlobalWatchList(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	g, err := ParseGlobal([]byte(`
-[[watch]]
-folder = "~/notes"
-
-[[watch]]
-folder = "/abs/path"
-
-[[watch]]
-folder = "~"
-
-[[watch]]
-folder = "~other/x"
-`))
+	g, err := ParseGlobal([]byte(`watch = ["~/a", "/b", "~", "~other/x"]`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{filepath.Join(home, "notes"), "/abs/path", home, "~other/x"}
+	want := []string{filepath.Join(home, "a"), "/b", home, "~other/x"}
 	if !reflect.DeepEqual(g.Watch, want) {
 		t.Errorf("Watch = %v, want %v", g.Watch, want)
 	}
@@ -139,72 +117,114 @@ func TestParseGlobalErrorQuotesNoValue(t *testing.T) {
 	}
 }
 
-func TestApplyCatalogReplacesLists(t *testing.T) {
-	g, _ := ParseGlobal(nil)
-	enumerate, ignore, err := ApplyCatalog(g, []byte(`enumerate = ["**/*.md"]`))
+func TestParseCatalogReadsLists(t *testing.T) {
+	c, err := ParseCatalog([]byte("include = [\"a\"]\nexclude = [\"b\"]\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(enumerate, []string{"**/*.md"}) {
-		t.Errorf("enumerate = %v", enumerate)
-	}
-	if !reflect.DeepEqual(ignore, g.Ignore) {
-		t.Errorf("ignore = %v", ignore)
+	if !reflect.DeepEqual(c, Catalog{Include: []string{"a"}, Exclude: []string{"b"}}) {
+		t.Errorf("catalog = %+v", c)
 	}
 }
 
-func TestApplyCatalogReplacesIgnore(t *testing.T) {
-	g, _ := ParseGlobal(nil)
-	enumerate, ignore, err := ApplyCatalog(g, []byte(`ignore = []`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(ignore) != 0 {
-		t.Errorf("ignore = %v", ignore)
-	}
-	if !reflect.DeepEqual(enumerate, g.Enumerate) {
-		t.Errorf("enumerate = %v", enumerate)
-	}
-}
-
-func TestApplyCatalogIgnoresOtherKeys(t *testing.T) {
-	g, _ := ParseGlobal(nil)
-	enumerate, ignore, err := ApplyCatalog(g, []byte(`
-api_key = "sk-other"
+func TestParseCatalogIgnoresOtherKeys(t *testing.T) {
+	c, err := ParseCatalog([]byte(`
 model = "other"
 profile = "profiles/default.md"
 input_price = 1.5
-output_price = 7.5
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(enumerate, g.Enumerate) || !reflect.DeepEqual(ignore, g.Ignore) {
-		t.Errorf("lists changed: %v %v", enumerate, ignore)
+	if len(c.Include) != 0 || len(c.Exclude) != 0 {
+		t.Errorf("catalog = %+v", c)
 	}
 }
 
-func TestApplyCatalogEmpty(t *testing.T) {
-	g, _ := ParseGlobal(nil)
+func TestParseCatalogEmpty(t *testing.T) {
 	for _, data := range []string{"", "# only a comment\n"} {
-		enumerate, ignore, err := ApplyCatalog(g, []byte(data))
+		c, err := ParseCatalog([]byte(data))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(enumerate, g.Enumerate) || !reflect.DeepEqual(ignore, g.Ignore) {
-			t.Errorf("lists changed for %q", data)
+		if len(c.Include) != 0 || len(c.Exclude) != 0 {
+			t.Errorf("%q: catalog = %+v", data, c)
 		}
 	}
 }
 
-func TestApplyCatalogMalformed(t *testing.T) {
-	g, _ := ParseGlobal(nil)
-	enumerate, ignore, err := ApplyCatalog(g, []byte("enumerate = ["))
-	if err == nil {
-		t.Fatal("want error")
+// A config.toml may hold a pasted secret, and the error reaches the journal
+// and catalog status, so it says where the problem is and nothing else.
+func TestParseCatalogErrorQuotesNothing(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"include = [sk-secret-4", `parse config.toml: line 1 (last key "include"): not valid TOML`},
+		{"sk-secret-4 =", "parse config.toml: line 1: not valid TOML"},
+		{"include = 5", `parse config.toml: line 1 (last key "include"): a value has the wrong type`},
+		{"sk-secret-4 = 5\nexclude = 5", `parse config.toml: line 2 (last key "exclude"): a value has the wrong type`},
+		{"[[", "parse config.toml: line 1: not valid TOML"},
 	}
-	if enumerate != nil || ignore != nil {
-		t.Errorf("want nil lists, got %v %v", enumerate, ignore)
+	for _, c := range cases {
+		_, err := ParseCatalog([]byte(c.in))
+		if err == nil {
+			t.Errorf("%q: want error", c.in)
+			continue
+		}
+		if strings.Contains(err.Error(), "sk-secret") {
+			t.Errorf("%q: error quotes the value: %s", c.in, err)
+		}
+		if err.Error() != c.want {
+			t.Errorf("%q: error = %q, want %q", c.in, err, c.want)
+		}
+	}
+}
+
+func TestListsAddUp(t *testing.T) {
+	g, err := ParseGlobal([]byte(`
+include = ["**/*.html"]
+exclude = ["drafts/**"]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := Catalog{Include: []string{"notes/**"}, Exclude: []string{"notes.md"}}
+	include, exclude := Lists(g, c)
+	wantInclude := append(slices.Clone(BuiltinInclude), "**/*.html", "notes/**")
+	wantExclude := append(slices.Clone(BuiltinExclude), "drafts/**", "notes.md")
+	if !slices.Equal(include, wantInclude) {
+		t.Errorf("include = %v, want %v", include, wantInclude)
+	}
+	if !slices.Equal(exclude, wantExclude) {
+		t.Errorf("exclude = %v, want %v", exclude, wantExclude)
+	}
+}
+
+func TestBuiltinLists(t *testing.T) {
+	if want := []string{"**/*.csv", "**/*.md", "**/*.pdf", "**/*.txt"}; !slices.Equal(BuiltinInclude, want) {
+		t.Errorf("BuiltinInclude = %v", BuiltinInclude)
+	}
+	if want := []string{"**/CLAUDE.md", "**/AGENTS.md"}; !slices.Equal(BuiltinExclude, want) {
+		t.Errorf("BuiltinExclude = %v", BuiltinExclude)
+	}
+}
+
+func TestListsDoesNotAliasInputs(t *testing.T) {
+	// Extra capacity would let append write into the caller's slices.
+	g := Global{Include: make([]string, 1, 8), Exclude: make([]string, 1, 8)}
+	c := Catalog{Include: make([]string, 1, 8), Exclude: make([]string, 1, 8)}
+	builtinInclude := slices.Clone(BuiltinInclude)
+	builtinExclude := slices.Clone(BuiltinExclude)
+	include, exclude := Lists(g, c)
+	for i := range include {
+		include[i] = "changed"
+	}
+	for i := range exclude {
+		exclude[i] = "changed"
+	}
+	if g.Include[0] != "" || g.Exclude[0] != "" || c.Include[0] != "" || c.Exclude[0] != "" {
+		t.Errorf("Lists shares memory with its inputs: %+v %+v", g, c)
+	}
+	if !slices.Equal(BuiltinInclude, builtinInclude) || !slices.Equal(BuiltinExclude, builtinExclude) {
+		t.Errorf("Lists shares memory with the built-in lists: %v %v", BuiltinInclude, BuiltinExclude)
 	}
 }
 
@@ -248,14 +268,14 @@ func TestParseGlobalErrorNamesOnlyKnownKeys(t *testing.T) {
 		t.Errorf("type error %v should name line 1 and key model", err)
 	}
 
-	_, err = ParseGlobal([]byte("sk-ant-api03-SECRETxyz = 5\n[[watch]]\nfolder = 3"))
+	_, err = ParseGlobal([]byte("sk-ant-api03-SECRETxyz = 5\nwatch = 3"))
 	if err == nil || strings.Contains(err.Error(), "SECRETxyz") {
 		t.Errorf("unknown key in a decode error leaked: %v", err)
 	}
 
-	_, err = ParseGlobal([]byte("[[watch]]\nfolder = 3"))
-	if err == nil || !strings.Contains(err.Error(), "folder") {
-		t.Errorf("error %v should name folder", err)
+	_, err = ParseGlobal([]byte("watch = 3"))
+	if err == nil || !strings.Contains(err.Error(), `"watch"`) {
+		t.Errorf("error %v should name watch", err)
 	}
 }
 

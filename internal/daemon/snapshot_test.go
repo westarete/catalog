@@ -166,7 +166,7 @@ func TestSnapshotForgetsDeletedFile(t *testing.T) {
 func TestSnapshotShowsConfigErrors(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
-	writeFile(t, root, ".catalog/config.toml", "enumerate = [[[")
+	writeFile(t, root, ".catalog/config.toml", "include = [[[")
 	d, p := newDaemon(t, root)
 	useGlobal(t, d, p, root, "")
 	step(t, d, start)
@@ -177,7 +177,7 @@ func TestSnapshotShowsConfigErrors(t *testing.T) {
 	step(t, d, start.Add(time.Minute))
 
 	errs := d.Snapshot().ConfigErrors
-	want := []string{d.GlobalPath + ": parse global.toml", root + ": parse catalog config"}
+	want := []string{d.GlobalPath + ": parse global.toml", root + ": parse config.toml"}
 	slices.Sort(want)
 	if len(errs) != 2 || !strings.HasPrefix(errs[0], want[0]) || !strings.HasPrefix(errs[1], want[1]) {
 		t.Errorf("config errors = %q, want lines starting %q in order", errs, want)

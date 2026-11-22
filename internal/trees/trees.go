@@ -42,10 +42,10 @@ func FindCatalogs(watched fs.FS) ([]string, error) {
 }
 
 // Members returns the sorted slash paths of the regular files in catalog that
-// match an enumerate glob and no ignore glob. It leaves out anything under a
+// match an include glob and no exclude glob. It leaves out anything under a
 // directory listed in nested (relative to catalog), under .git, or under
 // .catalog.
-func Members(catalog fs.FS, enumerate, ignore, nested []string) ([]string, error) {
+func Members(catalog fs.FS, include, exclude, nested []string) ([]string, error) {
 	var members []string
 	err := fs.WalkDir(catalog, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -57,7 +57,7 @@ func Members(catalog fs.FS, enumerate, ignore, nested []string) ([]string, error
 			}
 			return nil
 		}
-		if d.Type().IsRegular() && isMember(p, enumerate, ignore) {
+		if d.Type().IsRegular() && isMember(p, include, exclude) {
 			members = append(members, p)
 		}
 		return nil
@@ -76,8 +76,8 @@ func skipsDir(p, name string, nested []string) bool {
 	return name == gitDir || name == catalogDir || slices.Contains(nested, p)
 }
 
-func isMember(p string, enumerate, ignore []string) bool {
-	return matchesAny(enumerate, p) && !matchesAny(ignore, p)
+func isMember(p string, include, exclude []string) bool {
+	return matchesAny(include, p) && !matchesAny(exclude, p)
 }
 
 func matchesAny(patterns []string, p string) bool {

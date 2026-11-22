@@ -13,26 +13,33 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/BurntSushi/toml"
-
 	"westarete.com/catalog/internal/settings"
 )
 
-// readBack decodes the folders from a settings file written by WriteGlobal.
-func readBack(t *testing.T, path string) (folders []string) {
+// readBack reads the folders from a settings file written by WriteGlobal,
+// the way the daemon does, but without expanding ~.
+func readBack(t *testing.T, path string) []string {
 	t.Helper()
-	var f struct {
-		Watch []struct {
-			Folder string `toml:"folder"`
-		} `toml:"watch"`
-	}
-	if _, err := toml.DecodeFile(path, &f); err != nil {
+	data, err := os.ReadFile(path)
+	if err != nil {
 		t.Fatal(err)
 	}
-	for _, w := range f.Watch {
-		folders = append(folders, w.Folder)
+	g, err := settings.ParseGlobal(data)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return folders
+	return g.Watch
+}
+
+// expanded returns folder with ~ replaced by the home folder, as the daemon
+// reads it, because readBack reads folders the daemon's way.
+func expanded(t *testing.T, folder string) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return expandTilde(home, folder)
 }
 
 // readKeys reads a keys file the way the daemon does.
@@ -81,13 +88,19 @@ func TestReadFolders(t *testing.T) {
 }
 
 func TestWriteGlobalRoundTrips(t *testing.T) {
-	home := t.TempDir()
-	path := filepath.Join(home, "state", "global.toml")
+	path := filepath.Join(t.TempDir(), "state", "global.toml")
 	if err := WriteGlobal(path, []string{"~/src", "/data/notes"}); err != nil {
 		t.Fatal(err)
 	}
+	text, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "watch = [\n  \"~/src\",\n  \"/data/notes\",\n]\n"; string(text) != want {
+		t.Errorf("file = %q, want %q", text, want)
+	}
 	watch := readBack(t, path)
-	want := []string{"~/src", "/data/notes"}
+	want := []string{expanded(t, "~/src"), "/data/notes"}
 	if strings.Join(watch, "|") != strings.Join(want, "|") {
 		t.Errorf("watch = %q, want %q", watch, want)
 	}
@@ -102,7 +115,7 @@ func TestWriteGlobalRoundTrips(t *testing.T) {
 
 func TestWriteGlobalQuotesOddCharacters(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "global.toml")
-	folder := "/data/Project Plans"
+	folder := "/data/Plans \"Q1\" \\ café é"
 	if err := WriteGlobal(path, []string{folder}); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +234,7 @@ func TestAskSettingsWritesNewFile(t *testing.T) {
 	if keys := readKeys(t, keysPathIn(home)); len(keys) != 1 || keys["default"] != "sk-test" {
 		t.Error("key was not trimmed and saved as default")
 	}
-	if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != "~/src" {
+	if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != expanded(t, "~/src") {
 		t.Errorf("watch = %q", watch)
 	}
 }
@@ -235,7 +248,7 @@ func TestAskSettingsEndOfInput(t *testing.T) {
 	if keys := readKeys(t, keysPathIn(home)); len(keys) != 0 {
 		t.Error("keys.toml has a key")
 	}
-	if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != "~/src" {
+	if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != expanded(t, "~/src") {
 		t.Errorf("watch = %q", watch)
 	}
 	if !strings.Contains(out, "To add your API key later, set default in "+keysPathIn(home)+".\n") {
@@ -349,7 +362,7 @@ func TestAskSettingsAsksOnlyForMissingFiles(t *testing.T) {
 				t.Error("keys.toml lacks the key")
 			}
 			if !c.globalExists {
-				if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != "~/src" {
+				if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != expanded(t, "~/src") {
 					t.Errorf("watch = %q", watch)
 				}
 			}
@@ -559,24 +572,6 @@ func TestAskSettingsNeverPrintsKey(t *testing.T) {
 	}
 }
 
-func TestWriteGlobalRemovesFileAfterFailedWrite(t *testing.T) {
-	boom := errors.New("disk full")
-	old := encodeSettings
-	encodeSettings = func(w io.Writer, _ any) error {
-		_, _ = w.Write([]byte("[[watch]]\nfolder = \"~/partial"))
-		return boom
-	}
-	defer func() { encodeSettings = old }()
-	path := filepath.Join(t.TempDir(), "global.toml")
-	err := WriteGlobal(path, []string{"~/src"})
-	if !errors.Is(err, boom) {
-		t.Fatalf("err = %v, want the encode error", err)
-	}
-	if _, statErr := os.Stat(path); !errors.Is(statErr, fs.ErrNotExist) {
-		t.Errorf("a partial file was left behind: %v", statErr)
-	}
-}
-
 type failingReader struct{ err error }
 
 func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
@@ -655,8 +650,8 @@ func TestAskSettingsNeverWritesRelativeFolder(t *testing.T) {
 	if strings.Count(out, fullPathMessage) != 2 {
 		t.Errorf("output lacks two rejections:\n%s", out)
 	}
-	if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != "~/ok" {
-		t.Errorf("watch = %q, want only ~/ok", watch)
+	if watch := readBack(t, globalPathIn(home)); len(watch) != 1 || watch[0] != expanded(t, "~/ok") {
+		t.Errorf("watch = %q, want only ~/ok, expanded", watch)
 	}
 }
 

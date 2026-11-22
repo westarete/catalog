@@ -74,7 +74,7 @@ func (d *Daemon) crawlCatalog(now time.Time, dir string, nested []string) error 
 	}
 	files := d.FS(dir)
 	// The folder walk already journaled any directory the walk can't read.
-	members, err := trees.Members(&tolerantFS{FS: files}, g.enumerate, g.ignore, nested)
+	members, err := trees.Members(&tolerantFS{FS: files}, g.include, g.exclude, nested)
 	if err != nil {
 		return errors.Join(configErr, d.report(failureEvent(now, dir, "", err.Error())))
 	}
@@ -104,7 +104,10 @@ func (d *Daemon) catalogGlobs(now time.Time, dir string) (g globs, ok bool, err 
 		data, err = nil, nil
 	}
 	if err == nil {
-		g.enumerate, g.ignore, err = settings.ApplyCatalog(d.Global, data)
+		var c settings.Catalog
+		if c, err = settings.ParseCatalog(data); err == nil {
+			g.include, g.exclude = settings.Lists(d.Global, c)
+		}
 	}
 	if err != nil {
 		last, found := d.lastGood[dir]

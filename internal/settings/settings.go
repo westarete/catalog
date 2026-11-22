@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -17,18 +18,36 @@ import (
 // GlobalFile is the name of the global settings file in StateDir.
 const GlobalFile = "global.toml"
 
+// CatalogConfigFile is the name of a catalog's settings file in .catalog.
+const CatalogConfigFile = "config.toml"
+
 const defaultModel = "claude-haiku-5-5"
 
 // Global holds the settings that apply to every catalog on this machine.
 type Global struct {
 	// Key names the API key in keys.toml that the daemon uses. Empty means
 	// DefaultKeyName.
-	Key       string
-	Model     string
-	Enumerate []string
-	Ignore    []string
-	Watch     []string
+	Key   string
+	Model string
+	// Include and Exclude hold only the patterns global.toml lists, not the
+	// built-in ones. Lists combines them.
+	Include []string
+	Exclude []string
+	Watch   []string
 }
+
+// Catalog holds the patterns one catalog's .catalog/config.toml lists.
+type Catalog struct {
+	Include []string `toml:"include"`
+	Exclude []string `toml:"exclude"`
+}
+
+// BuiltinInclude and BuiltinExclude are the patterns every catalog starts
+// with. Treat them as read-only; Lists copies them.
+var (
+	BuiltinInclude = []string{"**/*.csv", "**/*.md", "**/*.pdf", "**/*.txt"}
+	BuiltinExclude = []string{"**/CLAUDE.md", "**/AGENTS.md"}
+)
 
 // KeyName returns the name of the API key in keys.toml that g asks for.
 func (g Global) KeyName() string {
@@ -39,18 +58,11 @@ func (g Global) KeyName() string {
 }
 
 type globalFile struct {
-	Key       string    `toml:"key"`
-	Model     string    `toml:"model"`
-	Enumerate *[]string `toml:"enumerate"`
-	Ignore    *[]string `toml:"ignore"`
-	Watch     []struct {
-		Folder string `toml:"folder"`
-	} `toml:"watch"`
-}
-
-type catalogFile struct {
-	Enumerate *[]string `toml:"enumerate"`
-	Ignore    *[]string `toml:"ignore"`
+	Key     string   `toml:"key"`
+	Model   string   `toml:"model"`
+	Include []string `toml:"include"`
+	Exclude []string `toml:"exclude"`
+	Watch   []string `toml:"watch"`
 }
 
 // StateDir returns the folder where the daemon keeps its state.
@@ -67,31 +79,32 @@ func StateDir() (string, error) {
 // come only from the message.
 var decodeErrorPlace = regexp.MustCompile(`line (\d+) \(last key "([^"]*)"\)`)
 
-// globalParseError says where global.toml fails to parse without the
+// parseError says where the file called name fails to parse without the
 // decoder's own message, which can quote part of a value, such as an API key
-// pasted into the wrong file. The error reaches the journal, the log, and
-// catalog status.
-func globalParseError(err error) error {
+// pasted into the wrong file. It names a key only if it is in known. The
+// error reaches the journal, the log, and catalog status.
+func parseError(name string, known map[string]bool, err error) error {
 	if pe, ok := errors.AsType[toml.ParseError](err); ok {
-		return fmt.Errorf("parse %s: %s: not valid TOML", GlobalFile, errorPlace(pe.Position.Line, pe.LastKey))
+		return fmt.Errorf("parse %s: %s: not valid TOML", name, errorPlace(known, pe.Position.Line, pe.LastKey))
 	}
 	if m := decodeErrorPlace.FindStringSubmatch(err.Error()); m != nil {
-		return fmt.Errorf("parse %s: %s: a value has the wrong type", GlobalFile, errorPlace(m[1], m[2]))
+		return fmt.Errorf("parse %s: %s: a value has the wrong type", name, errorPlace(known, m[1], m[2]))
 	}
-	return fmt.Errorf("parse %s: not valid TOML", GlobalFile)
+	return fmt.Errorf("parse %s: not valid TOML", name)
 }
 
-// globalKeys are the keys global.toml defines. An error names a key only if
-// it is one of these, because a person can paste the API key as a bare key
-// and the decoder would report that key.
-var globalKeys = map[string]bool{
-	"key": true, "model": true, "enumerate": true, "ignore": true,
-	"watch": true, "folder": true, "watch.folder": true,
-}
+// globalKeys are the keys global.toml defines, and catalogKeys the keys a
+// catalog's config.toml defines. An error names a key only if it is one of
+// these, because a person can paste the API key as a bare key and the
+// decoder would report that key.
+var (
+	globalKeys  = map[string]bool{"watch": true, "model": true, "key": true, "include": true, "exclude": true}
+	catalogKeys = map[string]bool{"include": true, "exclude": true}
+)
 
-// errorPlace says the line, and the last key if global.toml defines it.
-func errorPlace(line any, key string) string {
-	if globalKeys[key] {
+// errorPlace says the line, and the last key if it is in known.
+func errorPlace(known map[string]bool, line any, key string) string {
+	if known[key] {
 		return fmt.Sprintf("line %v (last key %q)", line, key)
 	}
 	return fmt.Sprintf("line %v", line)
@@ -157,25 +170,14 @@ func readPrivateFile(path string) ([]byte, error) {
 func ParseGlobal(data []byte) (Global, error) {
 	var f globalFile
 	if _, err := toml.Decode(string(data), &f); err != nil {
-		return Global{}, globalParseError(err)
+		return Global{}, parseError(GlobalFile, globalKeys, err)
 	}
-	g := Global{
-		Key:       f.Key,
-		Model:     defaultModel,
-		Enumerate: []string{"**/*.csv", "**/*.md", "**/*.pdf", "**/*.txt"},
-		Ignore:    []string{"README.md", "**/CLAUDE.md", "**/AGENTS.md"},
-	}
+	g := Global{Key: f.Key, Model: defaultModel, Include: f.Include, Exclude: f.Exclude}
 	if f.Model != "" {
 		g.Model = f.Model
 	}
-	if f.Enumerate != nil {
-		g.Enumerate = *f.Enumerate
-	}
-	if f.Ignore != nil {
-		g.Ignore = *f.Ignore
-	}
-	for _, w := range f.Watch {
-		folder, err := expandHome(w.Folder)
+	for _, folder := range f.Watch {
+		folder, err := expandHome(folder)
 		if err != nil {
 			return Global{}, err
 		}
@@ -184,21 +186,25 @@ func ParseGlobal(data []byte) (Global, error) {
 	return g, nil
 }
 
-// ApplyCatalog layers a .catalog/config.toml over g and returns the
-// enumerate and ignore lists for that catalog. It reads no other keys.
-func ApplyCatalog(g Global, data []byte) (enumerate, ignore []string, err error) {
-	var f catalogFile
-	if _, err := toml.Decode(string(data), &f); err != nil {
-		return nil, nil, fmt.Errorf("parse catalog config: %w", err)
+// ParseCatalog parses a catalog's .catalog/config.toml. It reads no keys but
+// include and exclude.
+func ParseCatalog(data []byte) (Catalog, error) {
+	var c Catalog
+	if _, err := toml.Decode(string(data), &c); err != nil {
+		return Catalog{}, parseError(CatalogConfigFile, catalogKeys, err)
 	}
-	enumerate, ignore = g.Enumerate, g.Ignore
-	if f.Enumerate != nil {
-		enumerate = *f.Enumerate
-	}
-	if f.Ignore != nil {
-		ignore = *f.Ignore
-	}
-	return enumerate, ignore, nil
+	return c, nil
+}
+
+// Lists returns the include and exclude patterns for a catalog: the built-in
+// patterns, then those in global.toml, then those in the catalog's
+// config.toml. Each result is a new slice. A file is read if it matches an
+// include pattern and no exclude pattern, so a catalog can add to what a
+// person excluded in global.toml but never undo it.
+func Lists(g Global, c Catalog) (include, exclude []string) {
+	include = slices.Concat(BuiltinInclude, g.Include, c.Include)
+	exclude = slices.Concat(BuiltinExclude, g.Exclude, c.Exclude)
+	return include, exclude
 }
 
 // expandHome replaces a leading ~/ in path, or a path that is only ~, with

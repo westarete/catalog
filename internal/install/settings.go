@@ -9,8 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/BurntSushi/toml"
 )
 
 // defaultFolder is the one folder watched when a person lists none.
@@ -64,19 +62,6 @@ func ReadFolders(in *bufio.Reader, out io.Writer) ([]string, error) {
 	return folders, nil
 }
 
-// encodeSettings writes v as TOML. Tests replace it to force a failed write.
-var encodeSettings = func(w io.Writer, v any) error {
-	return toml.NewEncoder(w).Encode(v)
-}
-
-type globalSettings struct {
-	Watch []watchFolder `toml:"watch"`
-}
-
-type watchFolder struct {
-	Folder string `toml:"folder"`
-}
-
 // defaultKeyName is the name setup gives the API key in keys.toml, the one
 // the daemon uses when global.toml names none.
 const defaultKeyName = "default"
@@ -90,16 +75,20 @@ const keysComment = `# Your Anthropic API keys, one per line, by name. The daemo
 `
 
 // WriteGlobal creates the global settings file at path, readable only by
-// its owner, with a watch entry for each folder. It never changes a file
-// that exists; it returns an error wrapping fs.ErrExist instead. It creates
-// the file's folder, closed to other accounts, if that is missing.
+// its owner, with a watch list of the folders, one per line. It never
+// changes a file that exists; it returns an error wrapping fs.ErrExist
+// instead. It creates the file's folder, closed to other accounts, if that
+// is missing.
 func WriteGlobal(path string, folders []string) error {
-	settings := globalSettings{}
-	for _, folder := range folders {
-		settings.Watch = append(settings.Watch, watchFolder{Folder: folder})
-	}
 	return createPrivateFile(path, func(w io.Writer) error {
-		return encodeSettings(w, settings)
+		var b strings.Builder
+		b.WriteString("watch = [\n")
+		for _, folder := range folders {
+			b.WriteString("  " + tomlString(folder) + ",\n")
+		}
+		b.WriteString("]\n")
+		_, err := io.WriteString(w, b.String())
+		return err
 	})
 }
 

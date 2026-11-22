@@ -80,7 +80,7 @@ type Daemon struct {
 	snapshot atomic.Pointer[control.Snapshot]
 }
 
-type globs struct{ enumerate, ignore []string }
+type globs struct{ include, exclude []string }
 
 type fileKey struct{ dir, rel string }
 

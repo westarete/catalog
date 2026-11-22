@@ -8,9 +8,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"westarete.com/catalog/internal/journal"
+	"westarete.com/catalog/internal/settings"
+	"westarete.com/catalog/internal/trees"
 )
 
 func TestEmptyWatchEntryIsSkipped(t *testing.T) {
@@ -188,19 +191,35 @@ func TestCrawlForgetsVanishedCatalog(t *testing.T) {
 	}
 }
 
-func TestCrawlDoesNotMutateGlobalLists(t *testing.T) {
-	root := t.TempDir()
-	makeCatalog(t, root)
-	writeFile(t, root, ".catalog/config.toml", "ignore = [\"skip.md\"]\n")
-	writeFile(t, root, "a.md", body("a"))
-	d, _ := newDaemon(t, root)
-	enumerate := slices.Clone(d.Global.Enumerate)
-	ignore := slices.Clone(d.Global.Ignore)
+func TestBuiltinsNoLongerExcludeREADME(t *testing.T) {
+	include, exclude := settings.Lists(settings.Global{}, settings.Catalog{})
+	got, err := trees.Members(fstest.MapFS{"README.md": {}, "CLAUDE.md": {}, "sub/AGENTS.md": {}}, include, exclude, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"README.md"}; !slices.Equal(got, want) {
+		t.Errorf("Members = %v, want %v", got, want)
+	}
+}
 
-	once(t, d, start)
-
-	if !slices.Equal(d.Global.Enumerate, enumerate) || !slices.Equal(d.Global.Ignore, ignore) {
-		t.Errorf("global lists changed: %v %v", d.Global.Enumerate, d.Global.Ignore)
+// A catalog can add what the crawl reads, but it can't undo what the person
+// excluded for every catalog.
+func TestCatalogIncludeCannotUndoGlobalExclude(t *testing.T) {
+	g, err := settings.ParseGlobal([]byte(`exclude = ["secrets.txt"]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := settings.ParseCatalog([]byte(`include = ["secrets.txt"]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	include, exclude := settings.Lists(g, c)
+	got, err := trees.Members(fstest.MapFS{"secrets.txt": {}, "notes.txt": {}}, include, exclude, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"notes.txt"}; !slices.Equal(got, want) {
+		t.Errorf("Members = %v, want %v", got, want)
 	}
 }
 
@@ -235,7 +254,7 @@ func TestCrawlReturnsJournalErrorButKeepsGoing(t *testing.T) {
 	two := filepath.Join(root, "two")
 	makeCatalog(t, one)
 	makeCatalog(t, two)
-	writeFile(t, one, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, one, ".catalog/config.toml", "include = [[[ garbage\n")
 	writeFile(t, two, "b.md", body("b"))
 	d, _ := newDaemon(t, root)
 	d.JournalPath = filepath.Join(t.TempDir(), "missing", "journal.jsonl")
@@ -284,7 +303,7 @@ func TestNestedPaths(t *testing.T) {
 func TestFailedJournalWriteIsRetried(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
-	writeFile(t, root, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, root, ".catalog/config.toml", "include = [[[ garbage\n")
 	d, _ := newDaemon(t, root)
 	journalDir := filepath.Join(t.TempDir(), "missing")
 	d.JournalPath = filepath.Join(journalDir, "journal.jsonl")

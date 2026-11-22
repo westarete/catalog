@@ -324,14 +324,14 @@ func TestBadCatalogConfig(t *testing.T) {
 	two := filepath.Join(root, "two")
 	makeCatalog(t, one)
 	makeCatalog(t, two)
-	writeFile(t, one, ".catalog/config.toml", "enumerate = [\"**/*.txt\"]\n")
+	writeFile(t, one, ".catalog/config.toml", "exclude = [\"**/*.md\"]\n")
 	writeFile(t, one, "a.txt", body("a"))
 	writeFile(t, one, "b.md", body("b"))
 	writeFile(t, two, "c.md", body("c"))
 	d, _ := newDaemon(t, root)
 	crawl(t, d, start)
 
-	writeFile(t, one, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, one, ".catalog/config.toml", "include = [[[ garbage\n")
 	writeFile(t, one, "d.txt", body("d"))
 	writeFile(t, two, "e.md", body("e"))
 	crawl(t, d, start.Add(time.Minute))
@@ -358,7 +358,7 @@ func TestBadCatalogConfigJournaledOnce(t *testing.T) {
 	writeFile(t, root, "a.md", body("a"))
 	d, _ := newDaemon(t, root)
 	crawl(t, d, start)
-	writeFile(t, root, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, root, ".catalog/config.toml", "include = [[[ garbage\n")
 
 	crawl(t, d, start.Add(time.Minute))
 	crawl(t, d, start.Add(2*time.Minute))
@@ -373,11 +373,11 @@ func TestFixedCatalogConfigClearsError(t *testing.T) {
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
 	writeFile(t, root, "b.txt", body("b"))
-	writeFile(t, root, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, root, ".catalog/config.toml", "include = [[[ garbage\n")
 	d, _ := newDaemon(t, root)
 	crawl(t, d, start)
 
-	writeFile(t, root, ".catalog/config.toml", "enumerate = [\"**/*.txt\"]\n")
+	writeFile(t, root, ".catalog/config.toml", "exclude = [\"**/*.md\"]\n")
 	crawl(t, d, start.Add(time.Minute))
 
 	if got := d.ConfigErrors(); len(got) != 0 {
@@ -394,7 +394,7 @@ func TestBadCatalogConfigWithNoLastGood(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
-	writeFile(t, root, ".catalog/config.toml", "enumerate = [[[ garbage\n")
+	writeFile(t, root, ".catalog/config.toml", "include = [[[ garbage\n")
 	d, p := newDaemon(t, root)
 
 	once(t, d, start)
@@ -465,7 +465,7 @@ func TestNothingElseWritten(t *testing.T) {
 	a := filepath.Join(root, "a")
 	makeCatalog(t, a)
 	makeCatalog(t, filepath.Join(a, "b"))
-	writeFile(t, a, ".catalog/config.toml", "ignore = []\n")
+	writeFile(t, a, ".catalog/config.toml", "exclude = []\n")
 	writeFile(t, a, "README.md", body("readme"))
 	writeFile(t, a, "notes/one.md", body("one"))
 	writeFile(t, a, "b/two.txt", body("two"))

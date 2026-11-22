@@ -366,7 +366,7 @@ func TestDaemonCrawlsWatchedFolders(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(watched, "a.md"), []byte("first line\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	writeSettings(t, dir, fmt.Sprintf("[[watch]]\nfolder = %q\n", watched), testKeys)
+	writeSettings(t, dir, fmt.Sprintf("watch = [%q]\n", watched), testKeys)
 
 	if code, out := runCatalogIn(stopped(), "daemon"); code != 0 {
 		t.Fatalf("code %d, output:\n%s", code, out)
@@ -389,7 +389,7 @@ func TestDaemonWhenAnotherIsRunning(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(watched, ".catalog"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeSettings(t, dir, fmt.Sprintf("[[watch]]\nfolder = %q\n", watched), testKeys)
+	writeSettings(t, dir, fmt.Sprintf("watch = [%q]\n", watched), testKeys)
 	socket := filepath.Join(dir, "control.sock")
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
