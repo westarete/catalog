@@ -84,7 +84,7 @@ type watchFolder struct {
 // fs.ErrExist instead. It creates the file's folder, closed to other
 // accounts, if that is missing.
 func WriteGlobal(path, apiKey string, folders []string) error {
-	if err := makePrivateDir(filepath.Dir(path)); err != nil {
+	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, privateFileMode)
@@ -113,20 +113,6 @@ func WriteGlobal(path, apiKey string, folders []string) error {
 		return errors.Join(err, os.Remove(path))
 	}
 	return nil
-}
-
-// makePrivateDir creates dir and its parents if missing. It sets the mode
-// of dir itself to 0700 only when it created it.
-func makePrivateDir(dir string) error {
-	if _, err := os.Stat(dir); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(dir, privateDirMode); err != nil {
-		return err
-	}
-	// gosec's G302 expects a file; a folder needs its execute bit to be
-	// opened at all, so 0700 is the private mode for one.
-	return os.Chmod(dir, privateDirMode) //nolint:gosec // see above
 }
 
 // AskSettings asks for an API key and folders, then writes them to

@@ -122,7 +122,9 @@ func ensureDir(dir string) error {
 	if err := os.MkdirAll(dir, privateDirMode); err != nil {
 		return err
 	}
-	return os.Chmod(dir, privateDirMode)
+	// gosec's G302 expects a file; a folder needs its execute bit to be
+	// opened at all, so 0700 is the private mode for one.
+	return os.Chmod(dir, privateDirMode) //nolint:gosec // see above
 }
 
 // writeFileAtomically writes data through a private temporary file in
