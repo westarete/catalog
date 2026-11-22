@@ -105,13 +105,13 @@ directory. It doesn't reread `global.toml` during the run.
 Unlike the running daemon, it stops at once, with code 1, in these
 cases:
 
-| Case                                                           | Message on standard error                                                                              |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `global.toml` doesn't exist                                    | `catalog: no settings file at <path>; create it with your api_key`                                     |
-| Something other than a regular file is at `global.toml`'s path | `catalog: <path>: not a regular file`                                                                  |
-| `global.toml` doesn't parse                                    | `catalog: <path>: parse global.toml: line <n>: not valid TOML`, or another reason that quotes no value |
-| `global.toml` has no `api_key`                                 | `catalog: <path> has no api_key`                                                                       |
-| `global.toml` is world-readable or world-writable              | `catalog: <path>: world-readable or world-writable (mode <mode>); to fix it, run chmod o-rw on it`     |
+| Case                                                           | Message on standard error                                                                                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `global.toml` doesn't exist                                    | `catalog: no settings file at <path>; create it with your api_key`                                                                           |
+| Something other than a regular file is at `global.toml`'s path | `catalog: <path>: not a regular file`                                                                                                        |
+| `global.toml` doesn't parse                                    | `catalog: <path>: parse global.toml: line <n>: not valid TOML`, or another reason that quotes no value                                       |
+| `global.toml` has no `api_key`                                 | `catalog: <path> has no api_key`                                                                                                             |
+| `global.toml` is world-accessible                              | `catalog: <path>: world-accessible (mode <mode>); to fix it, run chmod o-rwx on it`, with the mode as `ls -l` shows it, such as `-rw-r--r--` |
 
 When the run reaches the crawl, it prints a report in the format of
 `catalog status` (below) to standard output, even if the run fails.

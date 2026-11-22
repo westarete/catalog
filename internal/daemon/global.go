@@ -12,8 +12,8 @@ import (
 
 // reloadGlobal rereads global.toml from GlobalPath, if it's set. If the file
 // can't be read or doesn't parse, it journals the error and keeps the
-// settings from the last file that loaded. If the file is world-readable
-// or world-writable, it also drops the key, so the daemon summarizes nothing
+// settings from the last file that loaded. If the file is
+// world-accessible, it also drops the key, so the daemon summarizes nothing
 // until the owner fixes the file's mode. A file with no API key is used
 // for everything else, and journaled; the daemon then has no Provider and
 // summarizes nothing. When the key or the model changes, reloadGlobal builds
@@ -23,7 +23,7 @@ func (d *Daemon) reloadGlobal(now time.Time) error {
 		return nil
 	}
 	g, err := readGlobalFile(d.GlobalPath)
-	if errors.Is(err, settings.ErrWorldReadableOrWritable) {
+	if errors.Is(err, settings.ErrWorldAccessible) {
 		d.Global.APIKey = ""
 		d.useProvider(d.Global)
 	}

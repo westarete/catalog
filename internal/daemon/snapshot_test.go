@@ -454,9 +454,9 @@ func TestOncePublishesStatus(t *testing.T) {
 	}
 }
 
-// A world-readable or world-writable global.toml stops summarizing,
+// A world-accessible global.toml stops summarizing,
 // though the daemon had a key before, and a fixed mode starts it again.
-func TestRunStopsWhileGlobalIsWorldReadableOrWritable(t *testing.T) {
+func TestRunStopsWhileGlobalIsWorldAccessible(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
 	writeFile(t, root, "a.md", body("a"))
@@ -476,7 +476,7 @@ func TestRunStopsWhileGlobalIsWorldReadableOrWritable(t *testing.T) {
 		t.Errorf("kept the key %q while global.toml is open", d.Global.APIKey)
 	}
 	s := d.Snapshot()
-	if len(s.ConfigErrors) != 1 || !strings.Contains(s.ConfigErrors[0], "world-readable or world-writable") {
+	if len(s.ConfigErrors) != 1 || !strings.Contains(s.ConfigErrors[0], "world-accessible") {
 		t.Errorf("config errors = %q, want one about world access", s.ConfigErrors)
 	}
 

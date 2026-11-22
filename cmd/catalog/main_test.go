@@ -773,7 +773,7 @@ func TestSetupStopsWhenInterrupted(t *testing.T) {
 	}
 }
 
-func TestOnceRefusesWorldReadableOrWritableGlobal(t *testing.T) {
+func TestOnceRefusesWorldAccessibleGlobal(t *testing.T) {
 	dir := stateDir(t)
 	writeGlobal(t, dir, `api_key = "sk-secret"`)
 	if err := os.Chmod(filepath.Join(dir, "global.toml"), 0o604); err != nil {
@@ -782,7 +782,7 @@ func TestOnceRefusesWorldReadableOrWritableGlobal(t *testing.T) {
 
 	code, out := runCatalog("daemon", "--once", t.TempDir())
 
-	if code == 0 || !strings.Contains(out, "world-readable or world-writable") || strings.Contains(out, "sk-secret") {
+	if code == 0 || !strings.Contains(out, "world-accessible") || strings.Contains(out, "sk-secret") {
 		t.Errorf("code %d, output:\n%s", code, out)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "store.db")); !os.IsNotExist(err) {
@@ -790,7 +790,7 @@ func TestOnceRefusesWorldReadableOrWritableGlobal(t *testing.T) {
 	}
 }
 
-func TestStatusSaysGlobalIsWorldReadableOrWritable(t *testing.T) {
+func TestStatusSaysGlobalIsWorldAccessible(t *testing.T) {
 	dir := stateDir(t)
 	onMacForTest(t, false)
 	writeGlobal(t, dir, `api_key = "sk-secret"`)
@@ -800,7 +800,7 @@ func TestStatusSaysGlobalIsWorldReadableOrWritable(t *testing.T) {
 
 	_, stdout, _ := runCatalogOut(context.Background(), "status")
 
-	if !strings.Contains(stdout, "(can't be read: world-readable or world-writable") || strings.Contains(stdout, "API key set") {
+	if !strings.Contains(stdout, "(can't be read: world-accessible") || strings.Contains(stdout, "API key set") {
 		t.Errorf("stdout:\n%s", stdout)
 	}
 }

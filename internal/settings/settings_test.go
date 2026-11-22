@@ -263,12 +263,12 @@ func TestReadGlobalFileAcceptsOwnerAndGroup(t *testing.T) {
 	}
 }
 
-func TestReadGlobalFileRefusesWorldReadableOrWritable(t *testing.T) {
-	for _, mode := range []os.FileMode{0o604, 0o602, 0o644, 0o666} {
+func TestReadGlobalFileRefusesWorldAccessible(t *testing.T) {
+	for _, mode := range []os.FileMode{0o604, 0o602, 0o601, 0o644, 0o666, 0o607} {
 		path := writeWithMode(t, `api_key = "sk-secret"`, mode)
 		g, err := ReadGlobalFile(path)
-		if !errors.Is(err, ErrWorldReadableOrWritable) {
-			t.Errorf("mode %v: err = %v; want ErrWorldReadableOrWritable", mode, err)
+		if !errors.Is(err, ErrWorldAccessible) {
+			t.Errorf("mode %v: err = %v; want ErrWorldAccessible", mode, err)
 			continue
 		}
 		if g.APIKey != "" {

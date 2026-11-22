@@ -41,8 +41,8 @@ version left readable.
 
 The daemon never changes `global.toml`'s mode. Instead, `catalog daemon`
 and `catalog daemon --once` won't use a `global.toml` that is
-world-readable or world-writable, and `catalog status` shows the problem
-on its `Settings:` line.
+world-accessible, and `catalog status` shows the problem on its
+`Settings:` line.
 [When a file doesn't load](configuration.md#when-a-file-doesnt-load)
 says what the running daemon does then.
 

@@ -86,22 +86,22 @@ func errorPlace(line any, key string) string {
 	return fmt.Sprintf("line %v", line)
 }
 
-// ErrWorldReadableOrWritable means global.toml is world-readable or
-// world-writable. It holds the API key, so ReadGlobalFile won't use it. The
-// group bits don't count: the owner may share the file with a group on
-// purpose.
-var ErrWorldReadableOrWritable = errors.New("world-readable or world-writable")
+// ErrWorldAccessible means global.toml has a world permission bit set: it is
+// world-readable, world-writable, or world-executable. It holds the API key,
+// so ReadGlobalFile won't use it. The group bits don't count: the owner may
+// share the file with a group on purpose.
+var ErrWorldAccessible = errors.New("world-accessible")
 
-// worldReadWrite are the world read and write bits of a file's mode.
-const worldReadWrite = 0o006
+// worldBits are the world read, write, and execute bits of a file's mode.
+const worldBits = 0o007
 
 // ErrNotRegularFile means something other than a regular file, such as a
 // folder or a FIFO, is at global.toml's path.
 var ErrNotRegularFile = errors.New("not a regular file")
 
 // ReadGlobalFile reads and parses the global.toml at path. It returns an error
-// wrapping ErrWorldReadableOrWritable, and no settings, if the file is
-// world-readable or world-writable, one wrapping ErrNotRegularFile if the
+// wrapping ErrWorldAccessible, and no settings, if the file is
+// world-accessible, one wrapping ErrNotRegularFile if the
 // path holds something other than a regular file, and one wrapping
 // fs.ErrNotExist if there is no file.
 func ReadGlobalFile(path string) (Global, error) {
@@ -121,8 +121,8 @@ func ReadGlobalFile(path string) (Global, error) {
 	if !info.Mode().IsRegular() {
 		return Global{}, ErrNotRegularFile
 	}
-	if mode := info.Mode().Perm(); mode&worldReadWrite != 0 {
-		return Global{}, fmt.Errorf("%w (mode %v); to fix it, run chmod o-rw on it", ErrWorldReadableOrWritable, mode)
+	if mode := info.Mode().Perm(); mode&worldBits != 0 {
+		return Global{}, fmt.Errorf("%w (mode %v); to fix it, run chmod o-rwx on it", ErrWorldAccessible, mode)
 	}
 	data, err := io.ReadAll(f)
 	if err != nil {
