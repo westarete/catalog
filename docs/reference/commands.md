@@ -1,10 +1,11 @@
 # Commands
 
-The `catalog` program has three commands: `catalog daemon`, which keeps
+The `catalog` program has four commands: `catalog daemon`, which keeps
 catalogs current, `catalog status`, which asks a running daemon what it
-is doing, and `catalog setup`, which gives the daemon its settings and
-starts it. This page lists each command's arguments, output, and exit
-codes. For the reasons behind the daemon's design, see the
+is doing, `catalog setup`, which gives the daemon its settings and
+starts it, and `catalog init`, which makes a folder a catalog. This page
+lists each command's arguments, output, and exit codes. For the reasons
+behind the daemon's design, see the
 [architecture](../explanation/architecture.md); for the settings it
 reads, see [configuration](configuration.md).
 
@@ -15,6 +16,7 @@ catalog daemon
 catalog daemon --once <folder>
 catalog status
 catalog setup [--agent-only]
+catalog init [folder]
 ```
 
 Any other command line prints the usage text to standard error and exits
@@ -24,6 +26,7 @@ with code 2:
 usage: catalog daemon [--once <folder>]
        catalog status
        catalog setup [--agent-only]
+       catalog init [folder]
 ```
 
 These command lines are usage errors:
@@ -32,6 +35,7 @@ These command lines are usage errors:
 - an unknown command
 - `status` with any argument
 - `setup` with an argument other than `--agent-only`
+- `init` with more than one argument
 - `daemon` with an argument but no `--once`
 - `daemon --once` with no folder, or with more than one
 - an unknown flag, which also prints the flag package's own message
@@ -97,21 +101,26 @@ waiting in the catalogs it finds there, prints the result, and exits. It
 doesn't wait for a file to stay unchanged first, which the running
 daemon does. It doesn't answer status requests.
 
-It reads the state folder's `global.toml` for the API key, the model,
-and the `enumerate` and `ignore` lists. It ignores the `watch` entries
-and watches only `<folder>`, made absolute against the current
-directory. It doesn't reread `global.toml` during the run.
+It reads the state folder's `global.toml` for the model, the name of the
+key, and the `include` and `exclude` lists, and `keys.toml` for the API
+key. It ignores the `watch` list and watches only `<folder>`, made
+absolute against the current directory. It doesn't reread either file
+during the run.
 
 Unlike the running daemon, it stops at once, with code 1, in these
 cases:
 
-| Case                                                           | Message on standard error                                                                                                                    |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `global.toml` doesn't exist                                    | `catalog: no settings file at <path>; create it with your api_key`                                                                           |
-| Something other than a regular file is at `global.toml`'s path | `catalog: <path>: not a regular file`                                                                                                        |
-| `global.toml` doesn't parse                                    | `catalog: <path>: parse global.toml: line <n>: not valid TOML`, or another reason that quotes no value                                       |
-| `global.toml` has no `api_key`                                 | `catalog: <path> has no api_key`                                                                                                             |
-| `global.toml` is world-accessible                              | `catalog: <path>: world-accessible (mode <mode>); to fix it, run chmod o-rwx on it`, with the mode as `ls -l` shows it, such as `-rw-r--r--` |
+| Case                                                                          | Message on standard error                                                                                                                                                                             |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `global.toml` doesn't exist                                                   | `catalog: no settings file at <path>; run catalog setup`                                                                                                                                              |
+| `keys.toml` doesn't exist                                                     | `catalog: no API keys file at <path>; run catalog setup`                                                                                                                                              |
+| Something other than a regular file is at either file's path                  | `catalog: <path>: not a regular file`                                                                                                                                                                 |
+| Either file doesn't parse                                                     | `catalog: <path>: parse global.toml: line <n>: not valid TOML`, `catalog: <path>: parse keys.toml: line <n>: not valid TOML`, or another reason that quotes no value, such as `line <n>: unknown key` |
+| Either file is world-accessible                                               | `catalog: <path>: world-accessible (mode <mode>); to fix it, run chmod o-rwx on it`, with the mode as `ls -l` shows it, such as `-rw-r--r--`                                                          |
+| `keys.toml` has no key under the name `global.toml` asks for, or an empty one | `catalog: <path> has no key under the name global.toml asks for`                                                                                                                                      |
+
+Each `<path>` is the path of the file the message is about. No message
+names a key or the value of `key`.
 
 When the run reaches the crawl, it prints a report in the format of
 `catalog status` (below) to standard output, even if the run fails.
@@ -120,7 +129,7 @@ These cases then exit with code 1:
 - The model service fails. The run stops at the first service problem
   and writes the error to standard error.
 - The folder holds no catalog, whether because it can't be read or
-  because nothing in it has a `.catalog/` folder. The error is
+  because nothing in it has a `.catalog/config.toml` file. The error is
   `catalog: no catalog in <absolute folder>: it can't be read, or nothing in it has a .catalog/config.toml file`,
   and the report says `No catalogs found.`
 - The store or the journal fails.
@@ -140,8 +149,11 @@ nothing at install time.
 
 ### Asking for settings
 
-If `global.toml` doesn't exist in the state folder, setup asks for the
-Anthropic API key and the folders to watch, then writes the file:
+Setup treats `keys.toml` and `global.toml` in the state folder on their
+own. It asks for the Anthropic API key only if `keys.toml` is missing,
+and for the folders to watch only if `global.toml` is missing, then
+writes only the missing files. With both missing, a session looks like
+this:
 
 ```text
 Paste your Anthropic API key and press Return, or press Return to skip this step.
@@ -149,19 +161,23 @@ API key:
 
 The daemon will watch the folders you list. Don't list a folder that a cloud drive syncs, or Desktop, Documents, or Downloads.
 Enter one folder per line, then press Return on an empty line to finish. To watch only ~/src, press Return now.
-Folder: ~/src
+Folder: ~/src/acme/website
 Folder: ~/notes/Project Plans
 Folder:
 
+Your API key is in /Users/alex/Library/Application Support/com.westarete.catalog/keys.toml, and only you can read that file.
 Your settings are in /Users/alex/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
 ```
 
 - When standard input is a terminal, setup turns off echo while the key
   is typed, so the key never appears on screen. Otherwise it reads the
   key as one line from standard input. It takes no key as an argument.
-- An empty key leaves `api_key` out of the file, and setup adds
-  `To add your API key later, set api_key in that file.` The daemon then
-  runs but summarizes nothing, and `catalog status` says why.
+- Setup writes the key to `keys.toml` under the name `default`, with
+  spaces around it trimmed. An empty key still creates `keys.toml`,
+  holding only a comment that says how to add one
+  ([Configuration](configuration.md#keystoml) quotes it), and setup
+  prints `To add your API key later, set default in <path>.` The daemon
+  then runs but summarizes nothing, and `catalog status` says why.
 - Setup trims spaces around each folder and keeps spaces inside it. A
   folder must start with `/` or `~/`, or be exactly `~`, because launchd
   starts the daemon in `/`. For anything else, setup prints
@@ -172,16 +188,43 @@ Your settings are in /Users/alex/Library/Application Support/com.westarete.catal
   prints
   `<folder> doesn't exist yet. The daemon will start watching it once you create it.`
   and writes it anyway.
-- Setup creates the state folder with mode 0700 if it's missing, and
-  creates `global.toml` with mode 0600, holding the key if one was given
-  and a `[[watch]]` table for each folder. Every other setting keeps its
-  default ([Configuration](configuration.md)).
-- If `global.toml` already exists, setup asks nothing, changes nothing
-  in it, and prints
+- Setup writes the folders to `global.toml` as a `watch` list, one per
+  line, as typed. Every other setting keeps its default
+  ([Configuration](configuration.md)). For the session above:
+
+  ```toml
+  watch = [
+    "~/src/acme/website",
+    "~/notes/Project Plans",
+  ]
+  ```
+
+- Setup writes the key and each folder as a TOML string, escaping
+  quotation marks, backslashes, and control characters, so each reads
+  back unchanged.
+- Setup creates the state folder with mode 0700 if it's missing. It
+  creates each file with mode 0600, whatever the umask, and never
+  replaces a file that exists. If writing a file fails, it removes the
+  file.
+- If `global.toml` exists, setup doesn't ask for folders, changes
+  nothing in it, and prints
   `Your settings are already in <path>. To change them, edit that file.`
+- If `keys.toml` exists, setup doesn't ask for a key and changes nothing
+  in it. It prints one of these, checking for the key named by `key` in
+  `global.toml`, or for `default` if `global.toml` sets no `key` or
+  doesn't load:
+  - `To add your API key, set default in <path>.` when that name is
+    `default` and the file has no such key.
+  - `To add your API key, add it to <path> under the name global.toml asks for.`
+    when `global.toml` names another key and the file has no such key.
+  - `Your API keys are already in <path>. To change them, edit that file.`
+    otherwise, including when the file can't be read; `catalog status`
+    then says why.
+- Setup prints what it found about existing files before it asks
+  anything.
 - If the person presses Ctrl-C at a prompt, setup stops with exit code 1
   and `catalog: setup interrupted` on standard error, before it writes
-  `global.toml` or the property list or loads the agent.
+  `keys.toml`, `global.toml`, or the property list, or loads the agent.
 
 ### Installing the launch agent
 
@@ -211,7 +254,7 @@ given.
 
 | Code | Meaning                                                                                      |
 | ---- | -------------------------------------------------------------------------------------------- |
-| 0    | Setup finished. Off a Mac, that is after it writes `global.toml`.                            |
+| 0    | Setup finished. Off a Mac, that is after it writes the settings files that were missing.     |
 | 1    | Setup failed, or the person pressed Ctrl-C. The error is on standard error after `catalog:`. |
 | 2    | The command line wasn't understood, such as an argument other than `--agent-only`.           |
 
@@ -238,12 +281,13 @@ goes to standard output.
 
 ### Status output
 
-Whether or not the daemon is running, the output begins with three lines
+Whether or not the daemon is running, the output begins with four lines
 about the install, then a blank line:
 
 ```text
 Launch agent: /Users/alex/Library/LaunchAgents/com.westarete.catalog.plist
-Settings: /Users/alex/Library/Application Support/com.westarete.catalog/global.toml (API key set)
+Settings: /Users/alex/Library/Application Support/com.westarete.catalog/global.toml (valid)
+Keys: /Users/alex/Library/Application Support/com.westarete.catalog/keys.toml (key set)
 Log: /Users/alex/Library/Logs/catalog.log
 
 ```
@@ -251,14 +295,22 @@ Log: /Users/alex/Library/Logs/catalog.log
 - `Launch agent:` shows the property list's path, or
   `not installed; run catalog setup` if the file is missing. Off a Mac,
   this line is left out.
-- `Settings:` shows `global.toml`'s path, then `(API key set)`,
-  `(no API key)`, `(not found; run catalog setup)`, or
-  `(can't be read: <error>)`. Status reads the file only to see whether
-  `api_key` has a value, and never prints the key.
+- `Settings:` shows `global.toml`'s path, then `(valid)` if the file
+  loads, `(not found; run catalog setup)`, or
+  `(can't be read: <error>)`. The error is one the daemon would report,
+  such as
+  `parse global.toml: line 3: unknown key; did you mean exclude?`, and
+  quotes no value from the file.
+- `Keys:` shows `keys.toml`'s path, then `(key set)` if the file has the
+  key `global.toml` asks for, `(no key)` if it doesn't,
+  `(not found; run catalog setup)`, or `(can't be read: <error>)`. When
+  `global.toml` sets no `key` or doesn't load, status looks for
+  `default`. Status never prints a key, a key's name, or the value of
+  `key`.
 - `Log:` shows the log's path.
 
 Status prints its paths in full and without quotes, as `pwd` does, and
-so does setup when it says where your settings are. To use one in a
+so do setup and `catalog init` when they name a file. To use one in a
 shell, put it in double quotes, because `Application Support` has a
 space:
 
@@ -274,7 +326,7 @@ in the form `Jan 2 15:04`.
 
 ```text
 Started Nov 19 09:12; last crawled Nov 19 09:31.
-Config error: /Users/alex/Library/Application Support/com.westarete.catalog/global.toml: not found; create it with your api_key and the folders to watch
+Config error: /Users/alex/src/notes: parse config.toml: line 3: unknown key; did you mean exclude?
 Summarizing paused until Nov 19 09:33: the model service is not answering
 
 Catalogs:
@@ -292,14 +344,14 @@ The lines appear in this order:
    recorded a start time, and nothing else follows. After the first
    crawl it reads `Started <time>; last crawled <time>.`
 2. One `Config error: <path>: <error>` line for each config file that
-   didn't load on the last crawl, sorted by path. The path is
-   `global.toml`'s path, or the folder of a catalog whose
+   didn't load on the last crawl, sorted by path. The path is the path
+   of `global.toml` or `keys.toml`, or the folder of a catalog whose
    `.catalog/config.toml` didn't load.
 3. A pause line, if the daemon isn't summarizing. It reads
    `Summarizing paused until <time>: <reason>` when the daemon is
    waiting out a model service problem, and `Not summarizing: <reason>`
-   when it can't summarize until someone fixes `global.toml`. With no
-   API key loaded, the reason is `no API key loaded from global.toml`.
+   when it can't summarize until someone fixes a settings file. With no
+   API key loaded, the reason is `no API key loaded from keys.toml`.
 4. A blank line, then `Catalogs:` with one line per catalog, sorted by
    path, indented two spaces:
    `<folder>: <n> files, <n> summarized, <n> waiting, <n> to update`. A
@@ -320,3 +372,80 @@ The lines appear in this order:
 
 The daemon's status reflects its state after the last crawl or the last
 file it summarized.
+
+## catalog init
+
+```text
+catalog init [folder]
+```
+
+Makes a folder a catalog: `folder`, or the current folder when none is
+given. A relative folder is taken from the current folder. The folder
+must already exist: if it doesn't, init fails with code 1 and
+`catalog: <folder> doesn't exist`, with the folder's absolute path, and
+creates nothing. If it's a file, the error is
+`catalog: <folder> isn't a folder`.
+
+Init then:
+
+1. Creates `.catalog/` in the folder if it's missing.
+2. Writes `.catalog/config.toml`, which makes the folder a catalog. The
+   file sets nothing; it shows each setting in a comment:
+
+   ```toml
+   # Settings for this catalog. Each list adds to the lists in the daemon's
+   # global.toml and to its built-in defaults. A file is in the catalog if it
+   # matches an include pattern and no exclude pattern.
+   #
+   # Patterns for more files to catalog, relative to this folder:
+   # include = ["**/*.go"]
+   #
+   # Patterns for files to leave out, even if an include pattern matches:
+   # exclude = ["drafts/**"]
+   ```
+
+3. If the folder is in a Git repository, writes `.catalog/.gitignore`,
+   which keeps `catalog.md` and the temporary file the daemon writes it
+   through out of commits:
+
+   ```text
+   /catalog.md
+   /catalog-*.tmp
+   ```
+
+   Init counts the folder as in a repository when it, or a folder above
+   it, holds an entry named `.git`: a folder, or a file as in a Git
+   worktree. It doesn't run `git`. Outside a repository, init writes no
+   `.gitignore`.
+
+Init never changes a file that exists. For each file it would write, it
+prints `Created <path>` or `Left <path> as it was`. It creates
+`.catalog/` and its files with the modes the umask allows, starting from
+0777 for the folder and 0666 for a file, because the files travel with
+the folder; with a umask of 022, that's 0755 and 0644. `catalog.md`
+stays 0600, because the daemon sets its mode when it writes it.
+
+Next, if `global.toml` loads, init says whether the daemon watches the
+folder: `The daemon watches this folder.` when the folder is, or is
+inside, a folder in `watch`, and otherwise
+`No folder the daemon watches contains this one. Add it, or a folder above it, to watch in <path>.`,
+with the path of `global.toml`. If `global.toml` is missing or doesn't
+load, init prints neither, and `catalog status` says why. Last, it
+prints the line an agent's instruction file needs:
+
+```text
+To have agents read this catalog, add this line to the folder's AGENTS.md or CLAUDE.md: @.catalog/catalog.md
+```
+
+A session in a made-up repository inside a watched folder:
+
+```text
+$ catalog init ~/src/acme/website
+Created /Users/alex/src/acme/website/.catalog/config.toml
+Created /Users/alex/src/acme/website/.catalog/.gitignore
+The daemon watches this folder.
+To have agents read this catalog, add this line to the folder's AGENTS.md or CLAUDE.md: @.catalog/catalog.md
+```
+
+Init exits with code 0 when it finishes, 1 when it fails, and 2 when
+it's given more than one folder.

@@ -180,8 +180,9 @@ conflicts. We care most about the experience people have, and this
 improvement is worth working hard for.
 
 A person who keeps a catalog's folder in a Git repository will probably
-want Git to ignore `.catalog/catalog.md` themselves, since that's the
-file that used to conflict. The daemon doesn't set that up.
+want Git to ignore `.catalog/catalog.md`, since that's the file that
+used to conflict. The daemon doesn't set that up, but `catalog init`
+does when it puts a catalog in place inside a repository.
 
 ## The contract with agents
 

@@ -86,9 +86,9 @@ The Model is the vocabulary the other components share. It holds values
 and does no reading, writing, or network work. It's the `internal/model`
 package.
 
-- A catalog is a folder that holds a `.catalog/` folder, and its tree is
-  everything under that folder that no nested catalog claims. The daemon
-  maintains one `catalog.md` for each.
+- A catalog is a folder that holds a `.catalog/config.toml` file, and
+  its tree is everything under that folder that no nested catalog
+  claims. The daemon maintains one `catalog.md` for each.
   [Where catalogs go](catalogs.md#where-agents-start) says how people
   choose them.
 - An entry describes a file. Source trees hold thousands of files, so we
@@ -110,52 +110,77 @@ package.
 ### Settings
 
 Settings answers one question: what applies to this catalog right now?
-It combines three sources, and each overrides the one before.
+It reads three files.
 
-- Defaults built into the application.
-- The person's global settings for this machine: which folders to watch,
-  which model to use, the API key, and which files to include and
-  ignore.
-- The catalog's own `.catalog/config.toml`, if it has one: which files
-  to include and ignore.
+- `keys.toml`, in the state folder: the person's API keys, each under a
+  name.
+- `global.toml`, in the state folder: the person's settings for this
+  machine. These are the folders to watch, the model, the name of the
+  key to use, and which files every catalog should include and exclude.
+- The catalog's own `.catalog/config.toml`, which also marks the folder
+  as a catalog: which more files that catalog should include and
+  exclude.
 
-A list in a later source replaces the list before it instead of adding
-to it. The daemon rereads every settings file on every crawl, so a
-change takes effect within a minute without a restart. If a file doesn't
-parse, the daemon keeps using the last settings that did and reports the
-error through status.
+A catalog's `include` and `exclude` lists add to those in `global.toml`,
+which add to the lists built into the daemon. A file is in the catalog
+if it matches an `include` pattern and no `exclude` pattern from any of
+them. The daemon rereads every settings file on every crawl, so a change
+takes effect within a minute without a restart. If a file doesn't load,
+including when it holds a key the daemon doesn't read, the daemon keeps
+using the last settings that did and reports the error through status.
+[Configuration](../reference/configuration.md) lists the keys and rules.
 
 A tool that runs inside one repository knows where to look for its
 configuration. A daemon serving a whole machine would have to search the
 machine for it, and a knowledge worker would add folders through a menu
 bar app, not by committing a file. So the person keeps one list of
 folders to watch on the machine. Inside those folders, the daemon
-already crawls every file, so a `.catalog/` folder there is enough to
-mark where a catalog goes. We expect people to change the shape of these
-settings once they use them, so we keep every component except Settings
-independent of it. The built version has no limits on battery or
-spending, and no more than one model provider; both are direction.
+already crawls every file, so a `.catalog/config.toml` file there is
+enough to mark where a catalog goes. We expect people to change the
+shape of these settings once they use them, so we keep every component
+except Settings independent of it. The built version has no limits on
+battery or spending, and no more than one model provider; both are
+direction.
+
+The API keys live in a file of their own so that the other two files can
+be shared. A catalog's `config.toml` travels with its folder: people
+share it, copy it, and commit it. With the keys in the state folder, no
+catalog folder or watched folder ever holds one, even in a file Git
+ignores, and the daemon reads a key from nowhere else. Keys have names
+so that a shared config could later choose one by name while each person
+keeps their own key under that name; that choice is direction, not
+built. The daemon doesn't read the key from the environment, because
+launchd doesn't start it from the person's shell. Keeping keys in the
+Keychain is direction, for when there's an app.
+
+The lists add up, rather than each replacing the one before, so that a
+catalog can leave out one more file, or cover one more type of file,
+with one line. When a catalog's list replaced the global one, leaving
+out one more file meant copying the whole global list into the catalog's
+config, a file everyone who shares the folder sees
+([issue #17](https://github.com/westarete/catalog/issues/17)). Exclusion
+wins over inclusion at every level, with no patterns that undo an
+exclusion, so the order of patterns never matters.
 
 A catalog's `config.toml` may come from someone else, for example with a
-clone, so the daemon trusts it less than the person's global settings.
-It sets which of its folder's files the catalog covers, and it may widen
-or narrow the global lists, because the folder's config knows its
-contents. The daemon reads only its `enumerate` and `ignore` lists, so
-it can never name a model or a server to send files to, or hold a
-credential. The daemon doesn't read the API key from the environment,
-because launchd doesn't start it from the person's shell. The key lives
-in the global settings, which only the person can read. Keeping it in
-the Keychain is direction, for when there's an app.
+clone, so the daemon trusts it less than the person's own files. Because
+exclusion wins, nothing in it can bring back a file the person excluded
+in `global.toml`. It can still widen the lists, because the folder's
+config knows its contents, and so decide which more of that folder's
+files the daemon sends to the model service. The daemon reads only its
+`include` and `exclude` lists and rejects any other key, so it can never
+name a model or a server to send files to, or hold a credential.
 
 ### Trees
 
 Trees takes the folders the person chose to watch and finds the catalogs
-inside them: each folder that has a `.catalog/` folder. It decides which
-catalog a path belongs to and whether the path is a file to index,
-applying the nesting rule and the include and ignore patterns. It never
-descends into `.git` or `.catalog/`, so it never profiles Git's records
-or the catalog itself. It knows nothing about profiles. The daemon
-creates no `.catalog/` folder; what a catalog needs is in
+inside them: each folder whose `.catalog/` folder holds a `config.toml`
+file. It decides which catalog a path belongs to and whether the path is
+a file to index, applying the nesting rule and the include and exclude
+patterns. It never descends into `.git` or `.catalog/`, so it never
+profiles Git's records or the catalog itself. It knows nothing about
+profiles. The daemon creates no `.catalog/` folder; `catalog init` or a
+person does, and what a catalog needs is in
 [Where catalogs go](catalogs.md#what-a-tree-needs).
 
 ### Watcher
@@ -346,10 +371,10 @@ prompts, caches, or logs there. The person decides what's acceptable for
 the content they send it; [Profiles](profiles.md#what-a-provider-keeps)
 describes that choice and quotes what the provider we use says. The
 daemon sends each file and its neighbors' profiles to that provider, and
-nowhere else. The provider's credential stays in the person's global
-settings. The daemon never formats it into the journal, the log, or
+nowhere else. The provider's credential stays in the person's
+`keys.toml`. The daemon never formats it into the journal, the log, or
 status itself, though
-[error text from other sources can still carry part of it](../reference/files.md#the-api-key-in-errors).
+[error text from other sources can still carry part of it](../reference/files.md#what-errors-leave-out).
 
 ### Renderer
 
@@ -398,7 +423,7 @@ that serves a team, the Journal would give each person only the entries
 about files that person can read, so a person could read all of it only
 if they could read all of those files. That is direction, not built. The
 daemon never formats a credential into the Journal itself
-([the API key in errors](../reference/files.md#the-api-key-in-errors)),
+([what errors leave out](../reference/files.md#what-errors-leave-out)),
 and a report from a client would be held to the same reader rule.
 
 #### Statistics for tuning
@@ -627,7 +652,7 @@ bundle sooner than the order of interfaces below suggests.
 
 Each platform can have its own user interface, and each is a client of
 the same daemon, so adding one shouldn't change how the daemon works.
-The first macOS version uses only the command line and a config file.
+The first macOS version uses only the command line and config files.
 Later we'd likely add `plist` entries, then a menu bar item, and then a
 settings window. We could distribute it through Homebrew first and the
 Mac App Store later. None of those later steps is built. On Windows and
@@ -639,10 +664,9 @@ that never gets indexed looks the same as one that's merely behind.
 Today `catalog status` lists each catalog with how many of its files are
 profiled, waiting, and to update, and the files that are failing, so a
 person can tell a catalog that is filling in from one that is stuck. It
-doesn't list a watched folder with no `.catalog/` folder, which the
-daemon skips silently, so that case is not built. Much later, the menu
-bar item might notice someone working in a folder with no catalog and
-offer to add one.
+doesn't list a watched folder with no catalog, which the daemon skips
+silently, so that case is not built. Much later, the menu bar item might
+notice someone working in a folder with no catalog and offer to add one.
 
 ## Open questions
 

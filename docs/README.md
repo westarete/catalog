@@ -31,10 +31,10 @@ These are steps for a task, in order.
 These describe what catalog does, for looking things up.
 
 - [Commands](reference/commands.md) lists `catalog daemon`,
-  `catalog daemon --once`, `catalog status`, and `catalog setup`, with
-  their arguments, output, and exit codes.
+  `catalog daemon --once`, `catalog status`, `catalog setup`, and
+  `catalog init`, with their arguments, output, and exit codes.
 - [Configuration](reference/configuration.md) lists every key in
-  `global.toml` and in a catalog's `config.toml`.
+  `keys.toml`, `global.toml`, and a catalog's `config.toml`.
 - [Files](reference/files.md) lists each file and socket the daemon
   reads or writes, with its location, its mode, and who can read it.
 - [Catalog format](reference/catalog-format.md) describes the

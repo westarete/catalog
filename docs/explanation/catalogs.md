@@ -2,13 +2,13 @@
 
 A catalog helps an agent only if the agent has it when it starts work.
 The daemon writes a `.catalog/catalog.md` into each folder where a
-person has made a `.catalog/` folder, and an instruction file the agent
-already loads has to import it. This page explains where catalogs go and
-why, what a folder tree needs before an agent can read its catalog, how
-catalogs nest, why one daemon serves a whole Mac, why it watches only
-folders that no cloud drive syncs, and what delivering the catalog
-without a file would mean. The general rule that the catalog never shows
-anyone more than they could already see is in the
+person has put a `.catalog/config.toml` file, and an instruction file
+the agent already loads has to import it. This page explains where
+catalogs go and why, what a folder tree needs before an agent can read
+its catalog, how catalogs nest, why one daemon serves a whole Mac, why
+it watches only folders that no cloud drive syncs, and what delivering
+the catalog without a file would mean. The general rule that the catalog
+never shows anyone more than they could already see is in the
 [overview](overview.md#privacy-and-security); this page covers what it
 means for where a catalog sits.
 
@@ -60,21 +60,21 @@ decisions, and a person can make both.
 - A person picks the folder trees to profile, and the parts of them to
   leave out, in `global.toml` and in each catalog's `config.toml`.
 - Within those trees, a catalog goes in each folder where people tend to
-  start agents. A person marks such a folder by creating a `.catalog/`
-  folder in it, even an empty one. The daemon crawls every watched
-  folder, so it notices the new folder and writes `catalog.md` inside
-  it. The `.catalog/` folder can also hold a `config.toml` with settings
-  for that catalog, which override the global ones. Only the folder has
-  to reach the daemon, so this works from any tool that can write to the
-  folder, including Claude Cowork through its mount.
-- The daemon maintains a catalog in each `.catalog/` folder it finds and
-  creates none itself.
+  start agents. A person marks such a folder with a
+  `.catalog/config.toml` file, which `catalog init` writes. The daemon
+  crawls every watched folder, so it notices the new file and writes
+  `catalog.md` beside it. The same file holds that catalog's settings,
+  which add to the global ones. Only the file has to reach the daemon,
+  so this works from any tool that can write to the folder, including
+  Claude Cowork through its mount.
+- The daemon maintains a catalog for each `.catalog/config.toml` it
+  finds and creates none itself.
 - Intended direction, not built: an agent suggests where catalogs should
   go, through the catalog skill. The agent can see the folders and where
   the person has been working with agents, so it's better placed to
-  judge than any rule we could write into the daemon. It would create a
-  `.catalog/` folder, and the line that loads the catalog, in each place
-  the person accepts.
+  judge than any rule we could write into the daemon. It would put a
+  `.catalog/config.toml` file, and the line that loads the catalog, in
+  each place the person accepts.
 
 A developer might ask the daemon to profile everything under `~/src` but
 would never want a catalog there. Their agent would suggest the
@@ -94,11 +94,11 @@ the whole team. The daemon can't see how folders are shared, so whoever
 places a catalog, a person or the catalog skill, has to weigh this. A
 person can keep the narrower folder out of the wider catalog by giving
 it a catalog of its own, which nesting makes the wider catalog leave
-alone, or by listing it under `ignore` in the wider catalog's
-`config.toml`. A catalog's `ignore` replaces the global list, so the
-defaults (`README.md`, `**/CLAUDE.md`, `**/AGENTS.md`) and the person's
-own global ignores stop applying to that catalog unless it repeats them
-([Configuration](../reference/configuration.md#how-settings-combine)).
+alone, or by listing it under `exclude` in the wider catalog's
+`config.toml`. A catalog's `exclude` adds to the global and built-in
+lists, so one line is enough, and the person's own global exclusions
+keep applying
+([Configuration](../reference/configuration.md#how-lists-combine)).
 
 This matters once a catalog reaches people other than the one who runs
 the daemon. By our reasoning, that happens in these cases.
@@ -148,9 +148,10 @@ writes only `.catalog/catalog.md`.
 
 - The folder sits inside a tree the person chose to watch in their
   settings.
-- A `.catalog/` folder marks where the catalog goes. A person creates
-  it, even empty, and the daemon writes `catalog.md` inside it. It can
-  also hold a `config.toml` with settings for that catalog.
+- A `.catalog/config.toml` file marks where the catalog goes, and holds
+  that catalog's settings. `catalog init` writes it, with comments that
+  set nothing, or a person creates it, even empty. The daemon writes
+  `catalog.md` beside it.
 - An instruction file the agent loads has a line that imports
   `.catalog/catalog.md`. We use `AGENTS.md` as the convention, since
   most agents read it. By default, Claude Code reads `AGENTS.md` only
@@ -158,15 +159,35 @@ writes only `.catalog/catalog.md`.
   has both imports `@AGENTS.md` from `CLAUDE.md`
   ([research/agent-instruction-files.md](../research/agent-instruction-files.md)).
 
-People who keep a catalog's folder in Git will probably want Git to
-ignore `.catalog/catalog.md`, since that's the file that used to
-conflict. They could set that once for every repository on their Mac in
-Git's global ignore file
-([gitignore documentation](https://git-scm.com/docs/gitignore)).
+A file marks a catalog, not an empty folder, because a marker should say
+what it marks. A person who comes across an empty `.catalog/` folder
+can't tell what it does or that it matters. A file named for the
+catalog's settings, holding comments that explain them, tells a person
+who opens the folder what it is and what they can change there. A
+project's root is often marked the same way: `go help go.mod` says a Go
+module version "is defined by a tree of source files, with a go.mod file
+in its root." A file also travels with a Git repository, where an empty
+folder doesn't: `git add` records nothing for an empty `.catalog/`
+folder, so a clone wouldn't have it. A `.catalog/` folder without a
+`config.toml` isn't a catalog; the daemon stops updating a `catalog.md`
+left in one, and doesn't delete it.
 
-Intended direction, not built: the catalog skill would put these in
-place, with the person's approval, and a menu bar item could do the same
-later. Today a person does it by hand.
+People who keep a catalog's folder in Git will want Git to ignore
+`.catalog/catalog.md`, since that's the file that used to conflict, and
+it can name and describe private files. When the folder is in a
+repository, `catalog init` writes a `.catalog/.gitignore` that does
+that, with no setup outside the repository. A pattern that starts with
+`/` is relative to the folder that holds the `.gitignore`
+([gitignore documentation](https://git-scm.com/docs/gitignore)), so
+`/catalog.md` matches only that catalog's own `catalog.md`. Each nested
+catalog needs its own `.gitignore`, which `catalog init` writes when run
+in that folder. Outside a repository, `catalog init` writes no
+`.gitignore`.
+
+`catalog init` puts the config file in place and prints the line the
+instruction file needs; a person adds that line by hand. Intended
+direction, not built: the catalog skill would put all three in place,
+with the person's approval, and a menu bar item could do the same later.
 
 ## Cloud drives
 
@@ -277,12 +298,12 @@ because it writes `.catalog/catalog.md` into the mounted folder.
 ## Open questions
 
 - Where should catalogs go, and who adds the line that loads each one? A
-  `.catalog/` folder marks a catalog, and the daemon never creates one.
-  What's still open is who adds the import line, what loads each catalog
-  once it's in place, and whether nested catalogs link to each other.
-- How do people put what a tree needs in place? No setup command is
-  built, so a person creates the `.catalog/` folder and the import line
-  by hand.
+  `.catalog/config.toml` file marks a catalog, and the daemon never
+  creates one. What's still open is who adds the import line, what loads
+  each catalog once it's in place, and whether nested catalogs link to
+  each other.
+- How do people put what a tree needs in place? `catalog init` writes
+  the config file, but a person still adds the import line by hand.
 - What happens when a source tree has too many files for one flat
   `.catalog/catalog.md`? We could write entries for folders, or one
   catalog file per folder. Related work is tracked in

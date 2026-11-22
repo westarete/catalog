@@ -1,7 +1,7 @@
 # Install and run the daemon
 
 This guide installs the daemon with Homebrew, gives it your API key and
-the folders to watch, and puts a catalog in place in one repository. You
+the folders to watch, and puts a catalog in place in one folder. You
 need a Mac. To build the daemon from source instead, follow
 [Set up for development](set-up-for-development.md), then pick up here
 at `catalog setup`.
@@ -51,6 +51,7 @@ Folder: ~/src
 Folder: ~/notes/Project Plans
 Folder:
 
+Your API key is in /Users/alex/Library/Application Support/com.westarete.catalog/keys.toml, and only you can read that file.
 Your settings are in /Users/alex/Library/Application Support/com.westarete.catalog/global.toml, and only you can read that file.
 The catalog daemon is running. To see what it's doing, run `catalog status`.
 ```
@@ -60,19 +61,24 @@ starts in `/`, so a path like `src` would name the wrong place, and
 setup asks again if you type one. Choose the folders with care; see
 "Which folders to watch" below. If you press Return at the first
 `Folder:` prompt, the daemon watches `~/src`. If you press Return at the
-key prompt, setup leaves the key out, and the daemon runs but summarizes
-nothing until you add `api_key` to `global.toml`.
+key prompt, setup still creates `keys.toml`, holding only a comment, and
+the daemon runs but summarizes nothing until you add a line like
+`default = "sk-example-not-a-real-key"` to that file, with your own key.
 
-The key lives only in `global.toml`, in a folder and a file that only
-you can open. The daemon doesn't read it from `ANTHROPIC_API_KEY` or
-from a command-line argument, so setup never asks for it that way. Press
-Ctrl-C at any prompt to stop setup with nothing written.
+Setup keeps the key in `keys.toml` under the name `default`, and the
+folders in `global.toml`. The key lives only in `keys.toml`, in a folder
+and a file that only you can open, so `global.toml` holds no secret. The
+daemon doesn't read it from `ANTHROPIC_API_KEY` or from a command-line
+argument, so setup never asks for it that way. Press Ctrl-C at any
+prompt to stop setup with nothing written.
 
-You can run `catalog setup` again whenever you like. If `global.toml`
-exists, setup leaves it alone and tells you where it is; to change the
-key or the folders, edit that file.
-[Configuration](../reference/configuration.md) lists every key it can
-hold. Setup also writes the launch agent's property list,
+You can run `catalog setup` again whenever you like. Setup leaves alone
+whichever of `keys.toml` and `global.toml` exists and tells you where it
+is, and asks only for what goes in a missing one. To change the key,
+edit `keys.toml`; to change the folders, edit `global.toml`. If
+`keys.toml` exists without your key, setup says how to add it.
+[Configuration](../reference/configuration.md) lists every key both
+files can hold. Setup also writes the launch agent's property list,
 `~/Library/LaunchAgents/com.westarete.catalog.plist`, and loads the
 agent again.
 
@@ -82,10 +88,11 @@ Check on the daemon:
 catalog status
 ```
 
-It begins with where the launch agent, your settings, and the log are,
-and whether the settings hold a key. If it says the daemon isn't
-running, `tail ~/Library/Logs/catalog.log` shows why. To stop the daemon
-without uninstalling it, run
+It begins with where the launch agent, your settings, your keys, and the
+log are, whether your settings load, and whether `keys.toml` has your
+key. If it says the daemon isn't running,
+`tail ~/Library/Logs/catalog.log` shows why. To stop the daemon without
+uninstalling it, run
 `launchctl bootout gui/$(id -u)/com.westarete.catalog`; `catalog setup`
 starts it again.
 
@@ -99,27 +106,46 @@ lists where the daemon keeps its files.
 
 ## Put a catalog in place
 
-The daemon keeps a catalog wherever a `.catalog/` folder exists inside a
-watched folder. It never creates one, so for each repository you want
-cataloged:
+The daemon keeps a catalog in each folder that has a
+`.catalog/config.toml` file, inside the folders it watches. It never
+creates one, so for each folder you want cataloged, such as a project's
+folder or a repository:
 
-1. Make an empty `.catalog/` folder at the root of the repository. The
-   daemon writes `.catalog/catalog.md` there. An optional
-   `.catalog/config.toml` can set `enumerate` and `ignore` for that
-   catalog; the same two keys in `global.toml` set the defaults for your
-   machine.
-2. Have your `AGENTS.md` or `CLAUDE.md` load `@.catalog/catalog.md`. If
-   you have both files, import `@AGENTS.md` from `CLAUDE.md`, because by
-   default Claude Code reads `AGENTS.md` only when there's no
-   `CLAUDE.md` in the folder or above it.
-3. If the repository is in Git, you will probably want Git to ignore
-   `.catalog/catalog.md`, since that's the file that used to conflict.
-   You can set that once for every repository on your Mac in Git's
-   global ignore file
-   ([gitignore documentation](https://git-scm.com/docs/gitignore)).
+1. Run `catalog init` with the folder, or with no folder to use the one
+   you're in:
 
+   ```text
+   $ catalog init ~/src/acme/website
+   Created /Users/alex/src/acme/website/.catalog/config.toml
+   Created /Users/alex/src/acme/website/.catalog/.gitignore
+   The daemon watches this folder.
+   To have agents read this catalog, add this line to the folder's AGENTS.md or CLAUDE.md: @.catalog/catalog.md
+   ```
+
+   `catalog init` writes `.catalog/config.toml`, which makes the folder
+   a catalog. Its comments show the settings you can add there to cover
+   more files or leave some out; the same settings in `global.toml`
+   apply to every catalog on your Mac. The daemon writes
+   `.catalog/catalog.md` beside it on its next crawl, usually within a
+   minute.
+
+   In a Git repository, as in this example, `catalog init` also writes
+   `.catalog/.gitignore`, which keeps `catalog.md` out of your commits.
+   Outside a repository it writes no `.gitignore`. If `catalog init`
+   says no folder the daemon watches contains this one, add the folder,
+   or one above it, to `watch` in `global.toml`.
+
+2. Have your `AGENTS.md` or `CLAUDE.md` load `@.catalog/catalog.md`, as
+   `catalog init` says. If you have both files, import `@AGENTS.md` from
+   `CLAUDE.md`, because by default Claude Code reads `AGENTS.md` only
+   when there's no `CLAUDE.md` in the folder or above it.
+
+`catalog init` never changes a file that exists, so it's safe to run in
+a folder that is already a catalog.
+[Commands](../reference/commands.md#catalog-init) describes what it
+writes, and
 [Where catalogs go](../explanation/catalogs.md#what-a-tree-needs) says
-why a tree needs each of these.
+why a folder needs each of these.
 
 ## Update the daemon
 
@@ -142,9 +168,10 @@ protects, so don't watch Desktop, Documents, Downloads, or iCloud Drive.
 [Where catalogs go](../explanation/catalogs.md#why-to-watch-only-folders-that-no-cloud-drive-syncs)
 explains why.
 
-A catalog's `enumerate` can cover more of its folder than the global
-list does, so a config that arrives with a clone decides which of that
-folder's files the daemon summarizes and sends to your provider.
+A catalog's `include` can cover more of its folder than the global lists
+do, so a config that arrives with a clone decides which more of that
+folder's files the daemon summarizes and sends to your provider. It
+can't bring back a file you excluded in `global.toml`.
 
 ## Uninstall the daemon
 
@@ -165,8 +192,8 @@ shows that it then deletes the property list. It leaves these behind:
 
 - The state folder,
   `~/Library/Application Support/com.westarete.catalog`, which holds
-  `global.toml` with your API key, the store of summaries of your
-  documents, and the journal.
+  `keys.toml` with your API key, `global.toml`, the store of summaries
+  of your documents, and the journal.
 - The log, `~/Library/Logs/catalog.log`.
 - Each `catalog.md` in your catalogs.
 

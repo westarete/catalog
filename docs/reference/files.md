@@ -1,10 +1,11 @@
 # Files
 
-The daemon and `catalog setup` keep their files in one state folder, and
-the daemon writes one file, `catalog.md`, into each catalog. This page
-lists every file and socket it creates, reads, or sends, where each one
-is, its mode, who can read it, and what it holds. For the commands that
-use them, see [commands](commands.md); for the settings files, see
+The daemon and `catalog setup` keep their files in one state folder. In
+each catalog, `catalog init` writes the catalog's settings and, in a Git
+repository, a `.gitignore`, and the daemon writes `catalog.md`. This
+page lists every file and socket they create, read, or send, where each
+one is, its mode, who can read it, and what it holds. For the commands
+that use them, see [commands](commands.md); for the settings files, see
 [configuration](configuration.md).
 
 All paths below are for the account that runs the daemon. A file with
@@ -13,18 +14,21 @@ open to its owner only.
 
 ## Summary
 
-| Path                                                 | Created by                      | Mode                                 | What it holds                                     |
-| ---------------------------------------------------- | ------------------------------- | ------------------------------------ | ------------------------------------------------- |
-| `<state folder>`                                     | the daemon, or `catalog setup`  | 0700                                 | the files below, except `catalog.md` and the log  |
-| `<state folder>/global.toml`                         | `catalog setup`, or a person    | 0600 from `catalog setup`            | the API key and the global settings               |
-| `<state folder>/store.db`                            | the daemon                      | 0600                                 | the store: files seen, summaries, failures        |
-| `<state folder>/store.db-wal`, `store.db-shm`        | SQLite, while the store is open | 0600                                 | recent writes to the store, and its shared memory |
-| `<state folder>/journal.jsonl`                       | the daemon                      | 0600                                 | one line for each event the daemon records        |
-| `<state folder>/control.sock`                        | the daemon                      | 0600                                 | the status socket                                 |
-| `<catalog folder>/.catalog/catalog.md`               | the daemon                      | 0600                                 | the catalog agents read                           |
-| `<catalog folder>/.catalog/catalog-*.tmp`            | the daemon, briefly             | 0600                                 | a `catalog.md` being written                      |
-| `~/Library/Logs/catalog.log`                         | launchd                         | 0600, from the property list's umask | the daemon's standard error                       |
-| `~/Library/LaunchAgents/com.westarete.catalog.plist` | `catalog setup`                 | 0600                                 | the launch agent: the program to run and the log  |
+| Path                                                 | Created by                               | Mode                                 | What it holds                                            |
+| ---------------------------------------------------- | ---------------------------------------- | ------------------------------------ | -------------------------------------------------------- |
+| `<state folder>`                                     | the daemon, or `catalog setup`           | 0700                                 | the files below whose paths start with it                |
+| `<state folder>/keys.toml`                           | `catalog setup`, or a person             | 0600 from `catalog setup`            | the API keys                                             |
+| `<state folder>/global.toml`                         | `catalog setup`, or a person             | 0600 from `catalog setup`            | the folders to watch and the global settings             |
+| `<state folder>/store.db`                            | the daemon                               | 0600                                 | the store: files seen, summaries, failures               |
+| `<state folder>/store.db-wal`, `store.db-shm`        | SQLite, while the store is open          | 0600                                 | recent writes to the store, and its shared memory        |
+| `<state folder>/journal.jsonl`                       | the daemon                               | 0600                                 | one line for each event the daemon records               |
+| `<state folder>/control.sock`                        | the daemon                               | 0600                                 | the status socket                                        |
+| `<catalog folder>/.catalog/config.toml`              | `catalog init`, or a person              | from the umask                       | the catalog's settings; it marks the folder as a catalog |
+| `<catalog folder>/.catalog/.gitignore`               | `catalog init`, only in a Git repository | from the umask                       | the files Git leaves out of commits                      |
+| `<catalog folder>/.catalog/catalog.md`               | the daemon                               | 0600                                 | the catalog agents read                                  |
+| `<catalog folder>/.catalog/catalog-*.tmp`            | the daemon, briefly                      | 0600                                 | a `catalog.md` being written                             |
+| `~/Library/Logs/catalog.log`                         | launchd                                  | 0600, from the property list's umask | the daemon's standard error                              |
+| `~/Library/LaunchAgents/com.westarete.catalog.plist` | `catalog setup`                          | 0600                                 | the launch agent: the program to run and the log         |
 
 The state folder is
 `~/Library/Application Support/com.westarete.catalog`, with `~` the home
@@ -39,10 +43,10 @@ They do this before anything else can fail, so a run that stops at once,
 such as one with no `global.toml`, still tightens what an earlier
 version left readable.
 
-The daemon never changes `global.toml`'s mode. Instead, `catalog daemon`
-and `catalog daemon --once` won't use a `global.toml` that is
-world-accessible, and `catalog status` shows the problem on its
-`Settings:` line.
+The daemon never changes the mode of `keys.toml` or `global.toml`.
+Instead, `catalog daemon` and `catalog daemon --once` won't use either
+file while it is world-accessible, and `catalog status` shows the
+problem on its `Keys:` or `Settings:` line.
 [When a file doesn't load](configuration.md#when-a-file-doesnt-load)
 says what the running daemon does then.
 
@@ -115,29 +119,50 @@ is closed. The status holds the start and last crawl times, the config
 errors, the pause reason, each catalog's folder with its counts of
 files, and each failing file with its error. It holds no summary text.
 
+### keys.toml
+
+`keys.toml` holds the person's API keys, each under a name. If the file
+is missing, `catalog setup` creates it with mode 0600 whatever the
+umask, in the state folder that it creates as 0700 if needed, even when
+the person skips the key; then the file holds only a comment that says
+how to add one. A key added later by hand goes into a file only its
+owner can read. A person can also write the file. The daemon only reads
+it, and won't use it while it is world-accessible. `catalog setup` never
+changes a `keys.toml` that exists.
+[Configuration](configuration.md#keystoml) describes its format.
+
+The daemon reads a key from no other file and no environment variable.
+`keys.toml` sits in the state folder, apart from every catalog folder
+and every folder the daemon watches.
+
 ### global.toml
 
-The daemon only reads `global.toml`. It holds the API key. If the file
-is missing, `catalog setup` creates it with mode 0600, in the state
-folder that it creates as 0700 if needed; a person can also write it.
-The daemon doesn't create it, check its mode, or change its mode, so for
-a file a person wrote, its readers are whoever that person allowed; the
-0700 state folder keeps other accounts out of it. `catalog setup` never
-changes a `global.toml` that exists.
+`global.toml` holds the folders to watch, the model, the name of the key
+to use, and the `include` and `exclude` lists for every catalog. It
+holds no secret. If the file is missing, `catalog setup` creates it with
+mode 0600 whatever the umask; a person can also write it. The daemon
+only reads it, and won't use it while it is world-accessible, because
+whoever can change it decides which files go to the model service.
+`catalog setup` never changes a `global.toml` that exists.
 [Configuration](configuration.md#globaltoml) lists its keys.
 
-#### The API key in errors
+### What errors leave out
 
 Errors in the journal, the log, and the status name file paths and quote
-the error text they come with. The daemon never formats the API key into
-an error itself.
+the error text they come with. The daemon never formats an API key into
+an error itself. No error, status line, or journal entry quotes a value
+from `keys.toml`, `global.toml`, or a catalog's `config.toml`, or a name
+from `keys.toml`, because a person may paste a key where it doesn't
+belong.
 
-When `global.toml` doesn't parse, the error gives only the line and the
-last key the parser read, for example
-`parse global.toml: line 1 (last key "api_key"): not valid TOML`, or
-`a value has the wrong type` in place of `not valid TOML`. It quotes
-none of the file's values. The journal records it as a `config_error`,
-and `catalog status` shows it as a `Config error` line.
+When one of those files doesn't parse, the error gives only the line,
+and the last key the parser read if that is a key the file can hold, for
+example `parse global.toml: line 2 (last key "model"): not valid TOML`,
+or `a value has the wrong type` in place of `not valid TOML`. An unknown
+key is reported by its line, never by its text, for example
+`parse config.toml: line 3: unknown key; did you mean exclude?`. The
+journal records each as a `config_error`, and `catalog status` shows it
+as a `Config error` line.
 
 The text of errors that the model provider's library returns hasn't been
 checked for the key.
@@ -147,10 +172,10 @@ checked for the key.
 ### .catalog/catalog.md
 
 The daemon writes `catalog.md` into the catalog's `.catalog/` folder. It
-never creates `.catalog/`; a person does. The file has mode 0600,
-because it lists every path the catalog covers and summarizes files that
-may be private. The agents that read it run as the same account.
-[Catalog format](catalog-format.md) describes its contents.
+never creates `.catalog/`; `catalog init` or a person does. The file has
+mode 0600, because it lists every path the catalog covers and summarizes
+files that may be private. The agents that read it run as the same
+account. [Catalog format](catalog-format.md) describes its contents.
 
 To publish, the daemon first checks the current file. If it is a regular
 file with mode 0600 and already holds the new text, it writes nothing.
@@ -167,9 +192,32 @@ folder.
 
 ### .catalog/config.toml
 
-A person writes this optional file; the daemon only reads it, on each
-crawl. [Configuration](configuration.md#catalogconfigtoml) lists its
-keys.
+When this file is a regular file inside a watched folder, it makes its
+folder a catalog. [`catalog init`](commands.md#catalog-init) writes it
+with comments that show each setting and set nothing, or a person writes
+it. The daemon only reads it, on each crawl. It holds no secret, and it
+is meant to travel with the folder, shared, copied, or committed, so
+`catalog init` creates it with the mode the umask allows, starting from
+0666, and the daemon doesn't check its mode.
+[Configuration](configuration.md#catalogconfigtoml) lists its keys.
+
+### .catalog/.gitignore
+
+`catalog init` writes this file only when the catalog's folder is in a
+Git repository, and never changes one that exists. It holds two lines:
+
+```text
+/catalog.md
+/catalog-*.tmp
+```
+
+These keep the catalog, which can name and describe private files, out
+of the repository's commits, along with the temporary file the daemon
+writes it through, which a crash could leave behind. Because the file
+sits in `.catalog/`, it applies to this catalog only, and each nested
+catalog that `catalog init` set up has its own. It names no other file.
+`catalog init` creates it with the mode the umask allows, starting
+from 0666. The daemon doesn't read it.
 
 ## The launch agent's property list
 
@@ -207,7 +255,7 @@ does the same for `~/Library/LaunchAgents`, with mode 0700.
 
 ## Files the daemon only reads
 
-- `global.toml` in the state folder.
+- `keys.toml` and `global.toml` in the state folder.
 - `.catalog/config.toml` in each catalog.
 - Each file a catalog covers. The crawl reads the folder's names, sizes,
   and modification times. To summarize a file, the daemon reads it to
@@ -221,7 +269,7 @@ The daemon never writes to a file it summarizes.
 ## What leaves the machine
 
 For each file it summarizes, the daemon sends one request to the
-Anthropic Messages API, with the API key from `global.toml`. The request
+Anthropic Messages API, with the API key from `keys.toml`. The request
 holds:
 
 - the instruction text the daemon ships with

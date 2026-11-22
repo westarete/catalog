@@ -45,9 +45,9 @@ watch and loads the launch agent.
 shows the session.
 
 After you pull a newer version, build over the program in place and run
-`catalog setup` again. If `global.toml` exists, setup asks nothing; it
-writes the property list again and restarts the agent, so the daemon
-runs your new build.
+`catalog setup` again. If `keys.toml` and `global.toml` exist, setup
+asks nothing; it writes the property list again and restarts the agent,
+so the daemon runs your new build.
 
 A Mac has one launch agent with the label `com.westarete.catalog`, so a
 source build and a Homebrew install share it. The agent runs whichever
@@ -83,9 +83,10 @@ may name a Homebrew install instead:
 rm <folder>/catalog
 ```
 
-That leaves the state folder, which holds `global.toml` with your API
-key, the store of summaries of your documents, and the journal. The log
-is separate, at `~/Library/Logs/catalog.log`. To delete them too:
+That leaves the state folder, which holds `keys.toml` with your API key,
+`global.toml`, the store of summaries of your documents, and the
+journal. The log is separate, at `~/Library/Logs/catalog.log`. To delete
+them too:
 
 ```sh
 rm -r "$HOME/Library/Application Support/com.westarete.catalog"
