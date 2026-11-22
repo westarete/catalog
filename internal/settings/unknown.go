@@ -42,7 +42,7 @@ func keyLine(data []byte, name string) int {
 		line = strings.TrimSpace(line)
 		var key string
 		switch {
-		case line == "" || strings.HasPrefix(line, "#"):
+		case strings.HasPrefix(line, "#"):
 			continue
 		case strings.HasPrefix(line, "["):
 			key, _, _ = strings.Cut(line, "]")
