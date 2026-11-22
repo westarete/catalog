@@ -71,8 +71,11 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
     commit_msg_template: "Update catalog to {{ .Tag }}"
-    # Homebrew runs an installer script outside its sandbox, as the person
-    # who ran `brew install` and without sudo (the script sets no `sudo:`).
+    # The Cask Cookbook says "Installer scripts run without the cask
+    # sandbox", and `sudo:` is for a script that needs it, so leaving it
+    # out runs this as a non-root script. A Homebrew maintainer recommends
+    # that mechanism for a tap that registers an agent:
+    # https://github.com/Homebrew/brew/issues/23891#issuecomment-5585219358
     # `--agent-only` writes the launch agent and loads it without asking
     # questions. custom_block goes at the top of the cask. macOS only,
     # because the launch agent is a macOS feature.
@@ -83,8 +86,11 @@ homebrew_casks:
           args:       ["setup", "--agent-only"],
         }
       end
-    # A plain `brew uninstall` removes the launch agent and keeps the
-    # person's settings and summaries.
+    # Homebrew's source, not its docs, shows what `launchctl:` does: it runs
+    # `launchctl remove <label>`, then deletes
+    # ~/Library/LaunchAgents/<label>.plist if it exists. `brew upgrade`
+    # runs it too, because only `signal:` is skipped during an upgrade:
+    # https://github.com/Homebrew/brew/blob/b39ed2c1958182c9fc90fa87366d4510021ecf75/Library/Homebrew/cask/artifact/abstract_uninstall.rb#L288-L314
     uninstall:
       launchctl:
         - com.westarete.catalog
