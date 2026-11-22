@@ -394,6 +394,33 @@ func TestRunKeepsLastGoodGlobal(t *testing.T) {
 	}
 }
 
+// While a catalog's config.toml is broken, the catalog keeps its last good
+// settings, but a new exclusion in global.toml still applies.
+func TestGlobalExcludeAppliesWhileCatalogConfigBroken(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, ".catalog/config.toml", "exclude = [\"skip.md\"]\n")
+	writeFile(t, root, "a.md", body("a"))
+	writeFile(t, root, "secret.md", body("secret"))
+	d, p := newDaemon(t, root)
+	useGlobal(t, d, p, root, "")
+	step(t, d, start)
+	entry(t, catalogText(t, root), "secret.md")
+	writeFile(t, root, ".catalog/config.toml", "exclude = [[[\n")
+	writeGlobal(t, d, root, `exclude = ["secret.md"]`)
+
+	step(t, d, start.Add(time.Minute))
+
+	text := catalogText(t, root)
+	entry(t, text, "a.md")
+	if strings.Contains(text, "secret.md") {
+		t.Errorf("secret.md still listed after global.toml excluded it:\n%s", text)
+	}
+	if n := len(eventsOfKind(t, d, journal.KindConfigError)); n != 1 {
+		t.Errorf("config errors = %d, want 1", n)
+	}
+}
+
 func TestRunMissingGlobalIsConfigError(t *testing.T) {
 	root := t.TempDir()
 	d, p := newDaemon(t, root)

@@ -95,25 +95,30 @@ func (d *Daemon) crawlCatalog(now time.Time, dir string, nested []string) error 
 	return errors.Join(configErr, unreadableErr, tooLargeErr, d.publishCatalog(now, dir))
 }
 
-// catalogGlobs returns the globs for the catalog in dir. If its config.toml
-// can't be read or parsed, it journals the error and returns the globs from
-// the last config that loaded, if any; ok is false when there are none.
+// catalogGlobs returns the globs for the catalog in dir, combining
+// global.toml's current lists with the catalog's config.toml. If config.toml
+// can't be read or parsed, it journals the error and uses the last config
+// that loaded, if any; ok is false when there is none. It keeps the
+// catalog's own settings, not the combined lists, so a change to global.toml
+// still applies while the catalog's config is broken.
 func (d *Daemon) catalogGlobs(now time.Time, dir string) (g globs, ok bool, err error) {
 	data, err := fs.ReadFile(d.FS(dir), catalogConfig)
 	if errors.Is(err, fs.ErrNotExist) {
 		data, err = nil, nil
 	}
+	var c settings.Catalog
 	if err == nil {
-		var c settings.Catalog
-		if c, err = settings.ParseCatalog(data); err == nil {
-			g.include, g.exclude = settings.Lists(d.Global, c)
-		}
+		c, err = settings.ParseCatalog(data)
 	}
 	if err != nil {
 		last, found := d.lastGood[dir]
-		return last, found, d.report(journal.Event{Time: now, Kind: journal.KindConfigError, Dir: dir, Error: err.Error()})
+		if found {
+			g.include, g.exclude = settings.Lists(d.Global, last)
+		}
+		return g, found, d.report(journal.Event{Time: now, Kind: journal.KindConfigError, Dir: dir, Error: err.Error()})
 	}
-	d.lastGood[dir] = g
+	d.lastGood[dir] = c
+	g.include, g.exclude = settings.Lists(d.Global, c)
 	return g, true, nil
 }
 

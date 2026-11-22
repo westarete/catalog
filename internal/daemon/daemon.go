@@ -53,8 +53,9 @@ type Daemon struct {
 	// crawled lists the catalogs the last crawl recorded, which are the
 	// catalogs Work summarizes files in.
 	crawled []string
-	// lastGood holds each catalog's globs from the last config that parsed.
-	lastGood map[string]globs
+	// lastGood holds each catalog's own settings from the last config.toml
+	// that parsed. The globs are rebuilt from it with the current global.toml.
+	lastGood map[string]settings.Catalog
 	// changed holds the files that changed after the last crawl recorded
 	// them; Work leaves them for the next crawl.
 	changed map[fileKey]bool
@@ -157,7 +158,7 @@ func (d *Daemon) startCrawl() {
 	d.crawled = nil
 	d.changed = map[fileKey]bool{}
 	if d.lastGood == nil {
-		d.lastGood = map[string]globs{}
+		d.lastGood = map[string]settings.Catalog{}
 	}
 }
 
