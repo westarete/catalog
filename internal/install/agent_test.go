@@ -13,10 +13,15 @@ import (
 	"testing"
 )
 
-// fakeLaunchctl records each call and fails the subcommands in failOn.
+// fakeLaunchctl records each call and fails the subcommands in failOn. It
+// acts like launchd: the agent is loaded unless print is in failOn, and
+// after bootout, print still finds it for stopping more calls while the old
+// daemon exits. Until then, bootstrap fails as launchctl does, with error 5.
 type fakeLaunchctl struct {
-	calls  [][]string
-	failOn map[string]bool
+	calls     [][]string
+	failOn    map[string]bool
+	stopping  int
+	bootedOut bool
 }
 
 func (f *fakeLaunchctl) run(args ...string) error {
@@ -24,7 +29,36 @@ func (f *fakeLaunchctl) run(args ...string) error {
 	if f.failOn[args[0]] {
 		return errors.New(args[0] + " failed")
 	}
+	switch args[0] {
+	case "print":
+		if !f.loaded() {
+			return errors.New("could not find service")
+		}
+		if f.bootedOut {
+			f.stopping--
+		}
+	case "bootout":
+		f.bootedOut = true
+	case "bootstrap":
+		if f.loaded() {
+			return errors.New("Bootstrap failed: 5: Input/output error")
+		}
+	}
 	return nil
+}
+
+// loaded reports whether launchd still has the agent.
+func (f *fakeLaunchctl) loaded() bool {
+	return !f.failOn["print"] && (!f.bootedOut || f.stopping > 0)
+}
+
+// quickStop makes Install check every moment for the old agent to go, and
+// give up after checks checks, for the rest of the test.
+func quickStop(t *testing.T, checks int) {
+	t.Helper()
+	oldPoll, oldChecks := stopPoll, stopChecks
+	stopPoll, stopChecks = 0, checks
+	t.Cleanup(func() { stopPoll, stopChecks = oldPoll, oldChecks })
 }
 
 // parsePlist returns the property list's values by key: strings and
@@ -202,10 +236,48 @@ func TestInstallReloadsWhenLoaded(t *testing.T) {
 	want := [][]string{
 		{"print", "gui/501/com.westarete.catalog"},
 		{"bootout", "gui/501/com.westarete.catalog"},
+		{"print", "gui/501/com.westarete.catalog"},
 		{"bootstrap", "gui/501", PlistPath(a.Home)},
 	}
 	if !reflect.DeepEqual(f.calls, want) {
 		t.Errorf("calls = %v, want %v", f.calls, want)
+	}
+}
+
+// launchctl bootout can return while launchd still has the old agent, and a
+// bootstrap then fails with error 5, so Install waits for it to go.
+func TestInstallWaitsForOldAgentToStop(t *testing.T) {
+	quickStop(t, 10)
+	f := &fakeLaunchctl{stopping: 3}
+	a := newAgent(t, f)
+	if _, err := a.Install("/opt/bin/catalog"); err != nil {
+		t.Fatal(err)
+	}
+	last := f.calls[len(f.calls)-1]
+	if last[0] != "bootstrap" {
+		t.Errorf("last call = %v, want bootstrap; calls %v", last, f.calls)
+	}
+}
+
+func TestInstallFailsWhenOldAgentNeverStops(t *testing.T) {
+	quickStop(t, 5)
+	f := &fakeLaunchctl{stopping: 1000}
+	a := newAgent(t, f)
+	_, err := a.Install("/opt/bin/catalog")
+	if err == nil || !strings.Contains(err.Error(), "still has") {
+		t.Fatalf("err = %v, want one saying launchd still has the agent", err)
+	}
+	prints := 0
+	for _, c := range f.calls {
+		switch c[0] {
+		case "bootstrap":
+			t.Error("bootstrap ran though the old agent never stopped")
+		case "print":
+			prints++
+		}
+	}
+	if prints != 6 {
+		t.Errorf("print calls = %d, want 1 before bootout and 5 after", prints)
 	}
 }
 

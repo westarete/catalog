@@ -188,11 +188,13 @@ Your settings are in ~/Library/Application Support/com.westarete.catalog/global.
 On a Mac, setup then writes
 `~/Library/LaunchAgents/com.westarete.catalog.plist` with mode 0600,
 naming the running program, with symbolic links resolved, followed by
-`daemon`. It unloads the agent first if launchd has it loaded, then
-loads it with `launchctl bootstrap`, so a running daemon restarts on the
-program that ran setup. It creates the folder for the log if that is
-missing. [Files](files.md#the-launch-agents-property-list) describes the
-property list.
+`daemon`. If launchd has the agent loaded, setup unloads it with
+`launchctl bootout` and waits up to 30 seconds for launchd to finish
+stopping the old daemon, and fails if launchd still has it then. It then
+loads the agent with `launchctl bootstrap`, so a running daemon restarts
+on the program that ran setup. It creates the folder for the log if that
+is missing. [Files](files.md#the-launch-agents-property-list) describes
+the property list.
 
 If the replaced property list named a different program, setup prints
 `The daemon was running <old program>, and now it runs <new program>.`

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 )
 
 // Label names the daemon's launch agent to launchd.
@@ -58,6 +59,14 @@ func RunLaunchctl(args ...string) error {
 	}
 	return nil
 }
+
+// stopPoll is how often reload checks whether launchd still has the old
+// agent after bootout, and stopChecks how many times it checks: 30 seconds
+// in all. Tests shorten them.
+var (
+	stopPoll   = 200 * time.Millisecond
+	stopChecks = 150
+)
 
 // Agent installs the daemon's launch agent for one account.
 type Agent struct {
@@ -109,8 +118,25 @@ func (a Agent) reload() error {
 		if err := a.Launchctl("bootout", service); err != nil {
 			return err
 		}
+		if err := a.waitUntilGone(service); err != nil {
+			return err
+		}
 	}
 	return a.Launchctl("bootstrap", domain, PlistPath(a.Home))
+}
+
+// waitUntilGone returns once launchd no longer has service. bootout can
+// return while launchd is still stopping the old daemon, and a bootstrap
+// before it is gone fails with "Bootstrap failed: 5: Input/output error".
+// Homebrew's brew services waits after bootout the same way.
+func (a Agent) waitUntilGone(service string) error {
+	for range stopChecks {
+		if a.Launchctl("print", service) != nil {
+			return nil
+		}
+		time.Sleep(stopPoll)
+	}
+	return fmt.Errorf("launchd still has %s %v after bootout", service, time.Duration(stopChecks)*stopPoll)
 }
 
 // ensureDir creates dir with a private mode, whatever the umask. It
