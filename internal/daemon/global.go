@@ -10,62 +10,87 @@ import (
 	"westarete.com/catalog/internal/settings"
 )
 
-// reloadGlobal rereads global.toml from GlobalPath, if it's set. If the file
-// can't be read or doesn't parse, it journals the error and keeps the
-// settings from the last file that loaded. If the file is
-// world-accessible, it also drops the key, so the daemon summarizes nothing
-// until the owner fixes the file's mode. A file with no API key is used
-// for everything else, and journaled; the daemon then has no Provider and
-// summarizes nothing. When the key or the model changes, reloadGlobal builds
-// a new Provider and ends any pause.
+// reloadGlobal rereads global.toml from GlobalPath, if it's set, and then
+// the key it names from keys.toml at KeysPath. If either file can't be read
+// or doesn't parse, it journals the error and keeps what it loaded from that
+// file last; while global.toml fails, it doesn't read keys.toml. If either
+// file is world-accessible, it drops the key, so the daemon summarizes
+// nothing until the owner fixes the file's mode. If keys.toml has no key by
+// the name global.toml asks for, it drops the key too and journals that.
+// When the key or the model changes, reloadGlobal builds a new Provider and
+// ends any pause.
 func (d *Daemon) reloadGlobal(now time.Time) error {
 	if d.GlobalPath == "" {
 		return nil
 	}
-	g, err := readGlobalFile(d.GlobalPath)
+	g, err := readSettingsFile(d.GlobalPath, settings.ReadGlobalFile)
 	if errors.Is(err, settings.ErrWorldAccessible) {
-		d.Global.APIKey = ""
-		d.useProvider(d.Global)
+		d.useProvider("", d.Global.Model)
 	}
 	if err != nil {
-		return d.reportGlobal(now, err)
+		return d.reportConfig(now, d.GlobalPath, err)
 	}
-	if g.APIKey != d.Global.APIKey || g.Model != d.Global.Model {
-		d.useProvider(g)
+	key, keyErr := d.reloadKey(g.KeyName())
+	if key != d.apiKey || g.Model != d.Global.Model {
+		d.useProvider(key, g.Model)
 	}
 	d.Global = g
-	if g.APIKey == "" {
-		return d.reportGlobal(now, errNoAPIKey)
+	if keyErr != nil {
+		return d.reportConfig(now, d.KeysPath, keyErr)
 	}
 	return nil
 }
 
-var errNoAPIKey = errors.New("no api_key")
+// errNoKey never names the key global.toml asks for, since a person may have
+// pasted the key itself there.
+var errNoKey = errors.New("no key under the name global.toml asks for")
 
-// useProvider replaces the Provider with one for g's key and model, or none
-// if g has no key. The pause was for the old provider; a fixed key shouldn't
-// wait out a backoff of up to 6 hours. A success still journals the resume.
-func (d *Daemon) useProvider(g settings.Global) {
+// reloadKey returns the key called name in keys.toml at KeysPath. If the
+// file is world-accessible or has no such key, it returns no key. If the
+// file can't be read or doesn't parse, it returns the key loaded last.
+// Either way, it returns the error.
+func (d *Daemon) reloadKey(name string) (string, error) {
+	keys, err := readSettingsFile(d.KeysPath, settings.ReadKeysFile)
+	if errors.Is(err, settings.ErrWorldAccessible) {
+		return "", err
+	}
+	if err != nil {
+		return d.apiKey, err
+	}
+	if keys[name] == "" {
+		return "", errNoKey
+	}
+	return keys[name], nil
+}
+
+// useProvider replaces the Provider with one for apiKey and model, or none
+// if apiKey is empty. The pause was for the old provider; a fixed key
+// shouldn't wait out a backoff of up to 6 hours. A success still journals
+// the resume.
+func (d *Daemon) useProvider(apiKey, model string) {
+	d.apiKey = apiKey
 	d.Provider = nil
-	if g.APIKey != "" {
-		d.Provider = d.NewProvider(g.APIKey, g.Model)
+	if apiKey != "" {
+		d.Provider = d.NewProvider(apiKey, model)
 	}
 	d.pausedUntil, d.pauseReason = time.Time{}, ""
 }
 
-func (d *Daemon) reportGlobal(now time.Time, err error) error {
+// reportConfig journals err as a config error in the settings file at path.
+func (d *Daemon) reportConfig(now time.Time, path string, err error) error {
 	return d.report(journal.Event{
 		Time: now, Kind: journal.KindConfigError,
-		Dir: filepath.Dir(d.GlobalPath), Rel: filepath.Base(d.GlobalPath),
+		Dir: filepath.Dir(path), Rel: filepath.Base(path),
 		Error: err.Error(),
 	})
 }
 
-// readGlobalFile reads and parses global.toml.
-func readGlobalFile(path string) (settings.Global, error) {
-	g, err := settings.ReadGlobalFile(path)
+// readSettingsFile reads the settings file at path with read, and says how
+// to fix a missing one.
+func readSettingsFile[T any](path string, read func(string) (T, error)) (T, error) {
+	v, err := read(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return settings.Global{}, errors.New("not found; create it with your api_key and the folders to watch")
+		return v, errors.New("not found; run catalog setup")
 	}
-	return g, err
+	return v, err
 }

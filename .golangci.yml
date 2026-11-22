@@ -44,11 +44,25 @@ linters:
             - "!**/internal/render/*.go"
             - "!**/internal/profiler/*.go"
             - "!**/internal/control/*.go"
+            - "!**/internal/install/*_test.go"
           allow:
             - westarete.com/catalog/internal/model$
           deny:
             - pkg: westarete.com/catalog/internal
               desc: components share only internal/model; the daemon combines them
+        # install writes the settings files and settings reads them. Only
+        # install's tests may import settings, to check that what setup
+        # writes reads back unchanged through the daemon's own parser.
+        install-tests:
+          list-mode: lax
+          files:
+            - "**/internal/install/*_test.go"
+          allow:
+            - westarete.com/catalog/internal/model$
+            - westarete.com/catalog/internal/settings$
+          deny:
+            - pkg: westarete.com/catalog/internal
+              desc: install's tests may use only internal/model and internal/settings
         publish:
           list-mode: lax
           files:

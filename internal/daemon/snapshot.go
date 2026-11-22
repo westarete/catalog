@@ -11,7 +11,7 @@ import (
 )
 
 // noProvider is why the daemon isn't summarizing when it has no API key.
-const noProvider = "no API key loaded from global.toml"
+const noProvider = "no API key loaded from keys.toml"
 
 // Snapshot returns the status Run or Once published last, or a zero Snapshot
 // before either starts. Any goroutine may call it.

@@ -48,7 +48,7 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if !*agentOnly {
 		in := bufio.NewReader(interruptible{ctx, stdin})
 		prompt := install.Prompt{In: in, Out: stdout, ReadKey: keyReader(ctx, stdin, in), Home: home}
-		if err := install.AskSettings(prompt, filepath.Join(stateDir, settings.GlobalFile)); err != nil {
+		if err := install.AskSettings(prompt, filepath.Join(stateDir, settings.GlobalFile), filepath.Join(stateDir, settings.KeysFile)); err != nil {
 			return interrupted(ctx, err)
 		}
 	}
@@ -163,16 +163,31 @@ func readHiddenKey(ctx context.Context, fd int) (string, error) {
 	}
 }
 
-// settingsState reports on global.toml in stateDir for status: whether it
-// exists, holds an API key, or can't be read. It never returns the key.
-func settingsState(stateDir string) install.Settings {
+// settingsState reports on global.toml and keys.toml in stateDir for
+// status: whether each exists or can't be read, and whether keys.toml has
+// the key global.toml asks for. It never returns a key or its name.
+func settingsState(stateDir string) (install.Settings, install.Keys) {
 	path := filepath.Join(stateDir, settings.GlobalFile)
+	// A global.toml that doesn't load gives the zero Global, whose KeyName
+	// is DefaultKeyName.
 	g, err := settings.ReadGlobalFile(path)
+	s := install.Settings{Path: path, Found: !errors.Is(err, fs.ErrNotExist)}
+	if s.Found {
+		s.Err = err
+	}
+	return s, keysState(stateDir, g.KeyName())
+}
+
+// keysState reports on keys.toml in stateDir for status, and whether it has
+// the key called name.
+func keysState(stateDir, name string) install.Keys {
+	path := filepath.Join(stateDir, settings.KeysFile)
+	keys, err := settings.ReadKeysFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return install.Settings{Path: path}
+		return install.Keys{Path: path}
 	}
 	if err != nil {
-		return install.Settings{Path: path, Found: true, Err: err}
+		return install.Keys{Path: path, Found: true, Err: err}
 	}
-	return install.Settings{Path: path, Found: true, HasKey: g.APIKey != ""}
+	return install.Keys{Path: path, Found: true, HasKey: keys[name] != ""}
 }

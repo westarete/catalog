@@ -35,12 +35,20 @@ type Daemon struct {
 	// GlobalPath, if set, names the global.toml that each crawl rereads
 	// first, so edits take effect without a restart.
 	GlobalPath string
-	// NewProvider builds a new Provider when a reread global.toml changes the
-	// API key or the model. It must be set if GlobalPath is.
+	// KeysPath names the keys.toml that each crawl rereads the API key from,
+	// after global.toml. It must be set if GlobalPath is.
+	KeysPath string
+	// NewProvider builds a new Provider when a reread global.toml or
+	// keys.toml changes the API key or the model. It must be set if
+	// GlobalPath is.
 	NewProvider func(apiKey, model string) models.Provider
 	// Log receives the errors Run can't journal or act on, such as a failed
 	// Store. If it's nil, Run drops them.
 	Log *log.Logger
+
+	// apiKey is the key the Provider was built with, from keys.toml. It
+	// stays in memory only: no journal entry, error, or status line holds it.
+	apiKey string
 
 	// crawled lists the catalogs the last crawl recorded, which are the
 	// catalogs Work summarizes files in.

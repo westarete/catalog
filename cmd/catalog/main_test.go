@@ -65,22 +65,46 @@ func TestOnceWithoutGlobalConfig(t *testing.T) {
 	}
 }
 
-func TestOnceWithoutAPIKey(t *testing.T) {
-	dir := stateDir(t)
-	writeGlobal(t, dir, "model = \"x\"\n")
+// --once stops before it opens the Store unless keys.toml holds the key
+// global.toml asks for, and its message never repeats a name or a key.
+func TestOnceRefusesWithoutKey(t *testing.T) {
+	for name, c := range map[string]struct {
+		global, keys string
+		keysMode     os.FileMode
+		want         string
+	}{
+		"no keys.toml":           {"", "", 0, "no API keys file at "},
+		"world-accessible":       {"", `default = "sk-secret"`, 0o604, "world-accessible"},
+		"no default key":         {"", `other = "sk-secret"`, 0o600, "has no key under the name global.toml asks for"},
+		"no key under that name": {`key = "sk-pasted"`, `default = "sk-secret"`, 0o600, "has no key under the name global.toml asks for"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := stateDir(t)
+			writeGlobal(t, dir, c.global)
+			if c.keysMode != 0 {
+				writeKeys(t, dir, c.keys)
+				if err := os.Chmod(filepath.Join(dir, "keys.toml"), c.keysMode); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-	code, out := runCatalog("daemon", "--once", t.TempDir())
+			code, out := runCatalog("daemon", "--once", t.TempDir())
 
-	if code == 0 || !strings.Contains(out, "api_key") {
-		t.Errorf("code %d, output:\n%s", code, out)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "store.db")); !os.IsNotExist(err) {
-		t.Errorf("store.db created before the key was checked: %v", err)
+			if code == 0 || !strings.Contains(out, filepath.Join(dir, "keys.toml")) || !strings.Contains(out, c.want) {
+				t.Errorf("code %d, output:\n%s\nwant keys.toml's path and %q", code, out, c.want)
+			}
+			if strings.Contains(out, "sk-") {
+				t.Errorf("output names a key:\n%s", out)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "store.db")); !os.IsNotExist(err) {
+				t.Errorf("store.db created before the key was checked: %v", err)
+			}
+		})
 	}
 }
 
 func TestOnceWithBadGlobalConfig(t *testing.T) {
-	writeGlobal(t, stateDir(t), "api_key = [[[")
+	writeSettings(t, stateDir(t), "model = [[[", "")
 
 	if code, out := runCatalog("daemon", "--once", t.TempDir()); code == 0 || !strings.Contains(out, "global.toml") {
 		t.Errorf("code %d, output:\n%s", code, out)
@@ -110,21 +134,41 @@ func TestUsageErrors(t *testing.T) {
 	}
 }
 
+// writeSettings writes global.toml and keys.toml in dir.
+func writeSettings(t *testing.T, dir, global, keys string) {
+	t.Helper()
+	writeGlobal(t, dir, global)
+	writeKeys(t, dir, keys)
+}
+
 func writeGlobal(t *testing.T, dir, text string) {
+	t.Helper()
+	writeStateFile(t, dir, "global.toml", text)
+}
+
+func writeKeys(t *testing.T, dir, text string) {
+	t.Helper()
+	writeStateFile(t, dir, "keys.toml", text)
+}
+
+func writeStateFile(t *testing.T, dir, name, text string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "global.toml"), []byte(text), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
+
+// testKeys is a keys.toml with a default key.
+const testKeys = `default = "test-key"`
 
 // A folder with no catalog has nothing to summarize, so this run makes no
 // model call. It's most likely the wrong folder, so the run fails.
 func TestOnceWithoutCatalog(t *testing.T) {
 	dir := stateDir(t)
-	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	writeSettings(t, dir, "", testKeys)
 	folder := t.TempDir()
 
 	code, stdout, stderr := runCatalogOut(context.Background(), "daemon", "--once", folder)
@@ -138,7 +182,7 @@ func TestOnceWithoutCatalog(t *testing.T) {
 }
 
 func TestOnceReportsUnreadableFolder(t *testing.T) {
-	writeGlobal(t, stateDir(t), "api_key = \"test-key\"\n")
+	writeSettings(t, stateDir(t), "", testKeys)
 	folder := filepath.Join(t.TempDir(), "missing")
 
 	code, stdout, stderr := runCatalogOut(context.Background(), "daemon", "--once", folder)
@@ -151,7 +195,7 @@ func TestOnceReportsUnreadableFolder(t *testing.T) {
 // The folder may be relative to where the command runs. The catalog here has
 // no files, so this run makes no model call.
 func TestOnceWithRelativeFolder(t *testing.T) {
-	writeGlobal(t, stateDir(t), "api_key = \"test-key\"\n")
+	writeSettings(t, stateDir(t), "", testKeys)
 	folder := t.TempDir()
 	if err := os.Mkdir(filepath.Join(folder, ".catalog"), 0o755); err != nil {
 		t.Fatal(err)
@@ -169,7 +213,7 @@ func TestOnceWithRelativeFolder(t *testing.T) {
 
 func TestOnceWithUnopenableStore(t *testing.T) {
 	dir := stateDir(t)
-	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	writeSettings(t, dir, "", testKeys)
 	if err := os.Mkdir(filepath.Join(dir, "store.db"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +250,7 @@ func TestDaemonWithoutGlobalConfig(t *testing.T) {
 // If the daemon can't listen for status, it says so and goes on working.
 func TestDaemonWithoutSocket(t *testing.T) {
 	dir := stateDir(t)
-	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	writeSettings(t, dir, "", testKeys)
 	if err := os.WriteFile(filepath.Join(dir, "control.sock"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -219,12 +263,13 @@ func TestDaemonWithoutSocket(t *testing.T) {
 }
 
 // installLines is what status prints about the install in a home with no
-// settings file, with agent saying what the first line says.
+// settings files, with agent saying what the first line says.
 func installLines(t *testing.T, agent string) string {
 	t.Helper()
 	home := os.Getenv("HOME")
 	return "Launch agent: " + agent + "\n" +
 		"Settings: " + home + "/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
+		"Keys: " + home + "/Library/Application Support/com.westarete.catalog/keys.toml (not found; run catalog setup)\n" +
 		"Log: " + home + "/Library/Logs/catalog.log\n"
 }
 
@@ -300,7 +345,7 @@ func TestStatusOfRunningDaemon(t *testing.T) {
 
 func TestDaemonWithUnopenableStore(t *testing.T) {
 	dir := stateDir(t)
-	writeGlobal(t, dir, "api_key = \"test-key\"\n")
+	writeSettings(t, dir, "", testKeys)
 	if err := os.Mkdir(filepath.Join(dir, "store.db"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +366,7 @@ func TestDaemonCrawlsWatchedFolders(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(watched, "a.md"), []byte("first line\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	writeGlobal(t, dir, fmt.Sprintf("api_key = \"test-key\"\n[[watch]]\nfolder = %q\n", watched))
+	writeSettings(t, dir, fmt.Sprintf("[[watch]]\nfolder = %q\n", watched), testKeys)
 
 	if code, out := runCatalogIn(stopped(), "daemon"); code != 0 {
 		t.Fatalf("code %d, output:\n%s", code, out)
@@ -344,7 +389,7 @@ func TestDaemonWhenAnotherIsRunning(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(watched, ".catalog"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeGlobal(t, dir, fmt.Sprintf("api_key = \"test-key\"\n[[watch]]\nfolder = %q\n", watched))
+	writeSettings(t, dir, fmt.Sprintf("[[watch]]\nfolder = %q\n", watched), testKeys)
 	socket := filepath.Join(dir, "control.sock")
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
@@ -382,9 +427,7 @@ func TestStateFolderOnlyOwnerCanRead(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "global.toml"), []byte(`api_key = "test"`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeSettings(t, dir, "", testKeys)
 
 	runCatalog("daemon", "--once", t.TempDir())
 
@@ -478,11 +521,12 @@ func TestSetupWritesSettingsAndLoadsAgent(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	global := filepath.Join(dir, "global.toml")
-	assertMode(t, global, 0o600)
-	data, err := os.ReadFile(global)
+	assertMode(t, filepath.Join(dir, "global.toml"), 0o600)
+	keys := filepath.Join(dir, "keys.toml")
+	assertMode(t, keys, 0o600)
+	data, err := os.ReadFile(keys)
 	if err != nil || !strings.Contains(string(data), "sk-test") {
-		t.Errorf("global.toml = %q, %v; want the key", data, err)
+		t.Errorf("keys.toml = %q, %v; want the key", data, err)
 	}
 	assertMode(t, plistOf(t), 0o600)
 	plist, err := os.ReadFile(plistOf(t))
@@ -512,13 +556,13 @@ func TestSetupSettingsLoadForTheDaemon(t *testing.T) {
 		t.Fatalf("code %d", code)
 	}
 
-	g, err := loadGlobalFile(dir)
+	g, key, err := loadSettings(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []string{filepath.Join(homeOf(t), "src")}
-	if g.APIKey != "sk-test" || len(g.Watch) != 1 || g.Watch[0] != want[0] {
-		t.Errorf("loadGlobalFile = key %q, watch %v; want sk-test and %v", g.APIKey, g.Watch, want)
+	if key != "sk-test" || len(g.Watch) != 1 || g.Watch[0] != want[0] {
+		t.Errorf("loadSettings = key %q, watch %v; want sk-test and %v", key, g.Watch, want)
 	}
 }
 
@@ -539,8 +583,10 @@ func TestSetupAgentOnlyReadsNothing(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "global.toml")); !os.IsNotExist(err) {
-		t.Errorf("global.toml: %v; want it not created", err)
+	for _, name := range []string{"global.toml", "keys.toml"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Errorf("%s: %v; want it not created", name, err)
+		}
 	}
 	if _, err := os.Stat(plistOf(t)); err != nil {
 		t.Errorf("plist: %v", err)
@@ -550,18 +596,20 @@ func TestSetupAgentOnlyReadsNothing(t *testing.T) {
 func TestSetupWithExistingSettings(t *testing.T) {
 	dir := stateDir(t)
 	onMacForTest(t, true)
-	const text = "api_key = \"old\"\n"
-	writeGlobal(t, dir, text)
+	const global, keys = "model = \"old\"\n", "default = \"old\"\n"
+	writeSettings(t, dir, global, keys)
 
 	code, stdout, _ := runCatalogWith(context.Background(), failingReader{t}, "setup")
 
 	if code != 0 {
 		t.Fatalf("code %d, stdout:\n%s", code, stdout)
 	}
-	if data, _ := os.ReadFile(filepath.Join(dir, "global.toml")); string(data) != text {
-		t.Errorf("global.toml = %q, want it unchanged", data)
+	for name, text := range map[string]string{"global.toml": global, "keys.toml": keys} {
+		if data, _ := os.ReadFile(filepath.Join(dir, name)); string(data) != text {
+			t.Errorf("%s = %q, want it unchanged", name, data)
+		}
 	}
-	if !strings.Contains(stdout, "Your settings are already in ") {
+	if !strings.Contains(stdout, "Your settings are already in ") || !strings.Contains(stdout, "Your API keys are already in ") {
 		t.Errorf("stdout:\n%s", stdout)
 	}
 }
@@ -648,8 +696,10 @@ func TestSetupReportsReadError(t *testing.T) {
 	if code != 1 || !strings.HasPrefix(stderr, "catalog: ") {
 		t.Errorf("code %d, stderr %q", code, stderr)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "global.toml")); !os.IsNotExist(err) {
-		t.Errorf("global.toml: %v; want it not written", err)
+	for _, name := range []string{"global.toml", "keys.toml"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Errorf("%s: %v; want it not written", name, err)
+		}
 	}
 	if strings.Contains(stderr, "sk-test") {
 		t.Error("the API key appeared in stderr")
@@ -673,17 +723,18 @@ func TestSetupStateFolderPrivate(t *testing.T) {
 	}
 	assertMode(t, dir, 0o700)
 	assertMode(t, filepath.Join(dir, "global.toml"), 0o600)
+	assertMode(t, filepath.Join(dir, "keys.toml"), 0o600)
 }
 
-// Status never shows an API key, even from a file it can't parse.
+// Status never shows an API key, even from files it can't parse.
 func TestStatusNeverShowsKeyFromBrokenSettings(t *testing.T) {
 	dir := stateDir(t)
 	onMacForTest(t, true)
-	writeGlobal(t, dir, "api_key = \"sk-secret\"\nthis line doesn't parse\n")
+	writeSettings(t, dir, "key = \"sk-secret\"\nthis line doesn't parse\n", "default = \"sk-secret\"\nthis line doesn't parse\n")
 
 	_, stdout, stderr := runCatalogOut(context.Background(), "status")
 
-	if !strings.Contains(stdout, "(can't be read:") {
+	if strings.Count(stdout, "(can't be read:") != 2 {
 		t.Errorf("stdout:\n%s", stdout)
 	}
 	if strings.Contains(stdout, "sk-secret") || strings.Contains(stderr, "sk-secret") {
@@ -691,33 +742,59 @@ func TestStatusNeverShowsKeyFromBrokenSettings(t *testing.T) {
 	}
 }
 
+// The Keys line says whether keys.toml has the key global.toml asks for,
+// and never names that key.
 func TestStatusSaysWhetherKeyIsSet(t *testing.T) {
 	dir := stateDir(t)
 	onMacForTest(t, false)
-	for text, want := range map[string]string{
-		"api_key = \"k\"\n": "(API key set)",
-		"model = \"x\"\n":   "(no API key)",
+	keys := filepath.Join(dir, "keys.toml")
+	for _, c := range []struct{ global, keys, want string }{
+		{"", `default = "sk-secret"`, keys + " (key set)"},
+		{`key = "acme"`, `acme = "sk-secret"`, keys + " (key set)"},
+		{`key = "acme"`, `default = "sk-secret"`, keys + " (no key)"},
+		{"", `acme = "sk-secret"`, keys + " (no key)"},
+		{"model = [[[", `default = "sk-secret"`, keys + " (key set)"},
 	} {
-		writeGlobal(t, dir, text)
+		writeSettings(t, dir, c.global, c.keys)
 		_, stdout, _ := runCatalogOut(context.Background(), "status")
-		if !strings.Contains(stdout, want) || strings.Contains(stdout, "Launch agent:") {
-			t.Errorf("settings %q: stdout:\n%s\nwant %s and no launch agent line", text, stdout, want)
+		if !strings.Contains(stdout, "Keys: "+c.want+"\n") || strings.Contains(stdout, "Launch agent:") {
+			t.Errorf("global %q, keys %q: stdout:\n%s\nwant Keys: %s and no launch agent line", c.global, c.keys, stdout, c.want)
 		}
+		if strings.Contains(stdout, "sk-secret") || strings.Contains(stdout, "acme") {
+			t.Errorf("global %q, keys %q: status named a key:\n%s", c.global, c.keys, stdout)
+		}
+	}
+}
+
+func TestStatusSaysSettingsAreValid(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, false)
+	writeSettings(t, dir, `model = "x"`, testKeys)
+
+	_, stdout, _ := runCatalogOut(context.Background(), "status")
+
+	if want := "Settings: " + filepath.Join(dir, "global.toml") + " (valid)\n"; !strings.Contains(stdout, want) {
+		t.Errorf("stdout:\n%s\nwant %q", stdout, want)
 	}
 }
 
 func TestSettingsStateReadError(t *testing.T) {
 	dir := t.TempDir()
-	// A folder where the file should be makes the read fail with something
+	// A folder where a file should be makes the read fail with something
 	// other than "not exist".
-	if err := os.Mkdir(filepath.Join(dir, "global.toml"), 0o700); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"global.toml", "keys.toml"} {
+		if err := os.Mkdir(filepath.Join(dir, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	s := settingsState(dir)
+	s, k := settingsState(dir)
 
-	if !s.Found || s.Err == nil || s.HasKey {
-		t.Errorf("settingsState = %+v; want Found with an error", s)
+	if !s.Found || s.Err == nil {
+		t.Errorf("settings = %+v; want Found with an error", s)
+	}
+	if !k.Found || k.Err == nil || k.HasKey {
+		t.Errorf("keys = %+v; want Found with an error", k)
 	}
 }
 
@@ -762,8 +839,10 @@ func TestSetupStopsWhenInterrupted(t *testing.T) {
 			if strings.Contains(stdout+stderr, "sk-test") {
 				t.Error("the API key appeared in the output")
 			}
-			if _, err := os.Stat(filepath.Join(dir, "global.toml")); !os.IsNotExist(err) {
-				t.Errorf("global.toml: %v; want none", err)
+			for _, name := range []string{"global.toml", "keys.toml"} {
+				if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+					t.Errorf("%s: %v; want none", name, err)
+				}
 			}
 			if _, err := os.Stat(plistOf(t)); !os.IsNotExist(err) {
 				t.Errorf("plist: %v; want none", err)
@@ -777,7 +856,7 @@ func TestSetupStopsWhenInterrupted(t *testing.T) {
 
 func TestOnceRefusesWorldAccessibleGlobal(t *testing.T) {
 	dir := stateDir(t)
-	writeGlobal(t, dir, `api_key = "sk-secret"`)
+	writeSettings(t, dir, `key = "sk-secret"`, `default = "sk-secret"`)
 	if err := os.Chmod(filepath.Join(dir, "global.toml"), 0o604); err != nil {
 		t.Fatal(err)
 	}
@@ -795,14 +874,29 @@ func TestOnceRefusesWorldAccessibleGlobal(t *testing.T) {
 func TestStatusSaysGlobalIsWorldAccessible(t *testing.T) {
 	dir := stateDir(t)
 	onMacForTest(t, false)
-	writeGlobal(t, dir, `api_key = "sk-secret"`)
+	writeGlobal(t, dir, `key = "sk-secret"`)
 	if err := os.Chmod(filepath.Join(dir, "global.toml"), 0o602); err != nil {
 		t.Fatal(err)
 	}
 
 	_, stdout, _ := runCatalogOut(context.Background(), "status")
 
-	if !strings.Contains(stdout, "(can't be read: world-accessible") || strings.Contains(stdout, "API key set") {
+	if !strings.Contains(stdout, "(can't be read: world-accessible") || strings.Contains(stdout, "sk-secret") {
+		t.Errorf("stdout:\n%s", stdout)
+	}
+}
+
+func TestStatusSaysKeysIsWorldAccessible(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, false)
+	writeSettings(t, dir, "", `default = "sk-secret"`)
+	if err := os.Chmod(filepath.Join(dir, "keys.toml"), 0o604); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stdout, _ := runCatalogOut(context.Background(), "status")
+
+	if !strings.Contains(stdout, "keys.toml (can't be read: world-accessible") || strings.Contains(stdout, "sk-secret") {
 		t.Errorf("stdout:\n%s", stdout)
 	}
 }

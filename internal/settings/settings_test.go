@@ -35,7 +35,7 @@ func TestParseGlobalDefaults(t *testing.T) {
 
 func TestParseGlobalKeepsSetValues(t *testing.T) {
 	g, err := ParseGlobal([]byte(`
-api_key = "sk-test"
+key = "acme"
 model = "other-model"
 enumerate = ["a"]
 ignore = []
@@ -43,7 +43,7 @@ ignore = []
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.APIKey != "sk-test" || g.Model != "other-model" {
+	if g.Key != "acme" || g.KeyName() != "acme" || g.Model != "other-model" {
 		t.Errorf("got %+v", g)
 	}
 	if !reflect.DeepEqual(g.Enumerate, []string{"a"}) {
@@ -81,15 +81,36 @@ folder = "~other/x"
 	}
 }
 
+// With no key, or an empty one, the daemon uses the key named default.
+func TestKeyNameDefaults(t *testing.T) {
+	for _, text := range []string{"", `key = ""`} {
+		g, err := ParseGlobal([]byte(text))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := g.KeyName(); got != DefaultKeyName {
+			t.Errorf("%q: KeyName = %q, want %q", text, got, DefaultKeyName)
+		}
+	}
+}
+
+// key is a name global.toml defines, so an error may name it.
+func TestParseGlobalErrorNamesKey(t *testing.T) {
+	_, err := ParseGlobal([]byte("key = 5"))
+	if err == nil || !strings.Contains(err.Error(), `last key "key"`) {
+		t.Errorf("err = %v; want one naming key", err)
+	}
+}
+
 func TestParseGlobalMalformed(t *testing.T) {
 	if _, err := ParseGlobal([]byte("model = ")); err == nil {
 		t.Error("want error")
 	}
 }
 
-// global.toml holds the API key, and a parse error reaches the journal, the
-// log, and catalog status, so the error must name where the problem is
-// without quoting any of the file's values.
+// A person may paste an API key into global.toml, and a parse error reaches
+// the journal, the log, and catalog status, so the error must name where the
+// problem is without quoting any of the file's values.
 func TestParseGlobalErrorQuotesNoValue(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -98,8 +119,9 @@ func TestParseGlobalErrorQuotesNoValue(t *testing.T) {
 		{"api_key = secretvalue123", "line 1"},
 		{"api_key = sk-secret-abc", "line 1"},
 		{"api_key = \"secret-abc", "line 1"},
-		{"api_key = [\"secret\"]", "line 1"},
 		{"model = \"m\"\napi_key = secretvalue123", "line 2"},
+		{"key = secretvalue123", "line 1"},
+		{"key = [\"secret\"]", "line 1"},
 	}
 	for _, c := range cases {
 		_, err := ParseGlobal([]byte(c.in))
@@ -255,24 +277,24 @@ func writeWithMode(t *testing.T, text string, mode os.FileMode) string {
 // stop ReadGlobalFile.
 func TestReadGlobalFileAcceptsOwnerAndGroup(t *testing.T) {
 	for _, mode := range []os.FileMode{0o600, 0o400, 0o640, 0o660} {
-		path := writeWithMode(t, `api_key = "sk-secret"`, mode)
+		path := writeWithMode(t, `key = "sk-secret"`, mode)
 		g, err := ReadGlobalFile(path)
-		if err != nil || g.APIKey != "sk-secret" {
-			t.Errorf("mode %v: ReadGlobalFile = key %q, %v; want sk-secret", mode, g.APIKey, err)
+		if err != nil || g.Key != "sk-secret" {
+			t.Errorf("mode %v: ReadGlobalFile = key %q, %v; want sk-secret", mode, g.Key, err)
 		}
 	}
 }
 
 func TestReadGlobalFileRefusesWorldAccessible(t *testing.T) {
 	for _, mode := range []os.FileMode{0o604, 0o602, 0o601, 0o644, 0o666, 0o607} {
-		path := writeWithMode(t, `api_key = "sk-secret"`, mode)
+		path := writeWithMode(t, `key = "sk-secret"`, mode)
 		g, err := ReadGlobalFile(path)
 		if !errors.Is(err, ErrWorldAccessible) {
 			t.Errorf("mode %v: err = %v; want ErrWorldAccessible", mode, err)
 			continue
 		}
-		if g.APIKey != "" {
-			t.Errorf("mode %v: returned key %q with the error", mode, g.APIKey)
+		if g.Key != "" {
+			t.Errorf("mode %v: returned key %q with the error", mode, g.Key)
 		}
 		if msg := err.Error(); strings.Contains(msg, "sk-secret") || !strings.Contains(msg, mode.String()) {
 			t.Errorf("mode %v: error %q; want the mode and no key", mode, msg)
@@ -288,7 +310,7 @@ func TestReadGlobalFileMissing(t *testing.T) {
 }
 
 func TestReadGlobalFileParseErrorQuotesNoValue(t *testing.T) {
-	path := writeWithMode(t, "api_key = sk-secret", 0o600)
+	path := writeWithMode(t, "key = sk-secret", 0o600)
 	_, err := ReadGlobalFile(path)
 	if err == nil || strings.Contains(err.Error(), "sk-secret") {
 		t.Errorf("err = %v; want a parse error without the key", err)

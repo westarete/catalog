@@ -197,12 +197,14 @@ func TestRunPicksUpNewCatalog(t *testing.T) {
 }
 
 // useGlobal makes the daemon reread its settings from a global.toml that
-// watches root and adds extra, and has NewProvider record each provider it
-// builds and hand back p.
+// watches root and adds extra, and its key from a keys.toml beside it, and
+// has NewProvider record each provider it builds and hand back p.
 func useGlobal(t *testing.T, d *Daemon, p *fakeProvider, root, extra string) *[]string {
 	t.Helper()
-	d.GlobalPath = filepath.Join(t.TempDir(), "global.toml")
-	d.Global.APIKey = "key-1"
+	dir := t.TempDir()
+	d.GlobalPath = filepath.Join(dir, "global.toml")
+	d.KeysPath = filepath.Join(dir, "keys.toml")
+	d.apiKey = "key-1"
 	built := &[]string{}
 	d.NewProvider = func(apiKey, model string) models.Provider {
 		*built = append(*built, apiKey+" "+model)
@@ -212,11 +214,103 @@ func useGlobal(t *testing.T, d *Daemon, p *fakeProvider, root, extra string) *[]
 	return built
 }
 
+// writeGlobal writes a global.toml that watches root and adds extra, and a
+// keys.toml whose default key is key-1.
 func writeGlobal(t *testing.T, d *Daemon, root, extra string) {
 	t.Helper()
-	text := fmt.Sprintf("api_key = \"key-1\"\n%s\n[[watch]]\nfolder = %q\n", extra, root)
-	if err := os.WriteFile(d.GlobalPath, []byte(text), 0o600); err != nil {
+	writeSettings(t, d.GlobalPath, fmt.Sprintf("%s\n[[watch]]\nfolder = %q\n", extra, root))
+	writeSettings(t, d.KeysPath, `default = "key-1"`)
+}
+
+func writeSettings(t *testing.T, path, text string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(text+"\n"), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// replaceKey changes key-1 to key-2 in keys.toml.
+func replaceKey(t *testing.T, d *Daemon) {
+	t.Helper()
+	writeSettings(t, d.KeysPath, strings.Replace(mustRead(t, d.KeysPath), "key-1", "key-2", 1))
+}
+
+func TestRunUsesKeyNamedInGlobal(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	built := useGlobal(t, d, p, root, `key = "acme"`)
+	writeSettings(t, d.KeysPath, "default = \"key-1\"\nacme = \"key-2\"")
+
+	step(t, d, start)
+	step(t, d, start.Add(quiet))
+
+	if fmt.Sprint(*built) != "[key-2 claude-haiku-5-5]" {
+		t.Errorf("built %v, want one provider with acme's key", *built)
+	}
+	if p.calls() != 1 {
+		t.Errorf("calls = %d, want 1", p.calls())
+	}
+}
+
+// A person may paste the key itself into global.toml's key. The daemon then
+// finds no key by that name, and says so without repeating what was pasted.
+func TestRunMissingKeyNameIsConfigError(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	built := useGlobal(t, d, p, root, `key = "sk-pasted"`)
+
+	step(t, d, start)
+	step(t, d, start.Add(quiet))
+
+	if p.calls() != 0 || d.Provider != nil || len(*built) != 0 {
+		t.Errorf("calls = %d, provider %v, built %v; want none", p.calls(), d.Provider, *built)
+	}
+	errs := d.Snapshot().ConfigErrors
+	if len(errs) != 1 || !strings.HasPrefix(errs[0], d.KeysPath+": ") {
+		t.Errorf("config errors = %q, want one for keys.toml", errs)
+	}
+	events := eventsOfKind(t, d, journal.KindConfigError)
+	if len(events) != 1 || events[0].Rel != "keys.toml" {
+		t.Errorf("journaled %+v, want one config error for keys.toml", events)
+	}
+	if strings.Contains(fmt.Sprint(errs), "sk-pasted") || strings.Contains(mustRead(t, d.JournalPath), "sk-pasted") {
+		t.Error("the pasted text reached status or the journal")
+	}
+}
+
+// A keys.toml that can't be read or doesn't parse leaves the daemon on the
+// key it loaded last, as a broken global.toml leaves it on the last
+// settings, and status reports the file.
+func TestRunKeepsLastKeyWhileKeysIsBroken(t *testing.T) {
+	for name, breakKeys := range map[string]func(path string) error{
+		"removed":       os.Remove,
+		"doesn't parse": func(path string) error { return os.WriteFile(path, []byte("default = [[["), 0o600) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			makeCatalog(t, root)
+			writeFile(t, root, "a.md", body("a"))
+			d, p := newDaemon(t, root)
+			built := useGlobal(t, d, p, root, "")
+			step(t, d, start)
+			if err := breakKeys(d.KeysPath); err != nil {
+				t.Fatal(err)
+			}
+
+			step(t, d, start.Add(quiet))
+
+			if p.calls() != 1 || len(*built) != 0 {
+				t.Errorf("calls = %d, built %v; want one call with the last key", p.calls(), *built)
+			}
+			errs := d.Snapshot().ConfigErrors
+			if len(errs) != 1 || !strings.HasPrefix(errs[0], d.KeysPath+": ") {
+				t.Errorf("config errors = %q, want one for keys.toml", errs)
+			}
+		})
 	}
 }
 
@@ -260,7 +354,7 @@ func TestRunFollowsNewWatchFolder(t *testing.T) {
 }
 
 // An unparsable global.toml leaves the daemon on the last settings that
-// loaded. (One with no api_key is used: see TestRunWithoutAPIKey.)
+// loaded.
 func TestRunKeepsLastGoodGlobal(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, root)
@@ -282,7 +376,7 @@ func TestRunKeepsLastGoodGlobal(t *testing.T) {
 	if strings.Contains(catalog, "b.txt") {
 		t.Errorf("fell back to the defaults:\n%s", catalog)
 	}
-	if d.Global.APIKey != "key-1" || d.Global.Model != "claude-haiku-5-5" {
+	if d.apiKey != "key-1" || d.Global.Model != "claude-haiku-5-5" {
 		t.Errorf("global = %+v, want the last good one", d.Global)
 	}
 	events := eventsOfKind(t, d, journal.KindConfigError)
@@ -333,10 +427,7 @@ func TestRunRebuildsProviderWhenKeyOrModelChanges(t *testing.T) {
 
 	writeGlobal(t, d, root, `model = "claude-other"`)
 	step(t, d, start.Add(time.Minute))
-	text := strings.Replace(mustRead(t, d.GlobalPath), "key-1", "key-2", 1)
-	if err := os.WriteFile(d.GlobalPath, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	replaceKey(t, d)
 	step(t, d, start.Add(quiet))
 
 	want := "[key-1 claude-other key-2 claude-other]"
@@ -516,10 +607,7 @@ func TestRunNewKeyEndsPause(t *testing.T) {
 		t.Fatalf("calls with the same key = %d, want 1", p.calls())
 	}
 
-	text := strings.Replace(mustRead(t, d.GlobalPath), "key-1", "key-2", 1)
-	if err := os.WriteFile(d.GlobalPath, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	replaceKey(t, d)
 	step(t, d, failedAt.Add(20*time.Second))
 
 	if p.calls() != 2 {

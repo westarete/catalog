@@ -21,15 +21,25 @@ const defaultModel = "claude-haiku-5-5"
 
 // Global holds the settings that apply to every catalog on this machine.
 type Global struct {
-	APIKey    string
+	// Key names the API key in keys.toml that the daemon uses. Empty means
+	// DefaultKeyName.
+	Key       string
 	Model     string
 	Enumerate []string
 	Ignore    []string
 	Watch     []string
 }
 
+// KeyName returns the name of the API key in keys.toml that g asks for.
+func (g Global) KeyName() string {
+	if g.Key == "" {
+		return DefaultKeyName
+	}
+	return g.Key
+}
+
 type globalFile struct {
-	APIKey    string    `toml:"api_key"`
+	Key       string    `toml:"key"`
 	Model     string    `toml:"model"`
 	Enumerate *[]string `toml:"enumerate"`
 	Ignore    *[]string `toml:"ignore"`
@@ -58,8 +68,9 @@ func StateDir() (string, error) {
 var decodeErrorPlace = regexp.MustCompile(`line (\d+) \(last key "([^"]*)"\)`)
 
 // globalParseError says where global.toml fails to parse without the
-// decoder's own message, which can quote part of a value such as the API
-// key. The error reaches the journal, the log, and catalog status.
+// decoder's own message, which can quote part of a value, such as an API key
+// pasted into the wrong file. The error reaches the journal, the log, and
+// catalog status.
 func globalParseError(err error) error {
 	if pe, ok := errors.AsType[toml.ParseError](err); ok {
 		return fmt.Errorf("parse %s: %s: not valid TOML", GlobalFile, errorPlace(pe.Position.Line, pe.LastKey))
@@ -74,7 +85,7 @@ func globalParseError(err error) error {
 // it is one of these, because a person can paste the API key as a bare key
 // and the decoder would report that key.
 var globalKeys = map[string]bool{
-	"api_key": true, "model": true, "enumerate": true, "ignore": true,
+	"key": true, "model": true, "enumerate": true, "ignore": true,
 	"watch": true, "folder": true, "watch.folder": true,
 }
 
@@ -86,17 +97,19 @@ func errorPlace(line any, key string) string {
 	return fmt.Sprintf("line %v", line)
 }
 
-// ErrWorldAccessible means global.toml has a world permission bit set: it is
-// world-readable, world-writable, or world-executable. It holds the API key,
-// so ReadGlobalFile won't use it. The group bits don't count: the owner may
-// share the file with a group on purpose.
+// ErrWorldAccessible means a settings file, global.toml or keys.toml, has a
+// world permission bit set: it is world-readable, world-writable, or
+// world-executable. keys.toml holds the API keys, and global.toml decides
+// which files go to the model service, so neither is used while anyone can
+// read or change it. The group bits don't count: the owner may share the
+// file with a group on purpose.
 var ErrWorldAccessible = errors.New("world-accessible")
 
 // worldBits are the world read, write, and execute bits of a file's mode.
 const worldBits = 0o007
 
 // ErrNotRegularFile means something other than a regular file, such as a
-// folder or a FIFO, is at global.toml's path.
+// folder or a FIFO, is at a settings file's path.
 var ErrNotRegularFile = errors.New("not a regular file")
 
 // ReadGlobalFile reads and parses the global.toml at path. It returns an error
@@ -147,7 +160,7 @@ func ParseGlobal(data []byte) (Global, error) {
 		return Global{}, globalParseError(err)
 	}
 	g := Global{
-		APIKey:    f.APIKey,
+		Key:       f.Key,
 		Model:     defaultModel,
 		Enumerate: []string{"**/*.csv", "**/*.md", "**/*.pdf", "**/*.txt"},
 		Ignore:    []string{"README.md", "**/CLAUDE.md", "**/AGENTS.md"},

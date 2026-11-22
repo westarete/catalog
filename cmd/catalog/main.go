@@ -113,7 +113,8 @@ func runStatus(stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "catalog: %v\n", err)
 		return exitFailed
 	}
-	_, _ = fmt.Fprintln(stdout, install.Describe(home, settingsState(stateDir), onMac))
+	globalState, keysState := settingsState(stateDir)
+	_, _ = fmt.Fprintln(stdout, install.Describe(home, globalState, keysState, onMac))
 	s, err := control.Ask(filepath.Join(stateDir, socketFile))
 	if errors.Is(err, control.ErrNotRunning) {
 		_, _ = fmt.Fprintln(stdout, "The catalog daemon isn't running.")
@@ -129,14 +130,14 @@ func runStatus(stdout, stderr io.Writer) int {
 
 // runOnce crawls folder as the only watched folder, summarizes every file
 // waiting in its catalogs, and prints what it found, as status would. It
-// stops at once if global.toml is missing or has no API key, and fails if it
-// finds no catalog.
+// stops at once unless global.toml loads and keys.toml has the key it asks
+// for, and fails if it finds no catalog.
 func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	stateDir, err := privateStateDir()
 	if err != nil {
 		return err
 	}
-	g, err := loadGlobalFile(stateDir)
+	g, key, err := loadSettings(stateDir)
 	if err != nil {
 		return err
 	}
@@ -151,7 +152,7 @@ func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	}
 	defer func() { _ = d.Store.Close() }()
 	d.Global = g
-	d.Provider = models.NewAnthropic(g.APIKey, g.Model)
+	d.Provider = models.NewAnthropic(key, g.Model)
 	err = d.Once(ctx, time.Now)
 	s := d.Snapshot()
 	_, _ = fmt.Fprint(stdout, control.Format(s))
@@ -184,6 +185,7 @@ func runLoop(ctx context.Context, stderr io.Writer) error {
 	}
 	defer func() { _ = d.Store.Close() }()
 	d.GlobalPath = filepath.Join(stateDir, settings.GlobalFile)
+	d.KeysPath = filepath.Join(stateDir, settings.KeysFile)
 	d.Log = log.New(stderr, "catalog: ", log.LstdFlags)
 
 	serving, stopServing := context.WithCancel(ctx)
@@ -244,18 +246,29 @@ func privateStateDir() (string, error) {
 	return dir, nil
 }
 
-// loadGlobalFile reads global.toml, which must exist and hold an API key.
-func loadGlobalFile(stateDir string) (settings.Global, error) {
-	path := filepath.Join(stateDir, settings.GlobalFile)
-	g, err := settings.ReadGlobalFile(path)
+// loadSettings reads global.toml and keys.toml in stateDir, and returns the
+// settings and the API key global.toml asks for. Both files must exist, and
+// keys.toml must have that key. No error names the key or quotes it.
+func loadSettings(stateDir string) (settings.Global, string, error) {
+	globalPath := filepath.Join(stateDir, settings.GlobalFile)
+	g, err := settings.ReadGlobalFile(globalPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return settings.Global{}, fmt.Errorf("no settings file at %s; create it with your api_key", path)
+		return settings.Global{}, "", fmt.Errorf("no settings file at %s; run catalog setup", globalPath)
 	}
 	if err != nil {
-		return settings.Global{}, fmt.Errorf("%s: %w", path, err)
+		return settings.Global{}, "", fmt.Errorf("%s: %w", globalPath, err)
 	}
-	if g.APIKey == "" {
-		return settings.Global{}, fmt.Errorf("%s has no api_key", path)
+	keysPath := filepath.Join(stateDir, settings.KeysFile)
+	keys, err := settings.ReadKeysFile(keysPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return settings.Global{}, "", fmt.Errorf("no API keys file at %s; run catalog setup", keysPath)
 	}
-	return g, nil
+	if err != nil {
+		return settings.Global{}, "", fmt.Errorf("%s: %w", keysPath, err)
+	}
+	key := keys[g.KeyName()]
+	if key == "" {
+		return settings.Global{}, "", fmt.Errorf("%s has no key under the name global.toml asks for", keysPath)
+	}
+	return g, key, nil
 }

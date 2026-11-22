@@ -70,20 +70,83 @@ var encodeSettings = func(w io.Writer, v any) error {
 }
 
 type globalSettings struct {
-	APIKey string        `toml:"api_key,omitempty"`
-	Watch  []watchFolder `toml:"watch"`
+	Watch []watchFolder `toml:"watch"`
 }
 
 type watchFolder struct {
 	Folder string `toml:"folder"`
 }
 
+// defaultKeyName is the name setup gives the API key in keys.toml, the one
+// the daemon uses when global.toml names none.
+const defaultKeyName = "default"
+
+// keysComment is all setup writes to keys.toml when the person skips the
+// key. The file then exists with a private mode, so a key added by hand
+// later is never in a file others can read.
+const keysComment = `# Your Anthropic API keys, one per line, by name. The daemon uses
+# the one named default unless global.toml names another with key.
+# default = "your-key"
+`
+
 // WriteGlobal creates the global settings file at path, readable only by
-// its owner, with the API key (if any) and a watch entry for each folder.
-// It never changes a file that exists; it returns an error wrapping
-// fs.ErrExist instead. It creates the file's folder, closed to other
-// accounts, if that is missing.
-func WriteGlobal(path, apiKey string, folders []string) error {
+// its owner, with a watch entry for each folder. It never changes a file
+// that exists; it returns an error wrapping fs.ErrExist instead. It creates
+// the file's folder, closed to other accounts, if that is missing.
+func WriteGlobal(path string, folders []string) error {
+	settings := globalSettings{}
+	for _, folder := range folders {
+		settings.Watch = append(settings.Watch, watchFolder{Folder: folder})
+	}
+	return createPrivateFile(path, func(w io.Writer) error {
+		return encodeSettings(w, settings)
+	})
+}
+
+// WriteKeys creates the API keys file at path, readable only by its owner,
+// with apiKey as the default key, or, if apiKey is empty, only a comment
+// that says how to add one. Like WriteGlobal, it never changes a file that
+// exists and creates a missing folder closed to other accounts.
+func WriteKeys(path, apiKey string) error {
+	return createPrivateFile(path, func(w io.Writer) error {
+		text := keysComment
+		if apiKey != "" {
+			text = defaultKeyName + " = " + tomlString(apiKey) + "\n"
+		}
+		_, err := io.WriteString(w, text)
+		return err
+	})
+}
+
+// tomlString returns s as a TOML basic string. It escapes the quotation
+// mark, the backslash, and the control characters TOML doesn't allow in a
+// basic string, and keeps every other byte as it is.
+func tomlString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for i := range len(s) {
+		c := s[i]
+		if c == '"' || c == '\\' {
+			b.WriteByte('\\')
+			b.WriteByte(c)
+			continue
+		}
+		if c < 0x20 || c == 0x7f {
+			fmt.Fprintf(&b, `\u%04X`, c)
+			continue
+		}
+		b.WriteByte(c)
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// createPrivateFile creates the file at path, readable only by its owner,
+// and fills it with write. It never changes a file that exists; it returns
+// an error wrapping fs.ErrExist instead. If write fails, it removes the
+// file. It creates the file's folder, closed to other accounts, if that is
+// missing.
+func createPrivateFile(path string, write func(io.Writer) error) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
@@ -101,12 +164,7 @@ func WriteGlobal(path, apiKey string, folders []string) error {
 	if err := f.Chmod(privateFileMode); err != nil {
 		return discard(err)
 	}
-	settings := globalSettings{APIKey: apiKey}
-	for _, folder := range folders {
-		settings.Watch = append(settings.Watch, watchFolder{Folder: folder})
-	}
-	// The key goes to this file on purpose; it is the only place it is kept.
-	if err := encodeSettings(f, settings); err != nil { //nolint:gosec // G117: the API key belongs in global.toml
+	if err := write(f); err != nil {
 		return discard(err)
 	}
 	if err := f.Close(); err != nil {
@@ -115,31 +173,89 @@ func WriteGlobal(path, apiKey string, folders []string) error {
 	return nil
 }
 
-// AskSettings asks for an API key and folders, then writes them to
-// globalPath. If globalPath exists, it says so and leaves it alone.
-func AskSettings(p Prompt, globalPath string) error {
-	if _, err := os.Stat(globalPath); err == nil {
-		_, _ = fmt.Fprintf(p.Out, "Your settings are already in %s. To change them, edit that file.\n", globalPath)
-		return nil
-	} else if !errors.Is(err, fs.ErrNotExist) {
+// AskSettings asks for what goes in whichever of keysPath and globalPath is
+// missing, an API key and then folders, and writes only those files. It says
+// which files exist and leaves them alone.
+func AskSettings(p Prompt, globalPath, keysPath string) error {
+	needGlobal, err := isMissing(globalPath)
+	if err != nil {
 		return err
 	}
+	needKeys, err := isMissing(keysPath)
+	if err != nil {
+		return err
+	}
+	if !needGlobal {
+		_, _ = fmt.Fprintf(p.Out, "Your settings are already in %s. To change them, edit that file.\n", globalPath)
+	}
+	if !needKeys {
+		_, _ = fmt.Fprintf(p.Out, "Your API keys are already in %s. To change them, edit that file.\n", keysPath)
+	}
 
+	var key string
+	if needKeys {
+		if key, err = askKey(p); err != nil {
+			return err
+		}
+	}
+	var folders []string
+	if needGlobal {
+		if folders, err = askFolders(p); err != nil {
+			return err
+		}
+	}
+
+	if needKeys {
+		if err := WriteKeys(keysPath, key); err != nil {
+			return err
+		}
+		if key != "" {
+			_, _ = fmt.Fprintf(p.Out, "Your API key is in %s, and only you can read that file.\n", keysPath)
+		} else {
+			_, _ = fmt.Fprintf(p.Out, "To add your API key later, set default in %s.\n", keysPath)
+		}
+	}
+	if needGlobal {
+		if err := WriteGlobal(globalPath, folders); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(p.Out, "Your settings are in %s, and only you can read that file.\n", globalPath)
+	}
+	return nil
+}
+
+// isMissing reports whether nothing is at path. A dangling link counts as
+// missing, so setup tries to create the file and reports the link.
+func isMissing(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	return false, err
+}
+
+// askKey asks for the API key and returns it trimmed, or empty if the
+// person skips it.
+func askKey(p Prompt) (string, error) {
 	_, _ = fmt.Fprint(p.Out, "Paste your Anthropic API key and press Return, or press Return to skip this step.\nAPI key: ")
 	key, err := p.ReadKey()
 	if err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("read API key: %w", err)
+		return "", fmt.Errorf("read API key: %w", err)
 	}
-	key = strings.TrimSpace(key)
 	// Echo is off in a terminal: the first newline ends the prompt line and
 	// the second leaves a blank line.
 	_, _ = fmt.Fprint(p.Out, "\n\n")
+	return strings.TrimSpace(key), nil
+}
 
+// askFolders asks for the folders to watch and warns about any that don't
+// exist yet.
+func askFolders(p Prompt) ([]string, error) {
 	_, _ = fmt.Fprint(p.Out, "The daemon will watch the folders you list. Don't list a folder that a cloud drive syncs, or Desktop, Documents, or Downloads.\n"+
 		"Enter one folder per line, then press Return on an empty line to finish. To watch only ~/src, press Return now.\n")
 	folders, err := ReadFolders(p.In, p.Out)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, folder := range folders {
 		if _, err := os.Stat(expandTilde(p.Home, folder)); errors.Is(err, fs.ErrNotExist) {
@@ -148,15 +264,7 @@ func AskSettings(p Prompt, globalPath string) error {
 	}
 	// The last empty Return was echoed, so this newline is a blank line.
 	_, _ = fmt.Fprintln(p.Out)
-
-	if err := WriteGlobal(globalPath, key, folders); err != nil {
-		return err
-	}
-	_, _ = fmt.Fprintf(p.Out, "Your settings are in %s, and only you can read that file.\n", globalPath)
-	if key == "" {
-		_, _ = fmt.Fprintln(p.Out, "To add your API key later, set api_key in that file.")
-	}
-	return nil
+	return folders, nil
 }
 
 // expandTilde replaces a leading ~ in path with home.
