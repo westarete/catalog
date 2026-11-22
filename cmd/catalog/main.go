@@ -157,7 +157,7 @@ func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	s := d.Snapshot()
 	_, _ = fmt.Fprint(stdout, control.Format(s))
 	if err == nil && len(s.Catalogs) == 0 {
-		err = fmt.Errorf("no catalog in %s: it can't be read, or nothing in it has a .catalog/ folder", abs)
+		err = fmt.Errorf("no catalog in %s: it can't be read, or nothing in it has a .catalog/config.toml file", abs)
 	}
 	return err
 }

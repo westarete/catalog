@@ -11,11 +11,14 @@ import (
 const (
 	catalogDir = ".catalog"
 	gitDir     = ".git"
+	configFile = "config.toml"
 )
 
 // FindCatalogs returns every directory in watched, "." included, that
-// contains a .catalog directory, as sorted slash paths. It never descends
-// into .git or .catalog.
+// contains a .catalog directory that holds a regular file named config.toml,
+// as sorted slash paths. A config.toml that is a symbolic link or a directory
+// doesn't count, and neither does a .catalog directory that can't be listed.
+// It never descends into .git or .catalog.
 func FindCatalogs(watched fs.FS) ([]string, error) {
 	var found []string
 	err := fs.WalkDir(watched, ".", func(p string, d fs.DirEntry, err error) error {
@@ -29,7 +32,9 @@ func FindCatalogs(watched fs.FS) ([]string, error) {
 		case gitDir:
 			return fs.SkipDir
 		case catalogDir:
-			found = append(found, path.Dir(p))
+			if hasConfig(watched, p) {
+				found = append(found, path.Dir(p))
+			}
 			return fs.SkipDir
 		}
 		return nil
@@ -39,6 +44,19 @@ func FindCatalogs(watched fs.FS) ([]string, error) {
 	}
 	slices.Sort(found)
 	return found, nil
+}
+
+// hasConfig reports whether the .catalog directory at dir holds a regular file
+// named config.toml. It reads the entry type from the listing, which reports a
+// symbolic link as a link without following it.
+func hasConfig(watched fs.FS, dir string) bool {
+	entries, err := fs.ReadDir(watched, dir)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(entries, func(e fs.DirEntry) bool {
+		return e.Name() == configFile && e.Type().IsRegular()
+	})
 }
 
 // Members returns the sorted slash paths of the regular files in catalog that

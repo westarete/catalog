@@ -121,7 +121,7 @@ These cases then exit with code 1:
   and writes the error to standard error.
 - The folder holds no catalog, whether because it can't be read or
   because nothing in it has a `.catalog/` folder. The error is
-  `catalog: no catalog in <absolute folder>: it can't be read, or nothing in it has a .catalog/ folder`,
+  `catalog: no catalog in <absolute folder>: it can't be read, or nothing in it has a .catalog/config.toml file`,
   and the report says `No catalogs found.`
 - The store or the journal fails.
 

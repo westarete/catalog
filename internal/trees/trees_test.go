@@ -1,6 +1,9 @@
 package trees
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"testing/fstest"
@@ -41,12 +44,14 @@ func TestMatch(t *testing.T) {
 
 func TestFindCatalogs(t *testing.T) {
 	watched := fstest.MapFS{
-		"a/.catalog/catalog.md":    {},
-		"a/b/.catalog/catalog.md":  {},
-		"a/.git/x/.catalog/x":      {},
-		"c/file.md":                {},
-		".catalog/catalog.md":      {},
-		"a/.catalog/.catalog/y.md": {},
+		"a/.catalog/config.toml":    {},
+		"a/b/.catalog/config.toml":  {},
+		"a/.git/x/.catalog/x":       {},
+		"c/file.md":                 {},
+		".catalog/config.toml":      {},
+		"a/.catalog/.catalog/y.md":  {},
+		"d/.catalog/catalog.md":     {},
+		"e/.catalog/config.toml/zz": {},
 	}
 	got, err := FindCatalogs(watched)
 	if err != nil {
@@ -56,6 +61,78 @@ func TestFindCatalogs(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("FindCatalogs = %v, want %v", got, want)
 	}
+}
+
+func TestFindCatalogsNeedsConfig(t *testing.T) {
+	watched := fstest.MapFS{"a/.catalog": {Mode: fs.ModeDir}}
+	got, err := FindCatalogs(watched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got)
+	}
+}
+
+func TestFindCatalogsNested(t *testing.T) {
+	watched := fstest.MapFS{
+		"a/.catalog/config.toml":     {},
+		"a/b/c/.catalog/config.toml": {},
+	}
+	got, err := FindCatalogs(watched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"a", "a/b/c"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("FindCatalogs = %v, want %v", got, want)
+	}
+}
+
+func TestFindCatalogsIgnoresLinkedConfig(t *testing.T) {
+	root := t.TempDir()
+	dot := filepath.Join(root, "a", ".catalog")
+	if err := os.MkdirAll(dot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "elsewhere.toml")
+	if err := os.WriteFile(target, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dot, "config.toml")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := FindCatalogs(os.DirFS(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got)
+	}
+}
+
+func TestFindCatalogsUnreadableCatalogDirIsNotACatalog(t *testing.T) {
+	watched := errorFS{MapFS: fstest.MapFS{"a/.catalog/config.toml": {}}, bad: "a/.catalog"}
+	got, err := FindCatalogs(watched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got)
+	}
+}
+
+// errorFS fails to list the directory named bad.
+type errorFS struct {
+	fstest.MapFS
+	bad string
+}
+
+func (e errorFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == e.bad {
+		return nil, fs.ErrPermission
+	}
+	return e.MapFS.ReadDir(name)
 }
 
 func TestFindCatalogsIgnoresCatalogFile(t *testing.T) {

@@ -87,11 +87,10 @@ func writeFile(t *testing.T, root, rel, content string) {
 	}
 }
 
+// makeCatalog marks dir as a catalog with an empty .catalog/config.toml.
 func makeCatalog(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(dir, ".catalog"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, dir, ".catalog/config.toml", "")
 }
 
 // chmod changes a path's mode and restores 0o755 when the test ends, so

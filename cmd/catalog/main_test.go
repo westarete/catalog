@@ -197,7 +197,10 @@ func TestOnceReportsUnreadableFolder(t *testing.T) {
 func TestOnceWithRelativeFolder(t *testing.T) {
 	writeSettings(t, stateDir(t), "", testKeys)
 	folder := t.TempDir()
-	if err := os.Mkdir(filepath.Join(folder, ".catalog"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(folder, ".catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, ".catalog", "config.toml"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(folder)
@@ -363,6 +366,9 @@ func TestDaemonCrawlsWatchedFolders(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(watched, ".catalog"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(watched, ".catalog", "config.toml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(watched, "a.md"), []byte("first line\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -387,6 +393,9 @@ func TestDaemonWhenAnotherIsRunning(t *testing.T) {
 	dir := stateDir(t)
 	watched := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(watched, ".catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(watched, ".catalog", "config.toml"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	writeSettings(t, dir, fmt.Sprintf("watch = [%q]\n", watched), testKeys)
