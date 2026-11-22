@@ -132,6 +132,11 @@ These cases then exit with code 1:
   because nothing in it has a `.catalog/config.toml` file. The error is
   `catalog: no catalog in <absolute folder>: it can't be read, or nothing in it has a .catalog/config.toml file`,
   and the report says `No catalogs found.`
+- The folder holds catalogs, but none of their `.catalog/config.toml`
+  files loads. The error is
+  `catalog: no catalog in <absolute folder> loaded; see the Config error lines in the report`,
+  and the report gives a `Config error` line for each catalog and says
+  `No catalogs found.`
 - The store or the journal fails.
 
 Otherwise it exits with code 0.

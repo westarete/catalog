@@ -182,6 +182,21 @@ func TestOnceWithoutCatalog(t *testing.T) {
 	}
 }
 
+// A catalog whose config.toml doesn't load is skipped, so the run finds no
+// catalog, and the error says why instead of saying there is none.
+func TestOnceWithBrokenCatalogConfig(t *testing.T) {
+	writeSettings(t, stateDir(t), "", testKeys)
+	folder := t.TempDir()
+	writeStateFile(t, filepath.Join(folder, ".catalog"), "config.toml", "include = [[[ garbage\n")
+
+	code, stdout, stderr := runCatalogOut(context.Background(), "daemon", "--once", folder)
+
+	want := "catalog: no catalog in " + folder + " loaded; see the Config error lines in the report\n"
+	if code != 1 || stderr != want || !strings.Contains(stdout, "Config error: "+folder+": ") {
+		t.Errorf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+}
+
 func TestOnceReportsUnreadableFolder(t *testing.T) {
 	writeSettings(t, stateDir(t), "", testKeys)
 	folder := filepath.Join(t.TempDir(), "missing")

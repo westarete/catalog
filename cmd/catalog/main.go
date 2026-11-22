@@ -134,7 +134,7 @@ func runStatus(stdout, stderr io.Writer) int {
 // runOnce crawls folder as the only watched folder, summarizes every file
 // waiting in its catalogs, and prints what it found, as status would. It
 // stops at once unless global.toml loads and keys.toml has the key it asks
-// for, and fails if it finds no catalog.
+// for, and fails if it finds no catalog or none of their configs load.
 func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	stateDir, err := privateStateDir()
 	if err != nil {
@@ -160,9 +160,19 @@ func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	s := d.Snapshot()
 	_, _ = fmt.Fprint(stdout, control.Format(s))
 	if err == nil && len(s.Catalogs) == 0 {
-		err = fmt.Errorf("no catalog in %s: it can't be read, or nothing in it has a .catalog/config.toml file", abs)
+		err = noCatalogError(abs, s.ConfigErrors)
 	}
 	return err
+}
+
+// noCatalogError says why a run found no catalog in folder. If a catalog's
+// config.toml failed to load, the report already says why in its Config
+// error lines.
+func noCatalogError(folder string, configErrors []string) error {
+	if len(configErrors) > 0 {
+		return fmt.Errorf("no catalog in %s loaded; see the Config error lines in the report", folder)
+	}
+	return fmt.Errorf("no catalog in %s: it can't be read, or nothing in it has a .catalog/config.toml file", folder)
 }
 
 // runLoop keeps the catalogs in the folders global.toml watches current,
