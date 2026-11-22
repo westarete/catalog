@@ -1,10 +1,10 @@
 # Files
 
-The daemon keeps its own files in one state folder and writes one file,
-`catalog.md`, into each catalog. This page lists every file and socket
-it creates, reads, or sends, where each one is, its mode, who can read
-it, and what it holds. For the commands that use them, see
-[commands](commands.md); for the settings files, see
+The daemon and `catalog setup` keep their files in one state folder, and
+the daemon writes one file, `catalog.md`, into each catalog. This page
+lists every file and socket it creates, reads, or sends, where each one
+is, its mode, who can read it, and what it holds. For the commands that
+use them, see [commands](commands.md); for the settings files, see
 [configuration](configuration.md).
 
 All paths below are for the account that runs the daemon. A file with
@@ -15,7 +15,7 @@ open to its owner only.
 
 | Path                                                 | Created by                      | Mode                                 | What it holds                                     |
 | ---------------------------------------------------- | ------------------------------- | ------------------------------------ | ------------------------------------------------- |
-| `<state folder>`                                     | the daemon                      | 0700                                 | the files below, except `catalog.md` and the log  |
+| `<state folder>`                                     | the daemon, or `catalog setup`  | 0700                                 | the files below, except `catalog.md` and the log  |
 | `<state folder>/global.toml`                         | `catalog setup`, or a person    | 0600 from `catalog setup`            | the API key and the global settings               |
 | `<state folder>/store.db`                            | the daemon                      | 0600                                 | the store: files seen, summaries, failures        |
 | `<state folder>/store.db-wal`, `store.db-shm`        | SQLite, while the store is open | 0600                                 | recent writes to the store, and its shared memory |
@@ -195,7 +195,8 @@ doesn't set its mode. The property list sets `Umask` to 63, which is
 octal 077, so launchd creates the log with mode 0600; a comment in the
 template cites `launchd.plist(5)` for this. The umask also applies to
 any file the daemon creates without choosing a mode. `catalog setup`
-creates the log's folder, closed to other accounts, if it is missing.
+creates the log's folder, closed to other accounts, if it is missing. It
+does the same for `~/Library/LaunchAgents`, with mode 0700.
 
 ## Files the daemon only reads
 

@@ -160,7 +160,11 @@ Your settings are in ~/Library/Application Support/com.westarete.catalog/global.
 - An empty key leaves `api_key` out of the file, and setup adds
   `To add your API key later, set api_key in that file.` The daemon then
   runs but summarizes nothing, and `catalog status` says why.
-- Setup trims spaces around each folder and keeps spaces inside it. An
+- Setup trims spaces around each folder and keeps spaces inside it. A
+  folder must start with `/` or `~/`, or be exactly `~`, because launchd
+  starts the daemon in `/`. For anything else, setup prints
+  `Enter a full path that starts with / or ~/.` on its own line and
+  prompts `Folder:` again; the rejected line doesn't end the list. An
   empty line or the end of input ends the list. If the first line is
   empty, setup watches `~/src`. For a folder that doesn't exist, it
   prints
@@ -203,7 +207,7 @@ given.
 
 | Code | Meaning                                                                                      |
 | ---- | -------------------------------------------------------------------------------------------- |
-| 0    | Setup finished, or stopped at once because it isn't on a Mac.                                |
+| 0    | Setup finished. Off a Mac, that is after it writes `global.toml`.                            |
 | 1    | Setup failed, or the person pressed Ctrl-C. The error is on standard error after `catalog:`. |
 | 2    | The command line wasn't understood, such as an argument other than `--agent-only`.           |
 
@@ -221,8 +225,8 @@ seconds for the connection and for the answer. It takes no arguments.
 | -------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- | ---- |
 | The daemon answers                                       | The status, as described below      | Nothing                                                                         | 0    |
 | There is no socket, or nothing accepts connections on it | `The catalog daemon isn't running.` | Nothing                                                                         | 1    |
-| Something that isn't a socket is at the socket's path    | Nothing                             | `catalog: <path> is not a socket; move it aside so the daemon can listen there` | 1    |
-| The connection or the read fails                         | Nothing                             | `catalog: <error>`                                                              | 1    |
+| Something that isn't a socket is at the socket's path    | The install lines                   | `catalog: <path> is not a socket; move it aside so the daemon can listen there` | 1    |
+| The connection or the read fails                         | The install lines                   | `catalog: <error>`                                                              | 1    |
 
 The install lines described below come first in standard output in every
 row. The first case is the only one in which the not-running message

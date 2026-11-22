@@ -84,8 +84,8 @@ rm <folder>/catalog
 ```
 
 That leaves the state folder, which holds `global.toml` with your API
-key, the store of summaries of your documents, and the journal, and the
-log. To delete them too:
+key, the store of summaries of your documents, and the journal. The log
+is separate, at `~/Library/Logs/catalog.log`. To delete them too:
 
 ```sh
 rm -r "$HOME/Library/Application Support/com.westarete.catalog"

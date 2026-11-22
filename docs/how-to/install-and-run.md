@@ -46,11 +46,13 @@ Your settings are in ~/Library/Application Support/com.westarete.catalog/global.
 The catalog daemon is running. To see what it's doing, run `catalog status`.
 ```
 
-Choose the folders with care; see "Which folders to watch" below. If you
-press Return at the first `Folder:` prompt, the daemon watches `~/src`.
-If you press Return at the key prompt, setup leaves the key out, and the
-daemon runs but summarizes nothing until you add `api_key` to
-`global.toml`.
+Type each folder as a full path that starts with `/` or `~/`. The daemon
+starts in `/`, so a path like `src` would name the wrong place, and
+setup asks again if you type one. Choose the folders with care; see
+"Which folders to watch" below. If you press Return at the first
+`Folder:` prompt, the daemon watches `~/src`. If you press Return at the
+key prompt, setup leaves the key out, and the daemon runs but summarizes
+nothing until you add `api_key` to `global.toml`.
 
 The key lives only in `global.toml`, in a folder and a file that only
 you can open. The daemon doesn't read it from `ANTHROPIC_API_KEY` or
