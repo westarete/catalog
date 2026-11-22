@@ -157,7 +157,7 @@ Three earlier choices were also weighed and settled:
   from `catalog init`, tells a person who opens the folder what it is
   and what they can change there, where an empty folder tells them
   nothing. It's also the usual way a project's root is marked, as a
-  `go.mod` file marks a Go module (`go help modules`: "a tree of source
+  `go.mod` file marks a Go module (`go help go.mod`: "a tree of source
   files, with a go.mod file in its root"). A list in `global.toml` or a
   registry would mean editing settings on the Mac to add a catalog,
   which Claude Cowork and the catalog skill can't do through a folder,
