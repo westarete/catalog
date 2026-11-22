@@ -75,11 +75,12 @@ Delete the property list:
 rm ~/Library/LaunchAgents/com.westarete.catalog.plist
 ```
 
-Delete the program you built. `command -v catalog` prints where it is;
-put that path in place of `<program>`:
+Delete the program you built, at the path you gave to `go build -o`
+(`<folder>/catalog`). Don't look it up with `command -v catalog`, which
+may name a Homebrew install instead:
 
 ```sh
-rm <program>
+rm <folder>/catalog
 ```
 
 That leaves the state folder, which holds `global.toml` with your API
