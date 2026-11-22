@@ -303,8 +303,10 @@ must do.
   - `TestUnknownKeyQuotesNothing`: `sk-pasted-secret = "x"` in
     `global.toml`, and `api_key = "sk-secret"` in `global.toml`, each
     give an error containing neither `sk-`.
-  - `TestUnknownKeyInTable`: `[watch]\nfolder = "x"` reports the line of
-    `[watch]`.
+  - `TestUnknownKeyInTable`: `[watched]\nfolder = "x"` reports the line
+    of `[watched]`. (A `[watch]` table is a wrong-type error after Task
+    3, since `watch` is a list; `globalParseError` reports that by
+    line.)
   - `TestUnknownKeyRejectsWholeFile`: the parse returns the error and no
     settings.
 - [ ] **Step 2: Run** `go test ./internal/settings/`. Expected: FAIL.
