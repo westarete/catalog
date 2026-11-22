@@ -64,7 +64,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case len(args) == 1 && args[0] == "status":
 		return runStatus(stdout, stderr)
 	case len(args) > 0 && args[0] == "setup":
-		err = runSetup(args[1:], stdin, stdout, stderr)
+		err = runSetup(ctx, args[1:], stdin, stdout, stderr)
 	case len(args) > 0 && args[0] == "daemon":
 		err = runDaemon(ctx, args[1:], stdout, stderr)
 	default:

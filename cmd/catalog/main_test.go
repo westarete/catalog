@@ -718,3 +718,57 @@ func TestSettingsStateReadError(t *testing.T) {
 		t.Errorf("settingsState = %+v; want Found with an error", s)
 	}
 }
+
+// blockingReader blocks until the test ends, as a terminal does while a
+// person hasn't typed.
+type blockingReader struct{ done <-chan struct{} }
+
+func (r blockingReader) Read([]byte) (int, error) {
+	<-r.done
+	return 0, io.EOF
+}
+
+// Ctrl-C ends the context. Setup stops at the key prompt or at a folder
+// prompt, writes nothing, and loads nothing.
+func TestSetupStopsWhenInterrupted(t *testing.T) {
+	for name, typed := range map[string]string{"key prompt": "", "folder prompt": "sk-test\n"} {
+		t.Run(name, func(t *testing.T) {
+			dir := stateDir(t)
+			calls := onMacForTest(t, true)
+			done := make(chan struct{})
+			t.Cleanup(func() { close(done) })
+			stdin := io.MultiReader(strings.NewReader(typed), blockingReader{done})
+			ctx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(50*time.Millisecond, cancel)
+
+			finished := make(chan struct{})
+			var code int
+			var stdout, stderr string
+			go func() {
+				defer close(finished)
+				code, stdout, stderr = runCatalogWith(ctx, stdin, "setup")
+			}()
+			select {
+			case <-finished:
+			case <-time.After(5 * time.Second):
+				t.Fatal("setup didn't return after the context ended")
+			}
+
+			if code != 1 || !strings.Contains(stderr, "catalog: setup interrupted") {
+				t.Errorf("code %d, stderr %q", code, stderr)
+			}
+			if strings.Contains(stdout+stderr, "sk-test") {
+				t.Error("the API key appeared in the output")
+			}
+			if _, err := os.Stat(filepath.Join(dir, "global.toml")); !os.IsNotExist(err) {
+				t.Errorf("global.toml: %v; want none", err)
+			}
+			if _, err := os.Stat(plistOf(t)); !os.IsNotExist(err) {
+				t.Errorf("plist: %v; want none", err)
+			}
+			if len(*calls) != 0 {
+				t.Errorf("launchctl called: %v", *calls)
+			}
+		})
+	}
+}
