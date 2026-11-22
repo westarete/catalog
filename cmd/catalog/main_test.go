@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -39,8 +42,13 @@ func runCatalogIn(ctx context.Context, args ...string) (int, string) {
 }
 
 func runCatalogOut(ctx context.Context, args ...string) (code int, stdout, stderr string) {
+	return runCatalogWith(ctx, strings.NewReader(""), args...)
+}
+
+// runCatalogWith runs the command with stdin as its standard input.
+func runCatalogWith(ctx context.Context, stdin io.Reader, args ...string) (code int, stdout, stderr string) {
 	var out, errOut bytes.Buffer
-	code = run(ctx, args, &out, &errOut)
+	code = run(ctx, args, stdin, &out, &errOut)
 	return code, out.String(), errOut.String()
 }
 
@@ -89,6 +97,8 @@ func TestUsageErrors(t *testing.T) {
 		{"daemon", "--once"},
 		{"daemon", "--once", "a", "b"},
 		{"daemon", "--bogus"},
+		{"setup", "extra"},
+		{"setup", "--bogus"},
 	}
 	// A stopped context makes a mistake that runs the daemon fail fast
 	// instead of running until the test times out.
@@ -208,13 +218,23 @@ func TestDaemonWithoutSocket(t *testing.T) {
 	}
 }
 
+// installLines is what status prints about the install in a home with no
+// settings file, with agent saying what the first line says.
+func installLines(agent string) string {
+	return "Launch agent: " + agent + "\n" +
+		"Settings: ~/Library/Application Support/com.westarete.catalog/global.toml (not found; run catalog setup)\n" +
+		"Log: ~/Library/Logs/catalog.log\n"
+}
+
 func TestStatusWhenDaemonIsNotRunning(t *testing.T) {
 	stateDir(t)
+	onMacForTest(t, true)
 
 	code, stdout, _ := runCatalogOut(context.Background(), "status")
 
-	if code == 0 || stdout != "The catalog daemon isn't running.\n" {
-		t.Errorf("code %d, stdout %q", code, stdout)
+	want := installLines("not installed; run catalog setup") + "\nThe catalog daemon isn't running.\n"
+	if code != 1 || stdout != want {
+		t.Errorf("code %d, stdout %q, want %q", code, stdout, want)
 	}
 }
 
@@ -229,7 +249,7 @@ func TestStatusWithBrokenSocket(t *testing.T) {
 
 	code, stdout, stderr := runCatalogOut(context.Background(), "status")
 
-	if code != 1 || stdout != "" || !strings.Contains(stderr, "control.sock is not a socket") {
+	if code != 1 || !strings.HasSuffix(stdout, "\n\n") || strings.Contains(stdout, "isn't running") || !strings.Contains(stderr, "control.sock is not a socket") {
 		t.Errorf("code %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
 }
@@ -238,6 +258,7 @@ func TestStatusWithBrokenSocket(t *testing.T) {
 // removes its socket when it stops.
 func TestStatusOfRunningDaemon(t *testing.T) {
 	dir := stateDir(t)
+	onMacForTest(t, true)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	exited := make(chan int, 1)
@@ -259,6 +280,9 @@ func TestStatusOfRunningDaemon(t *testing.T) {
 	}
 	cancel()
 
+	if !strings.HasPrefix(stdout, installLines("not installed; run catalog setup")+"\n") {
+		t.Errorf("status doesn't begin with the install lines and a blank line:\n%s", stdout)
+	}
 	for _, want := range []string{"Config error: " + filepath.Join(dir, "global.toml") + ": not found", "Not summarizing:"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("status doesn't contain %q:\n%s", want, stdout)
@@ -392,5 +416,305 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 	}
 	if mode := info.Mode().Perm(); mode != want {
 		t.Errorf("%s mode = %o, want %o", filepath.Base(path), mode, want)
+	}
+}
+
+// onMacForTest sets whether the command believes it runs on a Mac, and
+// replaces launchctl with a stand-in that records its calls and never runs
+// the real program. It returns the recorded calls.
+func onMacForTest(t *testing.T, mac bool) *[][]string {
+	t.Helper()
+	var calls [][]string
+	oldMac, oldLaunchctl := onMac, launchctl
+	t.Cleanup(func() { onMac, launchctl = oldMac, oldLaunchctl })
+	onMac = mac
+	launchctl = func(args ...string) error {
+		calls = append(calls, args)
+		if len(args) > 0 && args[0] == "print" {
+			return errors.New("not loaded")
+		}
+		return nil
+	}
+	return &calls
+}
+
+// testProgram is the path setup writes into the launch agent when the test
+// binary runs it.
+func testProgram(t *testing.T) string {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return program
+}
+
+func homeOf(t *testing.T) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+func plistOf(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(homeOf(t), "Library", "LaunchAgents", "com.westarete.catalog.plist")
+}
+
+func TestSetupWritesSettingsAndLoadsAgent(t *testing.T) {
+	dir := stateDir(t)
+	calls := onMacForTest(t, true)
+
+	code, stdout, stderr := runCatalogWith(context.Background(), strings.NewReader("sk-test\n~/src\n\n"), "setup")
+
+	if code != 0 {
+		t.Fatalf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	global := filepath.Join(dir, "global.toml")
+	assertMode(t, global, 0o600)
+	data, err := os.ReadFile(global)
+	if err != nil || !strings.Contains(string(data), "sk-test") {
+		t.Errorf("global.toml = %q, %v; want the key", data, err)
+	}
+	assertMode(t, plistOf(t), 0o600)
+	plist, err := os.ReadFile(plistOf(t))
+	if err != nil || !strings.Contains(string(plist), testProgram(t)) {
+		t.Errorf("plist = %q, %v; want the test binary %s", plist, err, testProgram(t))
+	}
+	if !strings.HasSuffix(stdout, "The catalog daemon is running. To see what it's doing, run `catalog status`.\n") {
+		t.Errorf("stdout doesn't end with the running line:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "sk-test") || strings.Contains(stderr, "sk-test") {
+		t.Error("the API key appeared in the output")
+	}
+	if strings.Contains(stdout, "The daemon was running") {
+		t.Errorf("stdout names a previous program on a first setup:\n%s", stdout)
+	}
+	if len(*calls) == 0 || (*calls)[len(*calls)-1][0] != "bootstrap" {
+		t.Errorf("launchctl calls %v; want the last to be bootstrap", *calls)
+	}
+}
+
+// The daemon reads the file setup writes.
+func TestSetupSettingsLoadForTheDaemon(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, true)
+
+	if code, _, _ := runCatalogWith(context.Background(), strings.NewReader("sk-test\n~/src\n\n"), "setup"); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+
+	g, err := loadGlobal(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{filepath.Join(homeOf(t), "src")}
+	if g.APIKey != "sk-test" || len(g.Watch) != 1 || g.Watch[0] != want[0] {
+		t.Errorf("loadGlobal = key %q, watch %v; want sk-test and %v", g.APIKey, g.Watch, want)
+	}
+}
+
+// failingReader fails the test if anything reads it.
+type failingReader struct{ t *testing.T }
+
+func (r failingReader) Read([]byte) (int, error) {
+	r.t.Error("setup read standard input")
+	return 0, errors.New("must not be read")
+}
+
+func TestSetupAgentOnlyReadsNothing(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, true)
+
+	code, stdout, stderr := runCatalogWith(context.Background(), failingReader{t}, "setup", "--agent-only")
+
+	if code != 0 {
+		t.Fatalf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "global.toml")); !os.IsNotExist(err) {
+		t.Errorf("global.toml: %v; want it not created", err)
+	}
+	if _, err := os.Stat(plistOf(t)); err != nil {
+		t.Errorf("plist: %v", err)
+	}
+}
+
+func TestSetupWithExistingSettings(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, true)
+	const text = "api_key = \"old\"\n"
+	writeGlobal(t, dir, text)
+
+	code, stdout, _ := runCatalogWith(context.Background(), failingReader{t}, "setup")
+
+	if code != 0 {
+		t.Fatalf("code %d, stdout:\n%s", code, stdout)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "global.toml")); string(data) != text {
+		t.Errorf("global.toml = %q, want it unchanged", data)
+	}
+	if !strings.Contains(stdout, "Your settings are already in ") {
+		t.Errorf("stdout:\n%s", stdout)
+	}
+}
+
+func TestSetupSaysWhenProgramChanges(t *testing.T) {
+	stateDir(t)
+	onMacForTest(t, true)
+	if code, _, _ := runCatalogWith(context.Background(), strings.NewReader(""), "setup", "--agent-only"); code != 0 {
+		t.Fatal("first setup failed")
+	}
+	// Point the agent at another program, as an older install would.
+	plist, err := os.ReadFile(plistOf(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := strings.ReplaceAll(string(plist), testProgram(t), "/old/catalog")
+	if err := os.WriteFile(plistOf(t), []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := runCatalogWith(context.Background(), strings.NewReader(""), "setup", "--agent-only")
+
+	want := "The daemon was running /old/catalog, and now it runs " + testProgram(t) + ".\n" +
+		"The catalog daemon is running. To see what it's doing, run `catalog status`.\n"
+	if code != 0 || !strings.HasSuffix(stdout, want) {
+		t.Errorf("code %d, stdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+}
+
+func TestSetupNotOnMac(t *testing.T) {
+	dir := stateDir(t)
+	calls := onMacForTest(t, false)
+
+	code, stdout, stderr := runCatalogWith(context.Background(), strings.NewReader("sk-test\n\n"), "setup")
+
+	if code != 0 {
+		t.Fatalf("code %d, stderr:\n%s", code, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "global.toml")); err != nil {
+		t.Errorf("global.toml: %v", err)
+	}
+	if !strings.HasSuffix(stdout, "Setup can start the daemon only on a Mac.\n") {
+		t.Errorf("stdout:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "is running") {
+		t.Errorf("stdout claims the daemon runs:\n%s", stdout)
+	}
+	if len(*calls) != 0 {
+		t.Errorf("launchctl called: %v", *calls)
+	}
+	if _, err := os.Stat(plistOf(t)); !os.IsNotExist(err) {
+		t.Errorf("plist: %v; want none off a Mac", err)
+	}
+}
+
+func TestSetupLaunchctlFails(t *testing.T) {
+	stateDir(t)
+	onMacForTest(t, true)
+	launchctl = func(args ...string) error {
+		if args[0] == "bootstrap" {
+			return errors.New("bootstrap refused")
+		}
+		return errors.New("not loaded")
+	}
+
+	code, stdout, stderr := runCatalogWith(context.Background(), strings.NewReader(""), "setup", "--agent-only")
+
+	if code != 1 || !strings.HasPrefix(stderr, "catalog: ") || !strings.Contains(stderr, "bootstrap refused") {
+		t.Errorf("code %d, stderr %q", code, stderr)
+	}
+	if strings.Contains(stdout, "is running") {
+		t.Errorf("stdout claims the daemon runs:\n%s", stdout)
+	}
+}
+
+// A read error other than the end of input stops setup before it writes
+// global.toml.
+func TestSetupReportsReadError(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, true)
+
+	code, _, stderr := runCatalogWith(context.Background(), io.MultiReader(strings.NewReader("sk-test\n"), errReader{}), "setup")
+
+	if code != 1 || !strings.HasPrefix(stderr, "catalog: ") {
+		t.Errorf("code %d, stderr %q", code, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "global.toml")); !os.IsNotExist(err) {
+		t.Errorf("global.toml: %v; want it not written", err)
+	}
+	if strings.Contains(stderr, "sk-test") {
+		t.Error("the API key appeared in stderr")
+	}
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, errors.New("terminal gone") }
+
+func TestSetupStateFolderPrivate(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, true)
+	old := syscall.Umask(0)
+	t.Cleanup(func() { syscall.Umask(old) })
+
+	code, _, stderr := runCatalogWith(context.Background(), strings.NewReader("k\n\n"), "setup")
+
+	if code != 0 {
+		t.Fatalf("code %d, stderr:\n%s", code, stderr)
+	}
+	assertMode(t, dir, 0o700)
+	assertMode(t, filepath.Join(dir, "global.toml"), 0o600)
+}
+
+// Status never shows an API key, even from a file it can't parse.
+func TestStatusNeverShowsKeyFromBrokenSettings(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, true)
+	writeGlobal(t, dir, "api_key = \"sk-secret\"\nthis line doesn't parse\n")
+
+	_, stdout, stderr := runCatalogOut(context.Background(), "status")
+
+	if !strings.Contains(stdout, "(can't be read:") {
+		t.Errorf("stdout:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "sk-secret") || strings.Contains(stderr, "sk-secret") {
+		t.Error("status showed the API key")
+	}
+}
+
+func TestStatusSaysWhetherKeyIsSet(t *testing.T) {
+	dir := stateDir(t)
+	onMacForTest(t, false)
+	for text, want := range map[string]string{
+		"api_key = \"k\"\n": "(API key set)",
+		"model = \"x\"\n":   "(no API key)",
+	} {
+		writeGlobal(t, dir, text)
+		_, stdout, _ := runCatalogOut(context.Background(), "status")
+		if !strings.Contains(stdout, want) || strings.Contains(stdout, "Launch agent:") {
+			t.Errorf("settings %q: stdout:\n%s\nwant %s and no launch agent line", text, stdout, want)
+		}
+	}
+}
+
+func TestSettingsStateReadError(t *testing.T) {
+	dir := t.TempDir()
+	// A folder where the file should be makes the read fail with something
+	// other than "not exist".
+	if err := os.Mkdir(filepath.Join(dir, "global.toml"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	s := settingsState(dir)
+
+	if !s.Found || s.Err == nil || s.HasKey {
+		t.Errorf("settingsState = %+v; want Found with an error", s)
 	}
 }

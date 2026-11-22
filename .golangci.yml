@@ -97,6 +97,7 @@ linters:
             - westarete.com/catalog/internal/store$
             - westarete.com/catalog/internal/models$
             - westarete.com/catalog/internal/control$
+            - westarete.com/catalog/internal/install$
           deny:
             - pkg: westarete.com/catalog/internal
               desc: the command only parses arguments and wires up the daemon

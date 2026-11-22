@@ -6,6 +6,7 @@
 //	catalog daemon
 //	catalog daemon --once <folder>
 //	catalog status
+//	catalog setup [--agent-only]
 package main
 
 import (
@@ -24,12 +25,13 @@ import (
 
 	"westarete.com/catalog/internal/control"
 	"westarete.com/catalog/internal/daemon"
+	"westarete.com/catalog/internal/install"
 	"westarete.com/catalog/internal/models"
 	"westarete.com/catalog/internal/settings"
 	"westarete.com/catalog/internal/store"
 )
 
-const usage = "usage: catalog daemon [--once <folder>]\n       catalog status"
+const usage = "usage: catalog daemon [--once <folder>]\n       catalog status\n       catalog setup [--agent-only]"
 
 // socketFile is the name of the daemon's status socket in the state folder,
 // and journalFile the name of its journal.
@@ -50,17 +52,19 @@ const crawlEvery = time.Minute
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	code := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	code := run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
 	stop()
 	os.Exit(code)
 }
 
 // run carries out the command line in args until it's done or ctx ends.
-func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var err error
 	switch {
 	case len(args) == 1 && args[0] == "status":
 		return runStatus(stdout, stderr)
+	case len(args) > 0 && args[0] == "setup":
+		err = runSetup(args[1:], stdin, stdout, stderr)
 	case len(args) > 0 && args[0] == "daemon":
 		err = runDaemon(ctx, args[1:], stdout, stderr)
 	default:
@@ -104,6 +108,12 @@ func runStatus(stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "catalog: %v\n", err)
 		return exitFailed
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "catalog: %v\n", err)
+		return exitFailed
+	}
+	_, _ = fmt.Fprintln(stdout, install.Describe(home, settingsState(stateDir), onMac))
 	s, err := control.Ask(filepath.Join(stateDir, socketFile))
 	if errors.Is(err, control.ErrNotRunning) {
 		_, _ = fmt.Fprintln(stdout, "The catalog daemon isn't running.")
