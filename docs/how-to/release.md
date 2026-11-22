@@ -26,9 +26,11 @@ bug fixes, behavior changes, or documentation that affects how they use
 the tool. Workflow changes, CI fixes, and internal docs do not warrant a
 release.
 
-This project uses [semantic versioning](https://semver.org). Patch
-releases fix bugs without changing behavior. Minor releases add
-functionality. Major releases make breaking changes.
+This project uses [semantic versioning](https://semver.org). Catalog is
+experimental, so its versions start with 0, and semver says that in a
+0.y.z version "Anything MAY change at any time." Until 1.0.0, a minor
+release adds functionality or makes breaking changes, and a patch
+release fixes bugs without changing behavior.
 
 If the release changes the cask or what `catalog setup` does, first
 [test the Homebrew cask on a Mac](test-the-homebrew-cask.md).

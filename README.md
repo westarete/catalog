@@ -15,10 +15,12 @@ A background daemon keeps each `.catalog/catalog.md` current on its own,
 with no catalog state in Git to conflict. The daemon is built but not
 released; to try it, build it from source as
 [Set up for development](docs/how-to/set-up-for-development.md#install-the-daemon-from-source)
-describes. The [documentation index](docs/README.md) says where to find
-the rest, including why catalog works as it does. The released versions
-are the earlier command-line tool, whose source and documentation are in
-Git history.
+describes. Catalog is experimental, so we may change its commands,
+settings, and files in any release before 1.0.0. The
+[documentation index](docs/README.md) says where to find the rest,
+including why catalog works as it does. The released versions are the
+earlier command-line tool, whose source and documentation are in Git
+history.
 
 ## How it works
 
