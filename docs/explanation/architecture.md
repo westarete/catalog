@@ -87,8 +87,9 @@ and does no reading, writing, or network work. It's the `internal/model`
 package.
 
 - A catalog is a folder that holds a `.catalog/config.toml` file, and
-  its tree is everything under that folder that no nested catalog
-  claims. The daemon maintains one `catalog.md` for each.
+  its tree is everything under that folder except subfolders with a
+  `.catalog` folder of their own, catalogs or not. The daemon maintains
+  one `catalog.md` for each.
   [Where catalogs go](catalogs.md#where-agents-start) says how people
   choose them.
 - An entry describes a file. Source trees hold thousands of files, so we

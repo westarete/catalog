@@ -58,9 +58,9 @@ func (d *Daemon) crawlFolder(now time.Time, folder string) error {
 	for _, skipped := range walk.skipped {
 		errs = append(errs, d.report(failureEvent(now, abs, skipped.dir, skipped.err.Error())))
 	}
-	for _, c := range found {
+	for _, c := range found.Catalogs {
 		dir := filepath.Join(abs, filepath.FromSlash(c))
-		errs = append(errs, d.crawlCatalog(now, dir, nestedUnder(c, found)))
+		errs = append(errs, d.crawlCatalog(now, dir, nestedUnder(c, found.Boundaries)))
 	}
 	return errors.Join(errs...)
 }
@@ -166,15 +166,15 @@ func (d *Daemon) forgetOldFailures(dir string, prev map[string]model.FileState, 
 	return nil
 }
 
-// nestedUnder returns the catalogs in found that sit below catalog, as paths
+// nestedUnder returns the boundaries that sit below catalog, as paths
 // relative to it. All paths are slash paths relative to the watched folder.
-func nestedUnder(catalog string, found []string) []string {
+func nestedUnder(catalog string, boundaries []string) []string {
 	prefix := catalog + "/"
 	if catalog == "." {
 		prefix = ""
 	}
 	var nested []string
-	for _, other := range found {
+	for _, other := range boundaries {
 		if rest, ok := strings.CutPrefix(other, prefix); ok && other != catalog {
 			nested = append(nested, rest)
 		}

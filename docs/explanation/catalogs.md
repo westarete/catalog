@@ -121,7 +121,11 @@ copies its text to people who never see that mode.
 Catalogs can nest. The nearest catalog above a subfolder covers it, and
 any catalog higher up leaves that subfolder alone. The daemon does this
 on each crawl: when it lists the files a catalog covers, it skips every
-folder that holds a catalog of its own.
+subfolder that holds a `.catalog` folder of its own, whether or not that
+folder holds a `config.toml`. So a subfolder that a person set apart
+with a `.catalog` folder stays out of the wider catalog before they add
+a `config.toml`, or if they set it up with a version that didn't need
+one.
 
 We haven't decided whether or how nested catalogs link to each other,
 whether a person links them by hand or the daemon does. That includes

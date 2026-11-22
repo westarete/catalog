@@ -219,7 +219,11 @@ These rules apply to the matching:
   a file.
 - Whatever the patterns say, a catalog never includes anything under a
   `.git` folder, anything under a `.catalog` folder, or anything under a
-  folder that is a catalog of its own.
+  subfolder with a `.catalog` folder of its own. That subfolder needn't
+  be a catalog: the catalog above leaves out a subfolder whose
+  `.catalog` folder has no `config.toml`, though the daemon doesn't
+  catalog that subfolder either. A `.catalog` that is a symbolic link or
+  a file doesn't count.
 
 ## Unknown keys
 

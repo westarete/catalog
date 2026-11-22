@@ -58,8 +58,8 @@ func TestFindCatalogs(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{".", "a", "a/b"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("FindCatalogs = %v, want %v", got, want)
+	if !reflect.DeepEqual(got.Catalogs, want) {
+		t.Errorf("FindCatalogs = %v, want %v", got.Catalogs, want)
 	}
 }
 
@@ -69,8 +69,51 @@ func TestFindCatalogsNeedsConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 0 {
-		t.Errorf("FindCatalogs = %v, want none", got)
+	if len(got.Catalogs) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got.Catalogs)
+	}
+}
+
+// Every folder with a .catalog directory of its own is a boundary for the
+// catalogs above it, whether or not it holds a config.toml.
+func TestFindCatalogsReportsBoundaries(t *testing.T) {
+	watched := fstest.MapFS{
+		"a/.catalog/config.toml": {},
+		"a/b/.catalog":           {Mode: fs.ModeDir},
+		"a/c/.catalog":           {Data: []byte("not a dir")},
+		"a/.git/d/.catalog":      {Mode: fs.ModeDir},
+		".catalog/catalog.md":    {},
+	}
+	got, err := FindCatalogs(watched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"a"}; !reflect.DeepEqual(got.Catalogs, want) {
+		t.Errorf("Catalogs = %v, want %v", got.Catalogs, want)
+	}
+	if want := []string{".", "a", "a/b"}; !reflect.DeepEqual(got.Boundaries, want) {
+		t.Errorf("Boundaries = %v, want %v", got.Boundaries, want)
+	}
+}
+
+func TestFindCatalogsLinkedCatalogDirIsNoBoundary(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "elsewhere")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(root, "a", ".catalog")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := FindCatalogs(os.DirFS(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Boundaries) != 0 {
+		t.Errorf("Boundaries = %v, want none", got.Boundaries)
 	}
 }
 
@@ -84,8 +127,8 @@ func TestFindCatalogsNested(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"a", "a/b/c"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("FindCatalogs = %v, want %v", got, want)
+	if !reflect.DeepEqual(got.Catalogs, want) {
+		t.Errorf("FindCatalogs = %v, want %v", got.Catalogs, want)
 	}
 }
 
@@ -106,8 +149,8 @@ func TestFindCatalogsIgnoresLinkedConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 0 {
-		t.Errorf("FindCatalogs = %v, want none", got)
+	if len(got.Catalogs) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got.Catalogs)
 	}
 }
 
@@ -117,8 +160,8 @@ func TestFindCatalogsUnreadableCatalogDirIsNotACatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 0 {
-		t.Errorf("FindCatalogs = %v, want none", got)
+	if len(got.Catalogs) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got.Catalogs)
 	}
 }
 
@@ -141,8 +184,8 @@ func TestFindCatalogsIgnoresCatalogFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 0 {
-		t.Errorf("FindCatalogs = %v, want none", got)
+	if len(got.Catalogs) != 0 {
+		t.Errorf("FindCatalogs = %v, want none", got.Catalogs)
 	}
 }
 

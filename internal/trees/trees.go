@@ -14,17 +14,30 @@ const (
 	configFile = "config.toml"
 )
 
-// FindCatalogs returns every directory in watched, "." included, that
-// contains a .catalog directory that holds a regular file named config.toml,
-// as sorted slash paths. A config.toml that is a symbolic link or a directory
-// doesn't count, and neither does a .catalog directory that can't be listed.
-// It never descends into .git or .catalog.
-func FindCatalogs(watched fs.FS) ([]string, error) {
-	var found []string
+// Found is what FindCatalogs finds in a watched folder. Both lists hold
+// sorted slash paths relative to the folder, "." included.
+type Found struct {
+	// Catalogs are the folders whose .catalog directory holds a regular file
+	// named config.toml.
+	Catalogs []string
+	// Boundaries are the folders that hold a .catalog directory of their
+	// own, catalogs or not. No catalog above a boundary covers anything
+	// under it.
+	Boundaries []string
+}
+
+// FindCatalogs walks watched and returns the catalogs and boundaries in it.
+// A .catalog that is a symbolic link or a file makes neither. A config.toml
+// that is a symbolic link or a directory doesn't make a catalog, and neither
+// does a .catalog directory that can't be listed. It never descends into
+// .git or .catalog.
+func FindCatalogs(watched fs.FS) (Found, error) {
+	var found Found
 	err := fs.WalkDir(watched, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+		// WalkDir reports a symbolic link as a link, not a directory.
 		if !d.IsDir() {
 			return nil
 		}
@@ -32,17 +45,19 @@ func FindCatalogs(watched fs.FS) ([]string, error) {
 		case gitDir:
 			return fs.SkipDir
 		case catalogDir:
+			found.Boundaries = append(found.Boundaries, path.Dir(p))
 			if hasConfig(watched, p) {
-				found = append(found, path.Dir(p))
+				found.Catalogs = append(found.Catalogs, path.Dir(p))
 			}
 			return fs.SkipDir
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return Found{}, err
 	}
-	slices.Sort(found)
+	slices.Sort(found.Catalogs)
+	slices.Sort(found.Boundaries)
 	return found, nil
 }
 
@@ -61,8 +76,8 @@ func hasConfig(watched fs.FS, dir string) bool {
 
 // Members returns the sorted slash paths of the regular files in catalog that
 // match an include glob and no exclude glob. It leaves out anything under a
-// directory listed in nested (relative to catalog), under .git, or under
-// .catalog.
+// directory listed in nested (relative to catalog), such as a boundary from
+// FindCatalogs, under .git, or under .catalog.
 func Members(catalog fs.FS, include, exclude, nested []string) ([]string, error) {
 	var members []string
 	err := fs.WalkDir(catalog, ".", func(p string, d fs.DirEntry, err error) error {

@@ -143,6 +143,33 @@ func TestNestedCatalog(t *testing.T) {
 	}
 }
 
+// A subfolder with a .catalog/ folder but no config.toml isn't a catalog,
+// and it isn't part of the catalog above it either.
+func TestFolderWithCatalogDirIsLeftOutOfParent(t *testing.T) {
+	root := t.TempDir()
+	a := filepath.Join(root, "a")
+	b := filepath.Join(a, "b")
+	makeCatalog(t, a)
+	if err := os.MkdirAll(filepath.Join(b, ".catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, a, "top.md", body("top"))
+	writeFile(t, b, "inner.md", body("inner"))
+	d, p := newDaemon(t, root)
+
+	once(t, d, start)
+
+	aText := catalogText(t, a)
+	entry(t, aText, "top.md")
+	if strings.Contains(aText, "inner.md") {
+		t.Errorf("a's catalog lists a file under b, which has a .catalog/ of its own:\n%s", aText)
+	}
+	assertNoCatalog(t, b)
+	if p.calls() != 1 {
+		t.Errorf("provider calls = %d, want 1 (inner.md belongs to no catalog)", p.calls())
+	}
+}
+
 func TestWatchedFolderItselfIsNotACatalog(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "sub")
