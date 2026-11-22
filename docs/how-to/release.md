@@ -30,6 +30,9 @@ This project uses [semantic versioning](https://semver.org). Patch
 releases fix bugs without changing behavior. Minor releases add
 functionality. Major releases make breaking changes.
 
+If the release changes the cask or what `catalog setup` does, first
+[test the Homebrew cask on a Mac](test-the-homebrew-cask.md).
+
 Before picking a version number, fetch tags from upstream so you have
 the full picture:
 
