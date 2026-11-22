@@ -446,9 +446,10 @@ Load `knowledge-work:markdown`, and follow `writing-style.md`.
 
 - [ ] **Step 2: Rewrite the docs as the spec's "Docs to change" lists**
 
-- Install guide: `brew install westarete/tap/catalog`, `catalog setup`,
-  putting a catalog in place, and uninstalling, with what a plain
-  uninstall and `--zap` each leave or delete.
+- Install guide: `brew tap westarete/tap`,
+  `brew trust --cask westarete/tap/catalog`, `brew install catalog`,
+  `catalog setup`, putting a catalog in place, and uninstalling, with
+  what a plain uninstall and `--zap` each leave or delete.
 - Developer guide: build with
   `go build -o <folder>/catalog ./cmd/catalog` and run `catalog setup`,
   and say that a source build and a Homebrew install share one agent.
@@ -484,17 +485,19 @@ The developer runs Step 1, because it needs a published release.
 
 Only the developer installs from `westarete/tap`, so check the real
 releases instead of a test cask. After the v0.6.0 release, run
-`brew install --cask westarete/tap/catalog`, then:
+`brew update`, install the daemon as the install guide says
+(`brew tap westarete/tap`, `brew trust --cask westarete/tap/catalog`,
+`brew install catalog`), then:
 
 ```sh
 launchctl print gui/$(id -u)/com.westarete.catalog | grep -E '^\s*(state|program) ='
 ```
 
 Expected: `state = running` and a `program` under
-`Caskroom/catalog/0.6.0/`. After the next release, run
-`brew upgrade --cask westarete/tap/catalog` and the same command.
-Expected: a `program` under that release's folder. If the agent isn't
-running after either, fix the cask and release again.
+`Caskroom/catalog/0.6.0/`. After the next release, run `brew update`,
+`brew upgrade catalog`, and the same command. Expected: a `program`
+under that release's folder. If the agent isn't running after either,
+fix the cask and release again.
 
 - [ ] **Step 2: Review the branch**
 

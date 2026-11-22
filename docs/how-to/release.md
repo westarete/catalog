@@ -5,19 +5,10 @@ This guide tags a release and publishes it. Releases are tagged from
 `westarete/homebrew-tap` Homebrew tap; GitHub Releases carries the raw
 binaries as a secondary surface for CI and non-Homebrew environments.
 
-Users install with:
-
-```sh
-brew tap westarete/tap
-brew trust westarete/tap
-brew install catalog
-```
-
-To upgrade later:
-
-```sh
-brew upgrade catalog
-```
+[Install and run the daemon](install-and-run.md) says how people install
+and update catalog with Homebrew, including the step that trusts our
+cask. Keep those commands there and nowhere else, so no second copy goes
+out of date.
 
 ## Make a release
 

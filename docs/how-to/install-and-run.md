@@ -6,13 +6,22 @@ need a Mac. To build the daemon from source instead, follow
 [Set up for development](set-up-for-development.md), then pick up here
 at `catalog setup`.
 
-Trust our Homebrew tap, so Homebrew will load its cask, then install the
+Add our Homebrew tap, trust the catalog cask in it, then install the
 daemon:
 
 ```sh
-brew trust --tap westarete/tap
-brew install westarete/tap/catalog
+brew tap westarete/tap
+brew trust --cask westarete/tap/catalog
+brew install catalog
 ```
+
+Don't skip the `brew trust` step or replace these commands with a
+shorter one. Since Homebrew 6.0.0, installing a cask from a tap that
+Homebrew doesn't maintain fails until you trust it, as
+[Tap Trust](https://docs.brew.sh/Tap-Trust) explains. The step trusts
+only the catalog cask, not everything we might add to the tap later.
+Homebrew's maintainers recommend that for software from a vendor you
+don't control.
 
 The install puts the `catalog` program on your `PATH` and starts the
 daemon's launch agent, which runs the daemon in the background. The
