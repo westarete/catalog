@@ -159,6 +159,66 @@ Then run `catalog status`. If its first line says the launch agent isn't
 installed, or the daemon isn't running, run `catalog setup`, which loads
 the agent for the new version.
 
+### Update from version 0.6
+
+Versions 0.6.0 and 0.6.1 wrote settings this version doesn't load. Until
+you change each file that uses the old keys, `catalog status` shows a
+`Config error` line for it and the daemon doesn't use it: with no
+`global.toml` loaded, it watches nothing, and it skips a catalog whose
+`config.toml` doesn't load. After `brew upgrade catalog`:
+
+1. Run `catalog setup`. It leaves your `global.toml` alone and, since
+   you have no `keys.toml` yet, asks for your API key and writes it
+   there. Paste the key from the `api_key` line in `global.toml`. The
+   daemon reads the key only from `keys.toml` now.
+
+2. In `global.toml`, delete the `api_key` line, and replace the
+   `[[watch]]` tables with one `watch` list. A file like this:
+
+   ```toml
+   api_key = "sk-example-not-a-real-key"
+
+   [[watch]]
+   folder = "~/src"
+
+   [[watch]]
+   folder = "~/notes/Project Plans"
+   ```
+
+   becomes:
+
+   ```toml
+   watch = ["~/src", "~/notes/Project Plans"]
+   ```
+
+3. Rename `enumerate` to `include` and `ignore` to `exclude`, in
+   `global.toml` and in each catalog's `.catalog/config.toml`. The new
+   lists add to the global and built-in lists instead of replacing them
+   ([Configuration](../reference/configuration.md#how-lists-combine)),
+   so check what each list did:
+
+   - An `enumerate` list that narrowed a catalog, such as
+     `enumerate = ["docs/**/*.md"]`, widens it once you rename it to
+     `include`. The daemon would then summarize files the old list left
+     out and send them to your model provider. To narrow a catalog now,
+     list what to leave out under `exclude`.
+   - An `ignore` list that dropped a built-in pattern to bring
+     `CLAUDE.md` or `AGENTS.md` into a catalog no longer does. The
+     daemon always leaves those out.
+   - The daemon no longer leaves a catalog's top-level `README.md` out
+     by default. To keep it out, add `exclude = ["README.md"]` to the
+     catalog's config.
+
+4. Run `catalog init` in each catalog's folder. A `.catalog/` folder no
+   longer makes a catalog on its own; the folder needs a
+   `.catalog/config.toml` file too. `catalog init` writes one where it's
+   missing and leaves an existing one alone. Until a folder has one, the
+   daemon doesn't update its catalog, and leaves that folder out of any
+   catalog above it.
+
+When `catalog status` shows no `Config error` lines, the daemon has
+loaded all your settings.
+
 ## Which folders to watch
 
 Watch only folders that no cloud drive syncs, such as `~/src`. The

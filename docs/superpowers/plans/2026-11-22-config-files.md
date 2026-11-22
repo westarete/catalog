@@ -420,8 +420,9 @@ must do.
 - [ ] **Step 2: Rewrite the docs** listed above to match the spec's "How
       it works", using made-up examples.
 - [ ] **Step 3: Check** that
-      `grep -rn "enumerate\|\[\[watch\]\]\|api_key" README.md docs --include='*.md' | grep -v superpowers`
-      prints nothing, then run `make markdown`.
+      `grep -rn "enumerate\|\[\[watch\]\]\|api_key" README.md docs --include='*.md' | grep -v 'superpowers\|install-and-run.md\|move-from-the-earlier-tool.md'`
+      prints nothing; those two how-tos name the old keys to say how to
+      update from them, then run `make markdown`.
 - [ ] **Step 4: Commit** "Document keys.toml, the new settings, and
       catalog init".
 
