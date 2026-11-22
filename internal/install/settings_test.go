@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -186,9 +187,12 @@ func askSettings(t *testing.T, home, in, key string, keyErr error, keyCalls *int
 			return key, keyErr
 		},
 	}
-	err := AskSettings(p, globalPathIn(home), keysPathIn(home))
+	err := AskSettings(p, globalPathIn(home), keysPathIn(home), keysHaveKey)
 	return out.String(), err
 }
+
+// keysHaveKey stands in for the command's check of an existing keys.toml.
+func keysHaveKey() KeyCheck { return KeyFound }
 
 func globalPathIn(home string) string { return filepath.Join(home, "state", "global.toml") }
 
@@ -350,6 +354,69 @@ func TestAskSettingsAsksOnlyForMissingFiles(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// An existing keys.toml is never changed and no key is asked for. If it
+// lacks the key global.toml asks for, setup says how to add it, without
+// naming a key other than default.
+func TestAskSettingsSaysHowToAddMissingKey(t *testing.T) {
+	const already = "Your API keys are already in %s. To change them, edit that file.\n"
+	for check, want := range map[KeyCheck]string{
+		KeyFound:          already,
+		KeyUnknown:        already,
+		DefaultKeyMissing: "To add your API key, set default in %s.\n",
+		NamedKeyMissing:   "To add your API key, add it to %s under the name global.toml asks for.\n",
+	} {
+		home := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(home, "state"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{globalPathIn(home), keysPathIn(home)} {
+			if err := os.WriteFile(path, []byte("mine"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var out bytes.Buffer
+		p := Prompt{
+			In:  bufio.NewReader(strings.NewReader("")),
+			Out: &out,
+			ReadKey: func() (string, error) {
+				t.Error("asked for the key")
+				return "", nil
+			},
+			Home: home,
+		}
+
+		if err := AskSettings(p, globalPathIn(home), keysPathIn(home), func() KeyCheck { return check }); err != nil {
+			t.Fatal(err)
+		}
+
+		if got := strings.TrimPrefix(out.String(), "Your settings are already in "+globalPathIn(home)+". To change them, edit that file.\n"); got != fmt.Sprintf(want, keysPathIn(home)) {
+			t.Errorf("check %v: output %q, want %q", check, out.String(), fmt.Sprintf(want, keysPathIn(home)))
+		}
+		if data, _ := os.ReadFile(keysPathIn(home)); string(data) != "mine" {
+			t.Errorf("check %v: keys.toml changed: %q", check, data)
+		}
+	}
+}
+
+// Setup checks keys.toml for the key only when the file exists.
+func TestAskSettingsChecksOnlyExistingKeys(t *testing.T) {
+	home := t.TempDir()
+	var out bytes.Buffer
+	p := Prompt{
+		In:      bufio.NewReader(strings.NewReader("")),
+		Out:     &out,
+		ReadKey: func() (string, error) { return "sk-test", nil },
+		Home:    home,
+	}
+	checked := false
+
+	err := AskSettings(p, globalPathIn(home), keysPathIn(home), func() KeyCheck { checked = true; return DefaultKeyMissing })
+
+	if err != nil || checked {
+		t.Errorf("err %v, checked %v; want no check of a missing keys.toml", err, checked)
 	}
 }
 
@@ -534,7 +601,7 @@ func TestAskSettingsReportsFolderReadError(t *testing.T) {
 		Home:    home,
 		ReadKey: func() (string, error) { return "sk-test", nil },
 	}
-	err := AskSettings(p, globalPathIn(home), keysPathIn(home))
+	err := AskSettings(p, globalPathIn(home), keysPathIn(home), keysHaveKey)
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v, want it to wrap the read error", err)
 	}

@@ -48,7 +48,9 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if !*agentOnly {
 		in := bufio.NewReader(interruptible{ctx, stdin})
 		prompt := install.Prompt{In: in, Out: stdout, ReadKey: keyReader(ctx, stdin, in), Home: home}
-		if err := install.AskSettings(prompt, filepath.Join(stateDir, settings.GlobalFile), filepath.Join(stateDir, settings.KeysFile)); err != nil {
+		globalPath, keysPath := filepath.Join(stateDir, settings.GlobalFile), filepath.Join(stateDir, settings.KeysFile)
+		checkKeys := func() install.KeyCheck { return keyCheck(stateDir) }
+		if err := install.AskSettings(prompt, globalPath, keysPath, checkKeys); err != nil {
 			return interrupted(ctx, err)
 		}
 	}
@@ -190,4 +192,23 @@ func keysState(stateDir, name string) install.Keys {
 		return install.Keys{Path: path, Found: true, Err: err}
 	}
 	return install.Keys{Path: path, Found: true, HasKey: keys[name] != ""}
+}
+
+// keyCheck says whether keys.toml in stateDir has the key global.toml asks
+// for, or default if global.toml is missing or doesn't load.
+func keyCheck(stateDir string) install.KeyCheck {
+	// A global.toml that doesn't load gives the zero Global, whose KeyName
+	// is DefaultKeyName; status reports the error.
+	g, _ := settings.ReadGlobalFile(filepath.Join(stateDir, settings.GlobalFile))
+	k := keysState(stateDir, g.KeyName())
+	if k.Err != nil {
+		return install.KeyUnknown
+	}
+	if k.HasKey {
+		return install.KeyFound
+	}
+	if g.KeyName() == settings.DefaultKeyName {
+		return install.DefaultKeyMissing
+	}
+	return install.NamedKeyMissing
 }

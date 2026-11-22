@@ -173,10 +173,29 @@ func createPrivateFile(path string, write func(io.Writer) error) error {
 	return nil
 }
 
+// KeyCheck says whether an existing keys.toml has the key global.toml asks
+// for, so AskSettings can say how to add a missing one.
+type KeyCheck int
+
+const (
+	// KeyFound means keys.toml has the key.
+	KeyFound KeyCheck = iota
+	// KeyUnknown means keys.toml can't be read, so no one knows whether it
+	// has the key; status reports why.
+	KeyUnknown
+	// DefaultKeyMissing means keys.toml lacks default, the key global.toml
+	// asks for when it names none.
+	DefaultKeyMissing
+	// NamedKeyMissing means keys.toml lacks the other key global.toml names.
+	NamedKeyMissing
+)
+
 // AskSettings asks for what goes in whichever of keysPath and globalPath is
-// missing, an API key and then folders, and writes only those files. It says
-// which files exist and leaves them alone.
-func AskSettings(p Prompt, globalPath, keysPath string) error {
+// missing, an API key and then folders, and writes only those files. It
+// leaves an existing file alone and says it's there. For an existing
+// keys.toml, it calls checkKeys and, if the key global.toml asks for is
+// missing, says how to add it, never naming a key other than default.
+func AskSettings(p Prompt, globalPath, keysPath string, checkKeys func() KeyCheck) error {
 	needGlobal, err := isMissing(globalPath)
 	if err != nil {
 		return err
@@ -189,7 +208,7 @@ func AskSettings(p Prompt, globalPath, keysPath string) error {
 		_, _ = fmt.Fprintf(p.Out, "Your settings are already in %s. To change them, edit that file.\n", globalPath)
 	}
 	if !needKeys {
-		_, _ = fmt.Fprintf(p.Out, "Your API keys are already in %s. To change them, edit that file.\n", keysPath)
+		_, _ = fmt.Fprintf(p.Out, existingKeysMessage(checkKeys()), keysPath)
 	}
 
 	var key string
@@ -222,6 +241,19 @@ func AskSettings(p Prompt, globalPath, keysPath string) error {
 		_, _ = fmt.Fprintf(p.Out, "Your settings are in %s, and only you can read that file.\n", globalPath)
 	}
 	return nil
+}
+
+// existingKeysMessage is what AskSettings says about an existing keys.toml,
+// as a format for its path.
+func existingKeysMessage(check KeyCheck) string {
+	switch check {
+	case DefaultKeyMissing:
+		return "To add your API key, set default in %s.\n"
+	case NamedKeyMissing:
+		return "To add your API key, add it to %s under the name global.toml asks for.\n"
+	case KeyFound, KeyUnknown:
+	}
+	return "Your API keys are already in %s. To change them, edit that file.\n"
 }
 
 // isMissing reports whether nothing is at path. A dangling link counts as

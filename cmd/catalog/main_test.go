@@ -614,6 +614,57 @@ func TestSetupWithExistingSettings(t *testing.T) {
 	}
 }
 
+// Setup never asks for a key when keys.toml exists. If the file lacks the
+// key global.toml asks for, or default when global.toml is missing or
+// doesn't load, setup says how to add it, and never prints the name
+// global.toml gives.
+func TestSetupSaysHowToAddMissingKey(t *testing.T) {
+	const (
+		addDefault = "To add your API key, set default in %s.\n"
+		addNamed   = "To add your API key, add it to %s under the name global.toml asks for.\n"
+		already    = "Your API keys are already in %s. To change them, edit that file.\n"
+	)
+	for name, c := range map[string]struct {
+		global, keys, want string
+		writeGlobal        bool
+		keysMode           os.FileMode
+	}{
+		"no default key":             {`model = "x"`, `other = "sk-secret"`, addDefault, true, 0o600},
+		"no global.toml":             {"", `other = "sk-secret"`, addDefault, false, 0o600},
+		"global.toml doesn't load":   {"model = [[[", `other = "sk-secret"`, addDefault, true, 0o600},
+		"no key under the named one": {`key = "sk-pasted"`, `default = "sk-secret"`, addNamed, true, 0o600},
+		"keys.toml can't be read":    {`model = "x"`, `other = "sk-secret"`, already, true, 0o604},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := stateDir(t)
+			onMacForTest(t, false)
+			if c.writeGlobal {
+				writeGlobal(t, dir, c.global)
+			}
+			writeKeys(t, dir, c.keys)
+			if err := os.Chmod(filepath.Join(dir, "keys.toml"), c.keysMode); err != nil {
+				t.Fatal(err)
+			}
+
+			code, stdout, stderr := runCatalogWith(context.Background(), strings.NewReader("~/src\n\n"), "setup")
+
+			keys := filepath.Join(dir, "keys.toml")
+			if code != 0 || !strings.Contains(stdout, fmt.Sprintf(c.want, keys)) {
+				t.Errorf("code %d, stdout:\n%s\nstderr:\n%s\nwant %q", code, stdout, stderr, fmt.Sprintf(c.want, keys))
+			}
+			if strings.Contains(stdout, "API key: ") {
+				t.Errorf("asked for a key:\n%s", stdout)
+			}
+			if strings.Contains(stdout+stderr, "sk-") {
+				t.Errorf("output names a key:\n%s%s", stdout, stderr)
+			}
+			if data, _ := os.ReadFile(keys); string(data) != c.keys {
+				t.Errorf("keys.toml = %q, want it unchanged", data)
+			}
+		})
+	}
+}
+
 func TestSetupSaysWhenProgramChanges(t *testing.T) {
 	stateDir(t)
 	onMacForTest(t, true)
