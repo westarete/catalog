@@ -7,6 +7,7 @@
 //	catalog daemon --once <folder>
 //	catalog status
 //	catalog setup [--agent-only]
+//	catalog init [folder]
 package main
 
 import (
@@ -31,7 +32,7 @@ import (
 	"westarete.com/catalog/internal/store"
 )
 
-const usage = "usage: catalog daemon [--once <folder>]\n       catalog status\n       catalog setup [--agent-only]"
+const usage = "usage: catalog daemon [--once <folder>]\n       catalog status\n       catalog setup [--agent-only]\n       catalog init [folder]"
 
 // socketFile is the name of the daemon's status socket in the state folder,
 // and journalFile the name of its journal.
@@ -65,6 +66,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return runStatus(stdout, stderr)
 	case len(args) > 0 && args[0] == "setup":
 		err = runSetup(ctx, args[1:], stdin, stdout, stderr)
+	case len(args) > 0 && args[0] == "init":
+		err = runInit(args[1:], stdout)
 	case len(args) > 0 && args[0] == "daemon":
 		err = runDaemon(ctx, args[1:], stdout, stderr)
 	default:

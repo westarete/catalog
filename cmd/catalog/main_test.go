@@ -123,6 +123,7 @@ func TestUsageErrors(t *testing.T) {
 		{"daemon", "--bogus"},
 		{"setup", "extra"},
 		{"setup", "--bogus"},
+		{"init", "a", "b"},
 	}
 	// A stopped context makes a mistake that runs the daemon fail fast
 	// instead of running until the test times out.
@@ -958,5 +959,97 @@ func TestStatusSaysKeysIsWorldAccessible(t *testing.T) {
 
 	if !strings.Contains(stdout, "keys.toml (can't be read: world-accessible") || strings.Contains(stdout, "sk-secret") {
 		t.Errorf("stdout:\n%s", stdout)
+	}
+}
+
+func TestInitSaysWhetherWatched(t *testing.T) {
+	dir := stateDir(t)
+	root := t.TempDir()
+	watched := filepath.Join(root, "watched")
+	inside := filepath.Join(watched, "docs")
+	outside := filepath.Join(root, "watched-not")
+	for _, d := range []string{inside, outside} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const last = "To have agents read this catalog, add this line to the folder's AGENTS.md or CLAUDE.md: @.catalog/catalog.md\n"
+	globalPath := filepath.Join(dir, "global.toml")
+
+	for name, c := range map[string]struct {
+		global, folder, want string
+	}{
+		"the watched folder itself": {fmt.Sprintf("watch = [%q]", watched), watched, "The daemon watches this folder.\n"},
+		"under a watched folder":    {fmt.Sprintf("watch = [%q]", watched), inside, "The daemon watches this folder.\n"},
+		"a sibling with the same prefix": {fmt.Sprintf("watch = [%q]", watched), outside,
+			"No folder the daemon watches contains this one. Add it, or a folder above it, to watch in " + globalPath + ".\n"},
+		"watching nothing": {"", inside,
+			"No folder the daemon watches contains this one. Add it, or a folder above it, to watch in " + globalPath + ".\n"},
+		"no global.toml":     {"-", inside, ""},
+		"unreadable global":  {"bogus = 1", inside, ""},
+		"watch with a slash": {fmt.Sprintf("watch = [%q]", watched+"/"), inside, "The daemon watches this folder.\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_ = os.Remove(globalPath)
+			if c.global != "-" {
+				writeGlobal(t, dir, c.global)
+			}
+			config := filepath.Join(c.folder, ".catalog", "config.toml")
+			_ = os.RemoveAll(filepath.Join(c.folder, ".catalog"))
+
+			code, out, errOut := runCatalogOut(context.Background(), "init", c.folder)
+
+			want := "Created " + config + "\n" + c.want + last
+			if code != 0 || out != want || errOut != "" {
+				t.Errorf("code %d\nstdout %q\nstderr %q\nwant stdout %q", code, out, errOut, want)
+			}
+		})
+	}
+}
+
+func TestInitDefaultsToCurrentFolder(t *testing.T) {
+	stateDir(t)
+	folder, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(folder)
+
+	code, out, _ := runCatalogOut(context.Background(), "init")
+
+	if code != 0 || !strings.Contains(out, "Created "+filepath.Join(folder, ".catalog", "config.toml")+"\n") {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+}
+
+func TestInitResolvesRelativeFolder(t *testing.T) {
+	stateDir(t)
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(parent, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(parent)
+
+	code, out, _ := runCatalogOut(context.Background(), "init", "sub")
+
+	if code != 0 || !strings.Contains(out, "Created "+filepath.Join(parent, "sub", ".catalog", "config.toml")+"\n") {
+		t.Errorf("code %d, output:\n%s", code, out)
+	}
+}
+
+func TestInitMissingFolder(t *testing.T) {
+	stateDir(t)
+	folder := filepath.Join(t.TempDir(), "nope")
+
+	code, out, errOut := runCatalogOut(context.Background(), "init", folder)
+
+	if want := "catalog: " + folder + " doesn't exist\n"; code != 1 || errOut != want || out != "" {
+		t.Errorf("code %d, stdout %q, stderr %q; want 1, nothing, %q", code, out, errOut, want)
+	}
+	if _, err := os.Stat(folder); !os.IsNotExist(err) {
+		t.Errorf("stat folder: %v, want not exist", err)
 	}
 }
