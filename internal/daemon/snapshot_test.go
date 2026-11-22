@@ -528,3 +528,34 @@ func TestRunStopsWhileKeysIsWorldAccessible(t *testing.T) {
 		t.Errorf("config errors after the fix = %q", s.ConfigErrors)
 	}
 }
+
+// A keys.toml made world-accessible while global.toml fails still drops the
+// key, though the daemon doesn't load keys.toml until global.toml loads.
+func TestKeysWorldAccessibleWhileGlobalFails(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	writeFile(t, root, "a.md", body("a"))
+	d, p := newDaemon(t, root)
+	useGlobal(t, d, p, root, "")
+	writeSettings(t, d.GlobalPath, "watch = [[[ garbage")
+	if err := os.Chmod(d.KeysPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	step(t, d, start)
+	step(t, d, start.Add(quiet))
+
+	if p.calls() != 0 || d.Provider != nil || d.apiKey != "" {
+		t.Errorf("calls = %d, provider %v, key %q; want none", p.calls(), d.Provider, d.apiKey)
+	}
+	s := d.Snapshot()
+	var keysErrs int
+	for _, e := range s.ConfigErrors {
+		if strings.HasPrefix(e, d.KeysPath+": world-accessible") {
+			keysErrs++
+		}
+	}
+	if len(s.ConfigErrors) != 2 || keysErrs != 1 {
+		t.Errorf("config errors = %q, want one for global.toml and one about keys.toml's world access", s.ConfigErrors)
+	}
+}

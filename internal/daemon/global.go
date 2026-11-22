@@ -13,9 +13,9 @@ import (
 // reloadGlobal rereads global.toml from GlobalPath, if it's set, and then
 // the key it names from keys.toml at KeysPath. If either file can't be read
 // or doesn't parse, it journals the error and keeps what it loaded from that
-// file last; while global.toml fails, it doesn't read keys.toml. If either
-// file is world-accessible, it drops the key, so the daemon summarizes
-// nothing until the owner fixes the file's mode. If keys.toml has no key by
+// file last; while global.toml fails, it doesn't load keys.toml, but still
+// checks its mode. If either file is world-accessible, it drops the key, so
+// the daemon summarizes nothing until the owner fixes the file's mode. If keys.toml has no key by
 // the name global.toml asks for, it drops the key too and journals that.
 // When the key or the model changes, reloadGlobal builds a new Provider and
 // ends any pause.
@@ -24,11 +24,8 @@ func (d *Daemon) reloadGlobal(now time.Time) error {
 		return nil
 	}
 	g, err := readSettingsFile(d.GlobalPath, settings.ReadGlobalFile)
-	if errors.Is(err, settings.ErrWorldAccessible) {
-		d.useProvider("", d.Global.Model)
-	}
 	if err != nil {
-		return d.reportConfig(now, d.GlobalPath, err)
+		return d.globalFailed(now, err)
 	}
 	key, keyErr := d.reloadKey(g.KeyName())
 	if key != d.apiKey || g.Model != d.Global.Model {
@@ -37,6 +34,32 @@ func (d *Daemon) reloadGlobal(now time.Time) error {
 	d.Global = g
 	if keyErr != nil {
 		return d.reportConfig(now, d.KeysPath, keyErr)
+	}
+	return nil
+}
+
+// globalFailed journals err, the error from reading global.toml, and keeps
+// the settings loaded last. It drops the key if global.toml or keys.toml is
+// world-accessible.
+func (d *Daemon) globalFailed(now time.Time, err error) error {
+	errs := []error{d.reportConfig(now, d.GlobalPath, err)}
+	keysErr := keysWorldAccessible(d.KeysPath)
+	if keysErr != nil {
+		errs = append(errs, d.reportConfig(now, d.KeysPath, keysErr))
+	}
+	if errors.Is(err, settings.ErrWorldAccessible) || keysErr != nil {
+		d.useProvider("", d.Global.Model)
+	}
+	return errors.Join(errs...)
+}
+
+// keysWorldAccessible returns settings.ErrWorldAccessible, with the mode, if
+// the keys.toml at path is world-accessible, and nil otherwise. It reads the
+// file through settings, which checks the mode of the file it opened.
+func keysWorldAccessible(path string) error {
+	_, err := settings.ReadKeysFile(path)
+	if errors.Is(err, settings.ErrWorldAccessible) {
+		return err
 	}
 	return nil
 }

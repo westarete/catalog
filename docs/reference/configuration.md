@@ -271,9 +271,10 @@ records the error in its journal and shows it in `catalog status` as a
 `Config error` line, and it keeps the last settings that loaded:
 
 - If `global.toml` fails, the daemon keeps the last `global.toml` that
-  loaded, and doesn't read `keys.toml` until `global.toml` loads again.
-  Before one has loaded, it has no settings, so it watches no folder and
-  summarizes nothing.
+  loaded, and doesn't load `keys.toml` until `global.toml` loads again.
+  It still checks the mode of `keys.toml` on each crawl, as the
+  world-accessible case below describes. Before one has loaded, it has
+  no settings, so it watches no folder and summarizes nothing.
 - If `keys.toml` fails, the daemon keeps the key it loaded last, if any.
 - If `global.toml` or `keys.toml` is world-accessible, the daemon also
   drops the API key it loaded, and summarizes nothing until you run
