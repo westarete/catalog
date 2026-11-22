@@ -307,4 +307,3 @@ func TestInGitRepository(t *testing.T) {
 		t.Error("a .git below the folder was counted")
 	}
 }
-

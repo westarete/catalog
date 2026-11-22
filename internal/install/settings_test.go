@@ -682,3 +682,11 @@ func TestAskSettingsRefusesDanglingLink(t *testing.T) {
 		t.Errorf("link changed: %q, %v", got, lerr)
 	}
 }
+
+// setup writes the key under the name the daemon looks for when global.toml
+// names none.
+func TestDefaultKeyNameMatchesSettings(t *testing.T) {
+	if defaultKeyName != settings.DefaultKeyName {
+		t.Errorf("defaultKeyName = %q, settings.DefaultKeyName = %q", defaultKeyName, settings.DefaultKeyName)
+	}
+}
