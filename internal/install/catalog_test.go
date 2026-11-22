@@ -130,6 +130,94 @@ func TestInitLeavesExistingFiles(t *testing.T) {
 	}
 }
 
+// A .catalog that is a symbolic link or a file is refused before init
+// creates anything, so init never writes through a link.
+func TestInitRefusesCatalogThatIsNotAFolder(t *testing.T) {
+	for name, place := range map[string]func(t *testing.T, path string) (linked string){
+		"symbolic link": func(t *testing.T, path string) string {
+			target := t.TempDir()
+			if err := os.Symlink(target, path); err != nil {
+				t.Fatal(err)
+			}
+			return target
+		},
+		"file": func(t *testing.T, path string) string {
+			if err := os.WriteFile(path, []byte("not a folder\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			return ""
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := t.TempDir()
+			if err := os.Mkdir(filepath.Join(repo, ".git"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			dot := filepath.Join(repo, ".catalog")
+			linked := place(t, dot)
+			var out bytes.Buffer
+
+			err := InitCatalog(repo, &out)
+
+			if err == nil || !strings.Contains(err.Error(), dot+" isn't a folder") {
+				t.Errorf("error %v, want one saying %s isn't a folder", err, dot)
+			}
+			if out.Len() != 0 {
+				t.Errorf("output %q, want none", out.String())
+			}
+			if linked == "" {
+				return
+			}
+			if entries, err := os.ReadDir(linked); err != nil || len(entries) != 0 {
+				t.Errorf("link target holds %d entries, %v; want none", len(entries), err)
+			}
+		})
+	}
+}
+
+func TestInitReportsConfigThatIsNotARegularFile(t *testing.T) {
+	for name, place := range map[string]func(t *testing.T, path string){
+		"symbolic link": func(t *testing.T, path string) {
+			target := filepath.Join(t.TempDir(), "elsewhere.toml")
+			if err := os.WriteFile(target, []byte("secret = \"do not show\"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, path); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"folder": func(t *testing.T, path string) {
+			if err := os.Mkdir(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			folder := t.TempDir()
+			dir := filepath.Join(folder, ".catalog")
+			if err := os.Mkdir(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			config := filepath.Join(dir, "config.toml")
+			place(t, config)
+			var out bytes.Buffer
+
+			err := InitCatalog(folder, &out)
+
+			want := config + " isn't a regular file, so " + folder + " isn't a catalog"
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("error %v, want one saying %q", err, want)
+			}
+			if strings.Contains(out.String(), "as it was") || strings.Contains(out.String(), "do not show") {
+				t.Errorf("output %q", out.String())
+			}
+			if err != nil && strings.Contains(err.Error(), "do not show") {
+				t.Errorf("error shows the file's contents: %v", err)
+			}
+		})
+	}
+}
+
 func TestInitMissingFolder(t *testing.T) {
 	folder := filepath.Join(t.TempDir(), "nope")
 
@@ -219,3 +307,4 @@ func TestInGitRepository(t *testing.T) {
 		t.Error("a .git below the folder was counted")
 	}
 }
+

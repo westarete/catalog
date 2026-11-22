@@ -30,7 +30,9 @@ const gitignoreContent = "/catalog.md\n/catalog-*.tmp\n"
 // when folder is in a Git repository, .catalog/.gitignore, and says on out
 // which files it created and which it left as they were. It never changes a
 // file that exists. The files get the default modes, since they travel with
-// the folder. It fails without creating anything if folder doesn't exist.
+// the folder. It fails without creating anything if folder doesn't exist or
+// its .catalog isn't a folder, and fails if config.toml is there but isn't a
+// regular file, since the daemon doesn't count that folder as a catalog.
 func InitCatalog(folder string, out io.Writer) error {
 	info, err := os.Stat(folder)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -43,8 +45,7 @@ func InitCatalog(folder string, out io.Writer) error {
 		return fmt.Errorf("%s isn't a folder", folder)
 	}
 	dir := filepath.Join(folder, ".catalog")
-	// The folder is shared with the catalog's folder; the umask narrows 0777.
-	if err := os.Mkdir(dir, 0o777); err != nil && !errors.Is(err, fs.ErrExist) { //nolint:gosec // see above
+	if err := makeCatalogDir(dir); err != nil {
 		return err
 	}
 	files := []struct{ name, content string }{{"config.toml", configTemplate}}
@@ -57,6 +58,9 @@ func InitCatalog(folder string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
+		if !created && f.name == "config.toml" && !isRegularFile(path) {
+			return fmt.Errorf("%s isn't a regular file, so %s isn't a catalog; replace it with a file", path, folder)
+		}
 		verb := "Left %s as it was\n"
 		if created {
 			verb = "Created %s\n"
@@ -66,6 +70,30 @@ func InitCatalog(folder string, out io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// makeCatalogDir creates the .catalog folder at dir, or leaves it as it is if
+// it's a folder already. It refuses a symbolic link or a file there, so init
+// never writes through a link to somewhere else.
+func makeCatalogDir(dir string) error {
+	info, err := os.Lstat(dir)
+	if err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("%s isn't a folder", dir)
+		}
+		return nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return os.Mkdir(dir, 0o777) //nolint:gosec // the folder travels with the catalog, so it gets the default mode, narrowed by the umask
+}
+
+// isRegularFile reports whether path is a regular file, without following a
+// symbolic link.
+func isRegularFile(path string) bool {
+	info, err := os.Lstat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 // createSharedFile writes content to a new file at path, with the default

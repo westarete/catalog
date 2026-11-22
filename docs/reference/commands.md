@@ -388,7 +388,10 @@ creates nothing. If it's a file, the error is
 
 Init then:
 
-1. Creates `.catalog/` in the folder if it's missing.
+1. Creates `.catalog/` in the folder if it's missing. If `.catalog` is
+   there but is a symbolic link or a file, init fails with code 1 and
+   `catalog: <path> isn't a folder`, with the path of `.catalog`, and
+   creates nothing, so it never writes through a link to somewhere else.
 2. Writes `.catalog/config.toml`, which makes the folder a catalog. The
    file sets nothing; it shows each setting in a comment:
 
@@ -419,11 +422,17 @@ Init then:
    `.gitignore`.
 
 Init never changes a file that exists. For each file it would write, it
-prints `Created <path>` or `Left <path> as it was`. It creates
-`.catalog/` and its files with the modes the umask allows, starting from
-0777 for the folder and 0666 for a file, because the files travel with
-the folder; with a umask of 022, that's 0755 and 0644. `catalog.md`
-stays 0600, because the daemon sets its mode when it writes it.
+prints `Created <path>` or `Left <path> as it was`. If
+`.catalog/config.toml` is there but is a symbolic link or a folder, the
+daemon doesn't count the folder as a catalog, so init fails with code 1
+and
+`catalog: <path> isn't a regular file, so <folder> isn't a catalog; replace it with a file`,
+and writes no `.gitignore`. It never prints what a file holds. It
+creates `.catalog/` and its files with the modes the umask allows,
+starting from 0777 for the folder and 0666 for a file, because the files
+travel with the folder; with a umask of 022, that's 0755 and 0644.
+`catalog.md` stays 0600, because the daemon sets its mode when it writes
+it.
 
 Next, if `global.toml` loads, init says whether the daemon watches the
 folder: `The daemon watches this folder.` when the folder is, or is
