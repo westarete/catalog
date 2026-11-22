@@ -175,7 +175,12 @@ they are, so delete each `.catalog/catalog.md` yourself, along with any
 `.catalog/` folder you no longer want. To stop the daemon without
 deleting anything, see the `launchctl bootout` command above.
 
-If you built the daemon from source, `brew uninstall` doesn't know about
-it. See
-[Set up for development](set-up-for-development.md#install-the-daemon-from-source)
-for how a source build and a Homebrew install share one launch agent.
+If you built the daemon from source, `brew uninstall` removes the
+program it installed, not yours. A source build and a Homebrew install
+share one launch agent. If the cask is installed alongside a source
+build, `brew uninstall` removes that launch agent and its property list
+even when the agent was running your build
+([`.goreleaser.yaml`](../../.goreleaser.yaml) says what the cask's
+uninstall does), but it leaves your build and everything else above.
+[Remove a source build](set-up-for-development.md#remove-a-source-build)
+gives the steps for that case.

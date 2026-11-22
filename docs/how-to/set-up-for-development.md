@@ -56,3 +56,44 @@ program ran `catalog setup` last, or the cask's installer, which runs
 named a different program, it says which program the agent ran before
 and which it runs now. If both are installed, `command -v catalog` shows
 which one a bare `catalog` runs.
+
+## Remove a source build
+
+Removing a source build stops the launch agent and deletes its property
+list, your build, and then, if you want them gone, your settings and
+summaries. Run each step on its own.
+
+Stop the agent (`man launchctl` describes `bootout`):
+
+```sh
+launchctl bootout gui/$(id -u)/com.westarete.catalog
+```
+
+Delete the property list:
+
+```sh
+rm ~/Library/LaunchAgents/com.westarete.catalog.plist
+```
+
+Delete the program you built. `command -v catalog` prints where it is;
+put that path in place of `<program>`:
+
+```sh
+rm <program>
+```
+
+That leaves the state folder, which holds `global.toml` with your API
+key, the store of summaries of your documents, and the journal, and the
+log. To delete them too:
+
+```sh
+rm -r "$HOME/Library/Application Support/com.westarete.catalog"
+```
+
+```sh
+rm ~/Library/Logs/catalog.log
+```
+
+The daemon keeps no list of your catalogs, so delete each
+`.catalog/catalog.md` yourself, along with any `.catalog/` folder you no
+longer want.
