@@ -2,15 +2,15 @@
 
 This guide installs the daemon with Homebrew, gives it your API key and
 the folders to watch, and puts a catalog in place in one repository. You
-need a Mac. We haven't released the daemon through Homebrew yet, so
-until the first release the `brew install` below has nothing to install;
-to try the daemon now, build it from source as
-[Set up for development](set-up-for-development.md) describes, then pick
-up here at `catalog setup`.
+need a Mac. To build the daemon from source instead, follow
+[Set up for development](set-up-for-development.md), then pick up here
+at `catalog setup`.
 
-Install the daemon:
+Trust our Homebrew tap, so Homebrew will load its cask, then install the
+daemon:
 
 ```sh
+brew trust --tap westarete/tap
 brew install westarete/tap/catalog
 ```
 
