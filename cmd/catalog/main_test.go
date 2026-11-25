@@ -333,6 +333,46 @@ func TestStatusWithBrokenSocket(t *testing.T) {
 	}
 }
 
+// Status compares the daemon's version with its own, so a daemon still
+// running an older program gets the warning.
+func TestStatusWarnsWhenDaemonVersionDiffers(t *testing.T) {
+	useVersion(t, "0.7.3")
+	dir := stateDir(t)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() {
+		served <- control.Serve(ctx, filepath.Join(dir, "control.sock"), func() control.Snapshot {
+			return control.Snapshot{Version: "0.7.2"}
+		})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-served; err != nil {
+			t.Errorf("Serve = %v", err)
+		}
+	})
+
+	var stdout string
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var code int
+		code, stdout, _ = runCatalogOut(context.Background(), "status")
+		if code == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status never got an answer; last: code %d\n%s", code, stdout)
+		}
+	}
+
+	want := "\nDaemon version: 0.7.2 \u26a0\ufe0f Run `catalog setup` to restart it with 0.7.3\n"
+	if !strings.Contains(stdout, want) {
+		t.Errorf("status doesn't contain %q:\n%s", want, stdout)
+	}
+}
+
 // A daemon started without global.toml answers status with the problem, and
 // removes its socket when it stops.
 func TestStatusOfRunningDaemon(t *testing.T) {

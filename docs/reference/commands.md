@@ -366,11 +366,12 @@ The lines appear in this order:
    running. When it isn't the version of the `catalog` program you ran,
    the line goes on to say so:
    ``Daemon version: 0.7.2 ⚠️ Run `catalog setup` to restart it with 0.7.3``.
-   Setup restarts the daemon with the program that ran setup, whichever
-   version is older. A daemon older than this line sends no version, so
-   the line reads `Daemon version: unknown` with the same warning. A
-   program built without a release version reports `dev`, so two such
-   builds look the same.
+   Setup restarts the daemon with the program that ran setup, whether
+   the daemon was running an older version or a newer one. A daemon from
+   before status reported versions sends none, so the line reads
+   `Daemon version: unknown` with the same warning. A program built
+   without a release version reports `dev`, so two such builds look the
+   same.
 2. `Started: <time>`, or `Started: not yet` if the daemon hasn't
    recorded a start time.
 3. `Last crawled: <time>`. Before the first crawl ends, it reads

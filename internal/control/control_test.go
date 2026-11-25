@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"net"
@@ -92,6 +93,32 @@ func TestServeAndAsk(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Ask = %+v\nwant %+v", got, want)
+	}
+}
+
+// The daemon and the command can be different versions, so the version's
+// JSON key must stay the same, and an answer from a daemon that sent none
+// must still decode.
+func TestSnapshotVersionJSON(t *testing.T) {
+	sent, err := json.Marshal(Snapshot{Version: "0.7.3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sent), `"Version":"0.7.3"`) {
+		t.Errorf("Marshal = %s, want the key Version", sent)
+	}
+
+	for answer, want := range map[string]string{
+		`{"Version":"0.7.3","Started":"2026-11-15T09:00:00Z"}`: "0.7.3",
+		`{"Started":"2026-11-15T09:00:00Z"}`:                   "",
+	} {
+		var s Snapshot
+		if err := json.Unmarshal([]byte(answer), &s); err != nil {
+			t.Errorf("Unmarshal(%s): %v", answer, err)
+		}
+		if s.Version != want || !s.Started.Equal(started) {
+			t.Errorf("Unmarshal(%s) = version %q, started %v; want %q, %v", answer, s.Version, s.Started, want, started)
+		}
 	}
 }
 
