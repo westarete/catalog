@@ -11,3 +11,7 @@
 
 # GoReleaser's build output.
 dist/
+
+# Scratch files from agents, kept in the repository so reaching them needs
+# no permission. The leading slash keeps this to the root folder.
+/tmp/

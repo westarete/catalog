@@ -154,6 +154,10 @@ needs that, describe the issue and stop.
 **Edit files with the Edit and Write tools, not with Python or other
 scripts.** A script needs the developer's permission every time it runs.
 
+**Put temporary files in `tmp/` at the repository root, never in `/tmp`
+or a scratchpad outside the repository.** Reading or writing outside the
+repository needs the developer's permission. Git ignores `tmp/`.
+
 **Never search or `find` starting from `/`, `$HOME`, or other paths
 outside this repo and its dependency caches.** A full-filesystem scan is
 slow, and it can read files that have nothing to do with the task. To

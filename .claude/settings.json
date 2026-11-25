@@ -9,14 +9,23 @@
       "Bash(go mod tidy)",
       "Bash(go get *)",
       "Bash(go list *)",
+      "Bash(go env *)",
       "Bash(CGO_ENABLED=0 go build *)",
       "Bash(CGO_ENABLED=0 go test *)",
       "Bash(make markdown)",
       "Bash(make test)",
       "Bash(make lint)",
+      "Bash(make build)",
+      "Bash(make mutate *)",
+      "Bash(catalog version)",
+      "Bash(catalog status)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue view *)",
       "Bash(git add *)",
       "Bash(git --no-pager diff *)",
       "Bash(git --no-pager log *)",
+      "Bash(git --no-pager show *)",
+      "Bash(git remote -v)",
       "Bash(git restore --staged *)"
     ]
   }
