@@ -16,6 +16,8 @@ lint:
 	golangci-lint run ./...
 
 # Mutation-test one package, for example: make mutate PKG=./internal/planner
+# PKG goes to the shell in single quotes, with each quote in it escaped, so
+# a package name can't run a command.
 mutate:
 	$(if $(PKG),,$(error PKG is required, e.g. make mutate PKG=./internal/planner))
-	$(shell go env GOPATH)/bin/gremlins unleash --timeout-coefficient 50 $(PKG)
+	$(shell go env GOPATH)/bin/gremlins unleash --timeout-coefficient 50 '$(subst ','\'',$(PKG))'
