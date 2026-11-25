@@ -309,6 +309,14 @@ match the problem domain, not the implementation. When something feels
 awkward to name or test, that is usually a design problem, not a naming
 problem.
 
+### Write file modes in octal
+
+Write every file mode and umask in octal, in code, config, tests, and
+docs: `0o600` in Go, `077` in a shell or a doc. When a format takes the
+number in decimal, use the form it offers for octal instead; launchd's
+`Umask` takes the string `077`. Never write the decimal value, such as
+`63` for 077, even with a comment beside it.
+
 ## Principles (short)
 
 - Update the doc that a reader would naturally open — usually the same
