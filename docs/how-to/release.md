@@ -19,9 +19,13 @@ release.
 
 This project uses [semantic versioning](https://semver.org). Catalog is
 experimental, so its versions start with 0, and semver says that in a
-0.y.z version "Anything MAY change at any time." Until 1.0.0, a minor
-release adds functionality or makes breaking changes, and a patch
-release fixes bugs without changing behavior.
+0.y.z version "Anything MAY change at any time." Until 1.0.0, choose the
+version by how much a release changes for someone using catalog, judged
+against what catalog is for: keeping a catalog of their documents. A
+minor release changes that work, such as how catalog finds, summarizes,
+or publishes documents, or asks people to change something, such as a
+setting or how they run a command. A patch release fixes bugs or makes
+small improvements that leave that work as it was.
 
 Before picking a version number, fetch tags from upstream so you have
 the full picture:
