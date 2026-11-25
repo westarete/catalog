@@ -18,6 +18,9 @@ import (
 
 // Snapshot is the daemon's state at the end of its last crawl or summary.
 type Snapshot struct {
+	// Version is the daemon's build version. A daemon from before status
+	// reported it leaves it empty.
+	Version            string
 	Started, LastCrawl time.Time
 	// ConfigErrors holds one line for each config file that didn't load,
 	// naming the file or the catalog's folder, then the error.

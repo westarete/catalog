@@ -134,7 +134,7 @@ func runStatus(stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "catalog: %v\n", err)
 		return exitFailed
 	}
-	_, _ = fmt.Fprint(stdout, control.Format(s))
+	_, _ = fmt.Fprint(stdout, control.Format(s, version))
 	return 0
 }
 
@@ -165,7 +165,7 @@ func runOnce(ctx context.Context, folder string, stdout io.Writer) error {
 	d.Provider = models.NewAnthropic(key, g.Model)
 	err = d.Once(ctx, time.Now)
 	s := d.Snapshot()
-	_, _ = fmt.Fprint(stdout, control.Format(s))
+	_, _ = fmt.Fprint(stdout, control.Format(s, version))
 	if err == nil && len(s.Catalogs) == 0 {
 		err = noCatalogError(abs, s.ConfigErrors)
 	}

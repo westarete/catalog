@@ -7,18 +7,24 @@ import (
 	"time"
 )
 
-// timeLayout is how status shows a time, in local time.
-const timeLayout = "Jan 2 15:04"
+// timeLayout is how status shows a time, in local time. It gives the year,
+// the seconds, and the offset from UTC, so the time means one moment.
+const timeLayout = "2006-01-02 15:04:05-07:00"
 
-// Format describes s in plain lines for a person to read.
-func Format(s Snapshot) string {
+// warningSign marks a line that asks the reader to do something.
+const warningSign = "⚠️"
+
+// Format describes s in plain lines for a person to read. commandVersion is
+// the version of the program that asked for s.
+func Format(s Snapshot, commandVersion string) string {
 	var b strings.Builder
+	b.WriteString(versionLine(s.Version, commandVersion))
+	fmt.Fprintf(&b, "Started: %s\n", whenOrNotYet(s.Started))
+	fmt.Fprintf(&b, "Last crawled: %s\n", whenOrNotYet(s.LastCrawl))
 	if s.LastCrawl.IsZero() {
 		// Until the first crawl ends, the daemon knows nothing to report.
-		fmt.Fprintf(&b, "%s; the first crawl is under way.\n", startLine(s.Started))
 		return b.String()
 	}
-	fmt.Fprintf(&b, "%s; last crawled %s.\n", startLine(s.Started), when(s.LastCrawl))
 	for _, e := range s.ConfigErrors {
 		fmt.Fprintf(&b, "Config error: %s\n", e)
 	}
@@ -30,13 +36,25 @@ func Format(s Snapshot) string {
 	return b.String()
 }
 
-// startLine says when the daemon started, or that it's starting if it
-// hasn't published a start time yet.
-func startLine(started time.Time) string {
-	if started.IsZero() {
-		return "Starting"
+// versionLine says which version the daemon runs. When that isn't the
+// command's version, it says how to restart the daemon with the command's,
+// which works whichever is older.
+func versionLine(daemon, command string) string {
+	if daemon == command {
+		return "Daemon version: " + daemon + "\n"
 	}
-	return "Started " + when(started)
+	if daemon == "" {
+		daemon = "unknown"
+	}
+	return fmt.Sprintf("Daemon version: %s %s Run `catalog setup` to restart it with %s\n", daemon, warningSign, command)
+}
+
+// whenOrNotYet shows t, or says it hasn't happened if t is zero.
+func whenOrNotYet(t time.Time) string {
+	if t.IsZero() {
+		return "not yet"
+	}
+	return when(t)
 }
 
 // pauseLine says why summarizing is paused, and until when if it will

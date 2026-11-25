@@ -67,6 +67,7 @@ var started = time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
 
 func sample() Snapshot {
 	return Snapshot{
+		Version:      "0.7.3",
 		Started:      started,
 		LastCrawl:    started.Add(41 * time.Minute),
 		ConfigErrors: []string{"/state/global.toml: parse global.toml: bad"},
@@ -302,18 +303,20 @@ func TestServeStopsAndRemovesSocket(t *testing.T) {
 func TestFormat(t *testing.T) {
 	useLocal(t, time.UTC)
 
-	got := Format(sample())
+	got := Format(sample(), "0.7.3")
 
 	want := strings.Join([]string{
-		"Started Nov 15 09:00; last crawled Nov 15 09:41.",
+		"Daemon version: 0.7.3",
+		"Started: 2026-11-15 09:00:00+00:00",
+		"Last crawled: 2026-11-15 09:41:00+00:00",
 		"Config error: /state/global.toml: parse global.toml: bad",
-		"Summarizing paused until Nov 15 09:45: summarize /notes/a.md: 529 Overloaded",
+		"Summarizing paused until 2026-11-15 09:45:00+00:00: summarize /notes/a.md: 529 Overloaded",
 		"",
 		"Catalogs:",
 		"  /notes: 12 files, 10 summarized, 2 waiting, 3 to update",
 		"",
 		"Failing:",
-		"  /notes/b.pdf: model returned no profile text (retry Nov 15 10:00)",
+		"  /notes/b.pdf: model returned no profile text (retry 2026-11-15 10:00:00+00:00)",
 		"",
 	}, "\n")
 	if got != want {
@@ -329,12 +332,12 @@ func TestFormatBeforeFirstCrawl(t *testing.T) {
 		s    Snapshot
 		want string
 	}{
-		"started":        {Snapshot{Started: started}, "Started Nov 15 09:00; the first crawl is under way.\n"},
-		"not yet":        {Snapshot{}, "Starting; the first crawl is under way.\n"},
-		"with a problem": {Snapshot{PauseReason: "x", ConfigErrors: []string{"y"}}, "Starting; the first crawl is under way.\n"},
+		"started":        {Snapshot{Version: "0.7.3", Started: started}, "Daemon version: 0.7.3\nStarted: 2026-11-15 09:00:00+00:00\nLast crawled: not yet\n"},
+		"not yet":        {Snapshot{Version: "0.7.3"}, "Daemon version: 0.7.3\nStarted: not yet\nLast crawled: not yet\n"},
+		"with a problem": {Snapshot{Version: "0.7.3", PauseReason: "x", ConfigErrors: []string{"y"}}, "Daemon version: 0.7.3\nStarted: not yet\nLast crawled: not yet\n"},
 	}
 	for name, tt := range tests {
-		if got := Format(tt.s); got != tt.want {
+		if got := Format(tt.s, "0.7.3"); got != tt.want {
 			t.Errorf("%s: Format =\n%q\nwant\n%q", name, got, tt.want)
 		}
 	}
@@ -343,9 +346,9 @@ func TestFormatBeforeFirstCrawl(t *testing.T) {
 func TestFormatNoCatalogs(t *testing.T) {
 	useLocal(t, time.UTC)
 
-	got := Format(Snapshot{Started: started, LastCrawl: started})
+	got := Format(Snapshot{Version: "0.7.3", Started: started, LastCrawl: started}, "0.7.3")
 
-	want := "Started Nov 15 09:00; last crawled Nov 15 09:00.\n\nNo catalogs found.\n"
+	want := "Daemon version: 0.7.3\nStarted: 2026-11-15 09:00:00+00:00\nLast crawled: 2026-11-15 09:00:00+00:00\n\nNo catalogs found.\n"
 	if got != want {
 		t.Errorf("Format =\n%q\nwant\n%q", got, want)
 	}
@@ -363,7 +366,7 @@ func TestFormatFolderProblemAndStop(t *testing.T) {
 		Failing:     []FailingFile{{Dir: "/src/private", Error: "permission denied"}},
 	}
 
-	got := Format(s)
+	got := Format(s, "0.7.3")
 
 	for _, line := range []string{
 		"Not summarizing: no API key\n",
@@ -375,13 +378,46 @@ func TestFormatFolderProblemAndStop(t *testing.T) {
 	}
 }
 
+// Status shows whole seconds in local time, with the offset from UTC.
 func TestFormatUsesLocalTime(t *testing.T) {
 	useLocal(t, time.FixedZone("EST", -5*60*60))
 
-	got := Format(Snapshot{Started: time.Date(2026, 11, 15, 14, 0, 0, 0, time.UTC)})
+	got := Format(Snapshot{Started: time.Date(2026, 11, 15, 14, 0, 0, 500_000_000, time.UTC)}, "0.7.3")
 
-	if !strings.HasPrefix(got, "Started Nov 15 09:00;") {
-		t.Errorf("Format =\n%s\nwant the start in local time, 09:00", got)
+	if want := "\nStarted: 2026-11-15 09:00:00-05:00\n"; !strings.Contains(got, want) {
+		t.Errorf("Format =\n%s\nwant the line %q", got, want)
+	}
+}
+
+func TestFormatHalfHourOffset(t *testing.T) {
+	useLocal(t, time.FixedZone("IST", 5*60*60+30*60))
+
+	got := Format(Snapshot{Started: started}, "0.7.3")
+
+	if want := "\nStarted: 2026-11-15 14:30:00+05:30\n"; !strings.Contains(got, want) {
+		t.Errorf("Format =\n%s\nwant the line %q", got, want)
+	}
+}
+
+// When the daemon runs a different version from the command, the version
+// line says how to restart it, whichever is older. A daemon from before
+// versions were reported sends none.
+func TestFormatVersionMismatch(t *testing.T) {
+	tests := []struct {
+		daemon, command, want string
+	}{
+		{"0.7.2", "0.7.3", "Daemon version: 0.7.2 ⚠️ Run `catalog setup` to restart it with 0.7.3"},
+		{"0.7.4", "0.7.3", "Daemon version: 0.7.4 ⚠️ Run `catalog setup` to restart it with 0.7.3"},
+		{"", "0.7.3", "Daemon version: unknown ⚠️ Run `catalog setup` to restart it with 0.7.3"},
+		{"0.7.3", "0.7.3", "Daemon version: 0.7.3"},
+		{"dev", "dev", "Daemon version: dev"},
+	}
+	for _, tt := range tests {
+		got := Format(Snapshot{Version: tt.daemon}, tt.command)
+
+		if first, _, _ := strings.Cut(got, "\n"); first != tt.want {
+			t.Errorf("daemon %q, command %q: first line = %q, want %q", tt.daemon, tt.command, first, tt.want)
+		}
 	}
 }
 
