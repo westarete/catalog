@@ -51,6 +51,18 @@ func TestDaemonSnapshot(t *testing.T) {
 	}
 }
 
+func TestSnapshotCarriesVersion(t *testing.T) {
+	root := t.TempDir()
+	makeCatalog(t, root)
+	d, _ := newDaemon(t, root)
+	d.Version = "0.7.3"
+	step(t, d, start)
+
+	if got := d.Snapshot().Version; got != "0.7.3" {
+		t.Errorf("Snapshot().Version = %q, want 0.7.3", got)
+	}
+}
+
 func TestSnapshotCountsEachCatalog(t *testing.T) {
 	root := t.TempDir()
 	makeCatalog(t, filepath.Join(root, "one"))

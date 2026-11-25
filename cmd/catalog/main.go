@@ -255,6 +255,7 @@ func openDaemon(stateDir string) (*daemon.Daemon, error) {
 		return nil, err
 	}
 	return &daemon.Daemon{
+		Version:     version,
 		Store:       s,
 		NewProvider: models.NewAnthropic,
 		JournalPath: filepath.Join(stateDir, journalFile),

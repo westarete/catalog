@@ -343,12 +343,15 @@ When the daemon isn't running, `The catalog daemon isn't running.`
 follows the blank line.
 
 The rest of the status is plain lines. Times are in the local time zone,
-in the form `Jan 2 15:04`.
+with the date, the seconds, and the offset from UTC, in the form
+`2026-11-19 09:12:05-05:00`. In UTC the offset reads `+00:00`.
 
 ```text
-Started Nov 19 09:12; last crawled Nov 19 09:31.
+Daemon version: 0.7.3
+Started: 2026-11-19 09:12:05-05:00
+Last crawled: 2026-11-19 09:31:40-05:00
 Config error: /Users/alex/src/notes: parse config.toml: line 3: unknown key; did you mean exclude?
-Summarizing paused until Nov 19 09:33: the model service is not answering
+Summarizing paused until 2026-11-19 09:33:10-05:00: the model service is not answering
 
 Catalogs:
   /Users/alex/src/notes: 41 files, 38 summarized, 3 waiting, 5 to update
@@ -359,21 +362,29 @@ Failing:
 
 The lines appear in this order:
 
-1. The first line. Before the first crawl ends, it reads
-   `Started <time>; the first crawl is under way.`, or
-   `Starting; the first crawl is under way.` if the daemon hasn't
-   recorded a start time, and nothing else follows. After the first
-   crawl it reads `Started <time>; last crawled <time>.`
-2. One `Config error: <path>: <error>` line for each config file that
+1. `Daemon version: <version>`, the version of the daemon that's
+   running. When it isn't the version of the `catalog` program you ran,
+   the line goes on to say so:
+   ``Daemon version: 0.7.2 ⚠️ Run `catalog setup` to restart it with 0.7.3``.
+   Setup restarts the daemon with the program that ran setup, whichever
+   version is older. A daemon older than this line sends no version, so
+   the line reads `Daemon version: unknown` with the same warning. A
+   program built without a release version reports `dev`, so two such
+   builds look the same.
+2. `Started: <time>`, or `Started: not yet` if the daemon hasn't
+   recorded a start time.
+3. `Last crawled: <time>`. Before the first crawl ends, it reads
+   `Last crawled: not yet`, and nothing else follows.
+4. One `Config error: <path>: <error>` line for each config file that
    didn't load on the last crawl, sorted by path. The path is the path
    of `global.toml` or `keys.toml`, or the folder of a catalog whose
    `.catalog/config.toml` didn't load.
-3. A pause line, if the daemon isn't summarizing. It reads
+5. A pause line, if the daemon isn't summarizing. It reads
    `Summarizing paused until <time>: <reason>` when the daemon is
    waiting out a model service problem, and `Not summarizing: <reason>`
    when it can't summarize until someone fixes a settings file. With no
    API key loaded, the reason is `no API key loaded from keys.toml`.
-4. A blank line, then `Catalogs:` with one line per catalog, sorted by
+6. A blank line, then `Catalogs:` with one line per catalog, sorted by
    path, indented two spaces:
    `<folder>: <n> files, <n> summarized, <n> waiting, <n> to update`. A
    file counts as summarized when `catalog.md` has a summary of its
@@ -386,7 +397,7 @@ The lines appear in this order:
    model's name, so a change of `model` counts every summarized file as
    one to update. If the last crawl found no catalogs, the blank line is
    followed by `No catalogs found.` instead.
-5. If any file or folder is failing, a blank line, then `Failing:` with
+7. If any file or folder is failing, a blank line, then `Failing:` with
    one line per problem, sorted by folder and path, indented two spaces:
    `<path>: <error> (retry <time>)`. The retry is `next crawl` when the
    daemon tries again on every crawl.

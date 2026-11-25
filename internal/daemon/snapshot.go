@@ -36,6 +36,7 @@ func (d *Daemon) publishStatus() error {
 
 func (d *Daemon) status() (control.Snapshot, error) {
 	s := control.Snapshot{
+		Version:      d.Version,
 		Started:      d.started,
 		LastCrawl:    d.lastCrawl,
 		ConfigErrors: d.configErrorLines(),

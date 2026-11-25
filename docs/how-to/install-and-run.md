@@ -96,13 +96,14 @@ uninstalling it, run
 `launchctl bootout gui/$(id -u)/com.westarete.catalog`; `catalog setup`
 starts it again.
 
-`catalog status` also shows when the daemon last crawled, each catalog's
-file counts, and any files that are failing. On the first day the daemon
-summarizes one file at a time, so expect catalogs to fill in gradually.
-Edits to `global.toml` and to each `config.toml` take effect within a
-minute, with no restart. [Commands](../reference/commands.md) describes
-`catalog setup` and `catalog status`, and [Files](../reference/files.md)
-lists where the daemon keeps its files.
+`catalog status` also shows the daemon's version, when the daemon last
+crawled, each catalog's file counts, and any files that are failing. On
+the first day the daemon summarizes one file at a time, so expect
+catalogs to fill in gradually. Edits to `global.toml` and to each
+`config.toml` take effect within a minute, with no restart.
+[Commands](../reference/commands.md) describes `catalog setup` and
+`catalog status`, and [Files](../reference/files.md) lists where the
+daemon keeps its files.
 
 ## Put a catalog in place
 
@@ -155,9 +156,15 @@ Update with Homebrew:
 brew upgrade catalog
 ```
 
-Then run `catalog status`. If its first line says the launch agent isn't
-installed, or the daemon isn't running, run `catalog setup`, which loads
-the agent for the new version.
+Then run `catalog status`, and run `catalog setup` if status says any of
+these:
+
+- the launch agent isn't installed
+- the daemon isn't running
+- `Daemon version:` is followed by ⚠️
+
+Setup loads the agent for the new version. Once the update has taken,
+`Daemon version:` shows the new version with nothing after it.
 
 ### Update from version 0.6
 

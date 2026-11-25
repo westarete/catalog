@@ -45,6 +45,8 @@ type Daemon struct {
 	// Log receives the errors Run can't journal or act on, such as a failed
 	// Store. If it's nil, Run drops them.
 	Log *log.Logger
+	// Version is the program's build version, which status reports.
+	Version string
 
 	// apiKey is the key the Provider was built with, from keys.toml. It
 	// stays in memory only: no journal entry, error, or status line holds it.

@@ -182,6 +182,19 @@ func TestOnceWithoutCatalog(t *testing.T) {
 	}
 }
 
+// --once runs the daemon in this program, so its report names this version
+// with no warning.
+func TestOnceReportsItsVersion(t *testing.T) {
+	useVersion(t, "1.2.3")
+	writeSettings(t, stateDir(t), "", testKeys)
+
+	_, stdout, _ := runCatalogOut(context.Background(), "daemon", "--once", t.TempDir())
+
+	if !strings.HasPrefix(stdout, "Daemon version: 1.2.3\n") {
+		t.Errorf("stdout doesn't begin with the version line:\n%s", stdout)
+	}
+}
+
 // A catalog whose config.toml doesn't load is skipped, so the run finds no
 // catalog, and the error says why instead of saying there is none.
 func TestOnceWithBrokenCatalogConfig(t *testing.T) {
@@ -323,6 +336,7 @@ func TestStatusWithBrokenSocket(t *testing.T) {
 // A daemon started without global.toml answers status with the problem, and
 // removes its socket when it stops.
 func TestStatusOfRunningDaemon(t *testing.T) {
+	useVersion(t, "1.2.3")
 	dir := stateDir(t)
 	onMacForTest(t, true)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -349,7 +363,10 @@ func TestStatusOfRunningDaemon(t *testing.T) {
 	if !strings.HasPrefix(stdout, installLines(t, "not installed; run catalog setup")+"\n") {
 		t.Errorf("status doesn't begin with the install lines and a blank line:\n%s", stdout)
 	}
-	for _, want := range []string{"Config error: " + filepath.Join(dir, "global.toml") + ": not found", "Not summarizing:"} {
+	if strings.Contains(stdout, "⚠") {
+		t.Errorf("status warns though the daemon runs this version:\n%s", stdout)
+	}
+	for _, want := range []string{"\nDaemon version: 1.2.3\n", "Config error: " + filepath.Join(dir, "global.toml") + ": not found", "Not summarizing:"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("status doesn't contain %q:\n%s", want, stdout)
 		}
@@ -1104,13 +1121,20 @@ func TestInitMissingFolder(t *testing.T) {
 }
 
 func TestVersionPrintsVersion(t *testing.T) {
-	saved := version
-	version = "1.2.3"
-	t.Cleanup(func() { version = saved })
+	useVersion(t, "1.2.3")
 	for _, arg := range []string{"-v", "--version", "version"} {
 		code, stdout, stderr := runCatalogOut(context.Background(), arg)
 		if code != 0 || stdout != "catalog 1.2.3\n" || stderr != "" {
 			t.Errorf("run(%q) = %d, stdout %q, stderr %q; want 0 and %q", arg, code, stdout, stderr, "catalog 1.2.3\n")
 		}
 	}
+}
+
+// useVersion sets the program's version for one test, as a release build
+// does. No test in this package runs in parallel.
+func useVersion(t *testing.T, v string) {
+	t.Helper()
+	saved := version
+	version = v
+	t.Cleanup(func() { version = saved })
 }

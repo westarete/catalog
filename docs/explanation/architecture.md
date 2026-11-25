@@ -461,16 +461,17 @@ socket in the state folder, which only the person's account can open. We
 use a Unix socket instead of XPC, which exists only on Apple's systems,
 so a Linux daemon could use the same core.
 
-The answer to a status request is a snapshot: when the daemon started
-and last crawled, any settings error, whether profiling is paused and
-why, and for each catalog its folder and how many of its files are
-profiled, waiting, or to update, along with each failing file, its last
-error, and when the daemon will retry it. That names folders and files
-and quotes errors, so it's a copy like the others. Control answers only
-the account that runs the daemon, and the socket's mode is how it
-checks. If the socket doesn't exist, `catalog status` reports that the
-daemon isn't running. Control imports nothing else in the module,
-because the daemon and the command both use it.
+The answer to a status request is a snapshot: the daemon's version, when
+the daemon started and last crawled, any settings error, whether
+profiling is paused and why, and for each catalog its folder and how
+many of its files are profiled, waiting, or to update, along with each
+failing file, its last error, and when the daemon will retry it. That
+names folders and files and quotes errors, so it's a copy like the
+others. Control answers only the account that runs the daemon, and the
+socket's mode is how it checks. If the socket doesn't exist,
+`catalog status` reports that the daemon isn't running. Control imports
+nothing else in the module, because the daemon and the command both use
+it.
 
 More requests are direction, not built: prioritize this catalog
 (`catalog update` would become a simple way for a person to ask the
