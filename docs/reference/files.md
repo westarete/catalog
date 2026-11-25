@@ -14,21 +14,21 @@ open to its owner only.
 
 ## Summary
 
-| Path                                                 | Created by                               | Mode                                 | What it holds                                            |
-| ---------------------------------------------------- | ---------------------------------------- | ------------------------------------ | -------------------------------------------------------- |
-| `<state folder>`                                     | the daemon, or `catalog setup`           | 0700                                 | the files below whose paths start with it                |
-| `<state folder>/keys.toml`                           | `catalog setup`, or a person             | 0600 from `catalog setup`            | the API keys                                             |
-| `<state folder>/global.toml`                         | `catalog setup`, or a person             | 0600 from `catalog setup`            | the folders to watch and the global settings             |
-| `<state folder>/store.db`                            | the daemon                               | 0600                                 | the store: files seen, summaries, failures               |
-| `<state folder>/store.db-wal`, `store.db-shm`        | SQLite, while the store is open          | 0600                                 | recent writes to the store, and its shared memory        |
-| `<state folder>/journal.jsonl`                       | the daemon                               | 0600                                 | one line for each event the daemon records               |
-| `<state folder>/control.sock`                        | the daemon                               | 0600                                 | the status socket                                        |
-| `<catalog folder>/.catalog/config.toml`              | `catalog init`, or a person              | from the umask                       | the catalog's settings; it marks the folder as a catalog |
-| `<catalog folder>/.catalog/.gitignore`               | `catalog init`, only in a Git repository | from the umask                       | the files Git leaves out of commits                      |
-| `<catalog folder>/.catalog/catalog.md`               | the daemon                               | 0600                                 | the catalog agents read                                  |
-| `<catalog folder>/.catalog/catalog-*.tmp`            | the daemon, briefly                      | 0600                                 | a `catalog.md` being written                             |
-| `~/Library/Logs/catalog.log`                         | launchd                                  | 0600, from the property list's umask | the daemon's standard error                              |
-| `~/Library/LaunchAgents/com.westarete.catalog.plist` | `catalog setup`                          | 0600                                 | the launch agent: the program to run and the log         |
+| Path                                                 | Created by                               | Mode                                   | What it holds                                            |
+| ---------------------------------------------------- | ---------------------------------------- | -------------------------------------- | -------------------------------------------------------- |
+| `<state folder>`                                     | the daemon, or `catalog setup`           | 0700                                   | the files below whose paths start with it                |
+| `<state folder>/keys.toml`                           | `catalog setup`, or a person             | 0600 from `catalog setup`              | the API keys                                             |
+| `<state folder>/global.toml`                         | `catalog setup`, or a person             | 0600 from `catalog setup`              | the folders to watch and the global settings             |
+| `<state folder>/store.db`                            | the daemon                               | 0600                                   | the store: files seen, summaries, failures               |
+| `<state folder>/store.db-wal`, `store.db-shm`        | SQLite, while the store is open          | 0600                                   | recent writes to the store, and its shared memory        |
+| `<state folder>/journal.jsonl`                       | the daemon                               | 0600                                   | one line for each event the daemon records               |
+| `<state folder>/control.sock`                        | the daemon                               | 0600                                   | the status socket                                        |
+| `<catalog folder>/.catalog/config.toml`              | `catalog init`, or a person              | from the umask                         | the catalog's settings; it marks the folder as a catalog |
+| `<catalog folder>/.catalog/.gitignore`               | `catalog init`, only in a Git repository | from the umask                         | the files Git leaves out of commits                      |
+| `<catalog folder>/.catalog/catalog.md`               | the daemon                               | 0600                                   | the catalog agents read                                  |
+| `<catalog folder>/.catalog/catalog-*.tmp`            | the daemon, briefly                      | 0600                                   | a `catalog.md` being written                             |
+| `~/Library/Logs/catalog.log`                         | launchd                                  | 0600, set by the daemon when it starts | the daemon's standard error                              |
+| `~/Library/LaunchAgents/com.westarete.catalog.plist` | `catalog setup`                          | 0600                                   | the launch agent: the program to run and the log         |
 
 The state folder is
 `~/Library/Application Support/com.westarete.catalog`, with `~` the home
@@ -234,7 +234,7 @@ keys:
 | `Label`                                | `com.westarete.catalog`                         |
 | `ProgramArguments`                     | the program's path, then `daemon`               |
 | `RunAtLoad`, `KeepAlive`               | true                                            |
-| `Umask`                                | 63, which is octal 077                          |
+| `Umask`                                | the string `077`, which launchd reads as octal  |
 | `StandardOutPath`, `StandardErrorPath` | `~/Library/Logs/catalog.log`, with `~` expanded |
 
 Setup writes the file through a temporary file in the same folder and
@@ -247,13 +247,18 @@ which name the home folder, and no key or other setting.
 The property list sends the daemon's standard output and standard error
 to `~/Library/Logs/catalog.log`. The daemon writes only to standard
 error: one line for each error it can't journal or act on, with a
-timestamp. launchd creates the log, not the daemon, and the daemon
-doesn't set its mode. The property list sets `Umask` to 63, which is
-octal 077, so launchd creates the log with mode 0600; a comment in the
-template cites `launchd.plist(5)` for this. The umask also applies to
-any file the daemon creates without choosing a mode. `catalog setup`
-creates the log's folder, closed to other accounts, if it is missing. It
-does the same for `~/Library/LaunchAgents`, with mode 0700.
+timestamp. launchd creates the log with mode 0644, whatever the property
+list's `Umask` says, which would let every account on the Mac read it.
+So when the daemon starts, it gives the file its standard error goes to
+mode 0600, if that is a regular file. It leaves a terminal, a pipe, or
+`/dev/null` alone. If it can't, it writes
+`catalog: can't make the log readable only by its owner:` and the error
+to standard error, and keeps working. The property list sets `Umask` to
+the string `077`, because `launchd.plist(5)` reads a string with a
+leading 0 as octal and an integer as decimal. That umask applies to any
+file the daemon creates without choosing a mode. `catalog setup` creates
+the log's folder, closed to other accounts, if it is missing. It does
+the same for `~/Library/LaunchAgents`, with mode 0700.
 
 ## Files the daemon only reads
 

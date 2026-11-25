@@ -61,8 +61,14 @@ func quickStop(t *testing.T, checks int) {
 	t.Cleanup(func() { stopPoll, stopChecks = oldPoll, oldChecks })
 }
 
-// parsePlist returns the property list's values by key: strings and
-// integers as text, arrays as []string, booleans as "true" or "false".
+// plistInteger is an <integer> value's text, kept apart from a <string>'s,
+// because launchd reads an integer Umask as decimal and a string one as
+// octal.
+type plistInteger string
+
+// parsePlist returns the property list's values by key: strings as text,
+// integers as plistInteger, arrays as []string, booleans as "true" or
+// "false".
 func parsePlist(t *testing.T, path string) map[string]any {
 	t.Helper()
 	data, err := os.ReadFile(path) //nolint:gosec // test reads its own temp file
@@ -95,6 +101,8 @@ func parsePlist(t *testing.T, path string) map[string]any {
 					key = text
 				case inArray:
 					items = append(items, text)
+				case name == "integer":
+					out[key] = plistInteger(text)
 				default:
 					out[key] = text
 				}
@@ -129,7 +137,7 @@ func TestInstallWritesPlist(t *testing.T) {
 		"ProgramArguments":  []string{"/opt/bin/catalog", "daemon"},
 		"RunAtLoad":         "true",
 		"KeepAlive":         "true",
-		"Umask":             "63",
+		"Umask":             "077",
 		"StandardOutPath":   LogPath(a.Home),
 		"StandardErrorPath": LogPath(a.Home),
 	}

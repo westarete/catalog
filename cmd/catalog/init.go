@@ -18,12 +18,14 @@ const instructionLine = "To have agents read this catalog, add this line to the 
 // most one folder, which defaults to the current folder. It makes the folder
 // a catalog and says whether the daemon watches it.
 func runInit(args []string, stdout io.Writer) error {
-	if len(args) > 1 {
-		return errUsage
-	}
-	folder := "."
-	if len(args) == 1 {
+	var folder string
+	switch len(args) {
+	case 0:
+		folder = "."
+	case 1:
 		folder = args[0]
+	default:
+		return errUsage
 	}
 	abs, err := filepath.Abs(folder)
 	if err != nil {

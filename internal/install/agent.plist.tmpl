@@ -13,11 +13,13 @@
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
-	<!-- 63 is octal 077: the log and every file the daemon creates are
-	     readable only by their owner. launchd.plist(5) says it creates the
-	     log files with this umask. -->
+	<!-- Every file the daemon creates without choosing a mode is readable
+	     only by its owner. launchd.plist(5) reads a string with a leading 0
+	     as octal; an <integer> would be read as decimal. launchd creates the
+	     log with mode 0644 whatever this says, so the daemon sets the log's
+	     mode itself when it starts. -->
 	<key>Umask</key>
-	<integer>63</integer>
+	<string>077</string>
 	<key>StandardOutPath</key>
 	<string>{{xml .LogPath}}</string>
 	<key>StandardErrorPath</key>

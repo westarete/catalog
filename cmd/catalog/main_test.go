@@ -478,6 +478,40 @@ func TestOldStateFilesBecomePrivate(t *testing.T) {
 	assertMode(t, journal, 0o600)
 }
 
+// launchd creates the log the property list names with mode 0644, whatever
+// the property list's Umask says, so the daemon makes the file its standard
+// error goes to private when it starts.
+func TestDaemonMakesItsLogPrivate(t *testing.T) {
+	stateDir(t)
+	logPath := filepath.Join(t.TempDir(), "catalog.log")
+	logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644) //nolint:gosec // stands in for the log launchd creates
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = logFile.Close() })
+	if err := logFile.Chmod(0o644); err != nil { //nolint:gosec // stands in for the log launchd creates
+		t.Fatal(err)
+	}
+
+	run(stopped(), []string{"daemon"}, strings.NewReader(""), io.Discard, logFile)
+
+	assertMode(t, logPath, 0o600)
+}
+
+// A terminal or a pipe isn't the daemon's to change, and /dev/null belongs
+// to root, so the daemon changes only a regular file.
+func TestMakeLogPrivateLeavesDevicesAlone(t *testing.T) {
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = devNull.Close() })
+
+	if err := makeLogPrivate(devNull); err != nil {
+		t.Errorf("makeLogPrivate(%s) = %v", os.DevNull, err)
+	}
+}
+
 func assertMode(t *testing.T, path string, want os.FileMode) {
 	t.Helper()
 	info, err := os.Stat(path)

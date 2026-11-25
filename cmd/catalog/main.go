@@ -187,8 +187,14 @@ func noCatalogError(folder string, configErrors []string) error {
 // ctx ends. It fails at once if another daemon answers on the socket. A
 // missing or broken global.toml doesn't stop it: launchd would only start it
 // again, and status reports the problem instead. It writes the errors it
-// can't journal to stderr.
+// can't journal to stderr, which it first makes private if it's a file.
 func runLoop(ctx context.Context, stderr io.Writer) error {
+	logger := log.New(stderr, "catalog: ", log.LstdFlags)
+	if f, ok := stderr.(*os.File); ok {
+		if err := makeLogPrivate(f); err != nil {
+			logger.Printf("can't make the log readable only by its owner: %v", err)
+		}
+	}
 	stateDir, err := privateStateDir()
 	if err != nil {
 		return err
@@ -206,7 +212,7 @@ func runLoop(ctx context.Context, stderr io.Writer) error {
 	defer func() { _ = d.Store.Close() }()
 	d.GlobalPath = filepath.Join(stateDir, settings.GlobalFile)
 	d.KeysPath = filepath.Join(stateDir, settings.KeysFile)
-	d.Log = log.New(stderr, "catalog: ", log.LstdFlags)
+	d.Log = logger
 
 	serving, stopServing := context.WithCancel(ctx)
 	served := make(chan struct{})
@@ -224,6 +230,21 @@ func runLoop(ctx context.Context, stderr io.Writer) error {
 	ticker := time.NewTicker(crawlEvery)
 	defer ticker.Stop()
 	return d.Run(ctx, time.Now, ticker.C)
+}
+
+// makeLogPrivate makes f readable only by its owner if f is a regular file.
+// The log names files and quotes errors, and launchd creates the one the
+// property list names with mode 0644, whatever the property list's Umask
+// says. A terminal, a pipe, or /dev/null is left alone.
+func makeLogPrivate(f *os.File) error {
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return nil
+	}
+	return f.Chmod(0o600)
 }
 
 // openDaemon opens the Store in stateDir and builds a daemon on it, with no

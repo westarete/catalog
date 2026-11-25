@@ -92,7 +92,8 @@ The daemon writes to standard error each error it can't record in its
 journal or act on, one line each, prefixed with a timestamp and the word
 `catalog:`. It writes nothing to standard output. Under the launch
 agent's property list, which `catalog setup` writes, both go to
-`~/Library/Logs/catalog.log`.
+`~/Library/Logs/catalog.log`. When it starts, the daemon makes that file
+readable only by its owner; [the log](files.md#the-log) says why.
 
 ## catalog daemon --once
 

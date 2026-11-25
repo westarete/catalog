@@ -617,11 +617,13 @@ property list that names the program comes from `catalog setup`, which
 the Homebrew cask runs when it installs and a person who builds from
 source runs themself. launchd starts the daemon when the person logs in
 and starts it again if it exits. launchd sends the daemon's log to a
-file, and the property list sets the umask so that the log and any file
-the daemon creates without choosing a mode are readable only by their
-owner. The log names files and quotes errors, like the journal, so it
-follows the same reader rule. Apple's `container` tool has the same
-shape, a CLI and a launch agent, though it connects them with XPC
+file, and the property list sets the umask so that any file the daemon
+creates without choosing a mode is readable only by its owner. launchd
+creates the log itself with mode 0644, ignoring that umask, so the
+daemon sets the log's mode to 0600 when it starts. The log names files
+and quotes errors, like the journal, so it follows the same reader rule.
+Apple's `container` tool has the same shape, a CLI and a launch agent,
+though it connects them with XPC
 ([research/container.md](../research/container.md)).
 
 macOS permissions may affect how we package the daemon. Howard Oakley

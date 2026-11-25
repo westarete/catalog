@@ -218,7 +218,7 @@ Second, it installs the launch agent and starts it:
 
 - It writes `~/Library/LaunchAgents/com.westarete.catalog.plist` from a
   template built into the program, with mode 0600. The template keeps
-  today's keys: `RunAtLoad`, `KeepAlive`, `Umask` 63, and the log path
+  today's keys: `RunAtLoad`, `KeepAlive`, `Umask` 077, and the log path
   for standard output and standard error.
 - `ProgramArguments` names the program that's running, with symbolic
   links resolved, followed by `daemon`. Under Homebrew that's the
