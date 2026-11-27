@@ -126,15 +126,15 @@ issues, so you don't duplicate or contradict work tracked there. Use
 ## Config files
 
 When creating config files (`.prettierrc.yaml`, `.markdownlint.yaml`,
-`.markdownlint-cli2.yaml`, and similar), copy them from the
-`knowledge-work` plugin (the markdown skill's `config/` directory)
-rather than writing minimal stubs. The comments explain why each setting
-exists and are part of the convention — don't strip them.
+`.markdownlint-cli2.yaml`, and similar), copy them from the `operations`
+plugin (the markdown skill's `config/` directory) rather than writing
+minimal stubs. The comments explain why each setting exists and are part
+of the convention — don't strip them.
 
 ## Skills
 
-Load `knowledge-work:markdown` before editing any `.md` file. It comes
-from the `knowledge-work` plugin in the
+Load `operations:markdown` before editing any `.md` file. It comes from
+the `operations` plugin in the
 [claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
 marketplace.
 

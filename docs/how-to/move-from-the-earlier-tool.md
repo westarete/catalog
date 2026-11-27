@@ -3,8 +3,8 @@
 This guide moves a repository from the earlier command-line tool to the
 daemon. Move all your repositories in one sitting. Both tools are called
 `catalog`, and `catalog status` means something different in each. Your
-agents also need the updated `knowledge-work:catalog` skill first, so
-none of them runs `catalog update` in a repository you've moved.
+agents also need the updated `operations:catalog` skill first, so none
+of them runs `catalog update` in a repository you've moved.
 
 1. Remove the Homebrew `catalog` and install the new build in its place,
    as [Install and run the daemon](install-and-run.md) describes.
