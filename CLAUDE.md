@@ -135,7 +135,7 @@ of the convention — don't strip them.
 
 Load `operations:markdown` before editing any `.md` file. It comes from
 the `operations` plugin in the
-[claude-plugins-internal](https://github.com/westarete/claude-plugins-internal)
+[internal-skills](https://github.com/westarete/internal-skills)
 marketplace.
 
 ## Running commands
